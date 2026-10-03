@@ -103,7 +103,7 @@ class SnapshotStore(private val context: Context) {
     private fun httpBytes(url: String): ByteArray {
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "AI-Rankboard/0.3")
+            .header("User-Agent", "AI-Rankboard/0.4")
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IllegalStateException("HTTP ${response.code} for $url")

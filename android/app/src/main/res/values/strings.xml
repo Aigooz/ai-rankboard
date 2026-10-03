@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AI 排行榜</string>
+    <string name="snapshot_update_channel_name">榜单更新提醒</string>
+    <string name="snapshot_update_title">AI 排行榜数据已更新</string>
+    <string name="snapshot_update_message">打开查看最新模型排名。</string>
 </resources>
-

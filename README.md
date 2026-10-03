@@ -67,6 +67,8 @@ SNAPSHOT_URL=https://your-domain.example.com/leaderboards.json
 
 重新构建 APK 后，WorkManager 会每天检查一次；用户下拉首页也会立即检查。更新文件必须通过 SHA-256 校验，`schemaVersion` 必须被 App 支持。无网络、校验失败或解析失败时，继续使用内置快照或最后一次成功下载的快照。
 
+从 v0.4.0 起，后台 Worker 检测到新快照后会发送系统通知“AI 排行榜数据已更新”。首次启动时 App 会请求 Android 13+ 的通知权限；如果拒绝，后续可到系统设置里重新开启“通知”。点击通知会回到应用首页。
+
 ## 数据可信度与归一
 
 - schema v2 记录 `schemaVersion`、`generatedAt`、`sources`，每个榜单保留原始 URL 和最后抓取时间。
