@@ -18,13 +18,15 @@ class RankboardApp : Application() {
             local = LocalSnapshotDataSource(snapshotStore),
             db = AppDatabase.build(this),
             snapshotStore = snapshotStore,
+            snapshotUrlProvider = { settingsStore.settings.value.snapshotUrl },
         )
     }
 
     override fun onCreate() {
         super.onCreate()
-        if (settingsStore.settings.value.updateReminders) {
-            snapshotStore.scheduleDailyUpdate(BuildConfig.SNAPSHOT_URL)
+        val settings = settingsStore.settings.value
+        if (settings.updateReminders) {
+            snapshotStore.scheduleDailyUpdate(settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL })
         }
     }
 }

@@ -115,7 +115,7 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     placeholder = { Text("模糊搜索模型名称") },
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
                             IconButton(onClick = { vm.setQuery("") }) {
@@ -328,9 +328,9 @@ private fun ModelRow(
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 1.dp,
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    tonalElevation = 2.dp,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),

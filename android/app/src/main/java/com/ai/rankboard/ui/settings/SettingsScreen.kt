@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -65,6 +66,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
     var updateMessage by remember { mutableStateOf("") }
+    var remoteUrl by remember { mutableStateOf(settings.snapshotUrl) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
@@ -129,6 +131,53 @@ fun SettingsScreen(
             }
             item {
                 SettingsGroup(title = "数据更新", icon = Icons.Filled.Notifications) {
+                    OutlinedTextField(
+                        value = remoteUrl,
+                        onValueChange = { remoteUrl = it },
+                        label = { Text("远端快照地址") },
+                        placeholder = { Text("https://example.com/leaderboards.json") },
+                        supportingText = {
+                            Text(
+                                "系统会自动请求同一地址加 .sha256 做校验",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        singleLine = true,
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (settings.snapshotUrl.isBlank()) {
+                                "当前使用内置数据"
+                            } else {
+                                "当前地址已保存"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            onClick = {
+                                val savedUrl = remoteUrl.trim()
+                                app.settingsStore.setSnapshotUrl(savedUrl)
+                                app.snapshotStore.setDailyUpdateEnabled(
+                                    settings.updateReminders,
+                                    savedUrl,
+                                )
+                                updateMessage = if (savedUrl.isBlank()) "已清除远端地址" else "已保存远端地址"
+                            },
+                            enabled = remoteUrl.trim() != settings.snapshotUrl,
+                        ) {
+                            Text("保存地址")
+                        }
+                    }
                     SwitchRow(
                         title = "更新提醒",
                         subtitle = if (BuildConfig.SNAPSHOT_URL.isBlank()) {
@@ -213,9 +262,9 @@ private fun SettingsGroup(
     icon: ImageVector,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        tonalElevation = 1.dp,
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(vertical = 10.dp)) {

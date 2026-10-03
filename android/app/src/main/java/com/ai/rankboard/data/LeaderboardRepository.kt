@@ -7,6 +7,7 @@ class LeaderboardRepository(
     private val local: LocalSnapshotDataSource,
     private val db: AppDatabase,
     private val snapshotStore: SnapshotStore? = null,
+    private val snapshotUrlProvider: () -> String = { BuildConfig.SNAPSHOT_URL },
 ) {
     private val dao get() = db.dao()
     private val boardsCache = mutableMapOf<String, List<BoardDto>>()
@@ -70,7 +71,7 @@ class LeaderboardRepository(
             SnapshotUpdateStatus.SKIPPED,
             "未配置远端快照地址",
         )
-        val result = store.refresh(BuildConfig.SNAPSHOT_URL)
+        val result = store.refresh(snapshotUrlProvider())
         if (result.status == SnapshotUpdateStatus.UPDATED) {
             boardsCache.clear()
         }
