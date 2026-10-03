@@ -4,6 +4,7 @@ __pycache__/
 backend/data/
 backend/.pytest_cache/
 android/.gradle/
+android/.kotlin/
 android/build/
 android/app/build/
 android/local.properties
