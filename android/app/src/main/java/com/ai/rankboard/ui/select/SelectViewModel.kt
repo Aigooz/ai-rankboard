@@ -16,19 +16,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class CostInput(
-    val calls: Int = 10_000,
-    val inputTokens: Int = 3_000,
-    val outputTokens: Int = 1_000,
+    val monthlyInputMillions: Double = 3.0,
+    val monthlyOutputMillions: Double = 1.0,
     val cacheHitRate: Float = 0.30f,
     val minScore: Double = 70.0,
     val openSource: Int = 0,
-) {
-    val monthlyInputTokens: Long
-        get() = calls.toLong() * inputTokens
-
-    val monthlyOutputTokens: Long
-        get() = calls.toLong() * outputTokens
-}
+)
 
 data class CostEstimate(
     val entry: EntryDto,
@@ -139,10 +132,9 @@ class SelectViewModel(
             .map { entry ->
                 val score = entry.score ?: 0.0
                 val inputCost = (entry.priceIn ?: 0.0) *
-                    (input.monthlyInputTokens / 1_000_000.0) *
-                    (1.0 - input.cacheHitRate)
+                    input.monthlyInputMillions * (1.0 - input.cacheHitRate)
                 val outputCost = (entry.priceOut ?: 0.0) *
-                    (input.monthlyOutputTokens / 1_000_000.0)
+                    input.monthlyOutputMillions
                 CostEstimate(
                     entry = entry,
                     score = score,

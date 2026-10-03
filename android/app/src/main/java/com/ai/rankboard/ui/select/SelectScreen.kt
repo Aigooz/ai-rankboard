@@ -49,9 +49,8 @@ import com.ai.rankboard.ui.common.VendorIcon
 import com.ai.rankboard.ui.common.scoreColor
 import java.util.Locale
 
-private val CALL_OPTIONS = listOf(1_000, 10_000, 100_000, 1_000_000)
-private val INPUT_TOKEN_OPTIONS = listOf(1_000, 3_000, 10_000, 50_000)
-private val OUTPUT_TOKEN_OPTIONS = listOf(500, 1_000, 3_000, 10_000)
+private val INPUT_VOLUME_OPTIONS = listOf(0.1, 0.5, 1.0, 5.0, 10.0, 50.0)
+private val OUTPUT_VOLUME_OPTIONS = listOf(0.1, 0.5, 1.0, 3.0, 10.0, 30.0)
 private val SCORE_OPTIONS = listOf(60.0, 70.0, 80.0, 90.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -241,26 +240,19 @@ private fun InputCard(
                 }
             }
 
-            OptionRow(
-                label = "月调用",
-                selected = input.calls,
-                options = CALL_OPTIONS,
-                format = { formatCompact(it.toDouble()) },
-                onSelect = { onInput(input.copy(calls = it)) },
+            OptionRowDouble(
+                label = "月输入 (M tokens)",
+                selected = input.monthlyInputMillions,
+                options = INPUT_VOLUME_OPTIONS,
+                format = ::formatMillions,
+                onSelect = { onInput(input.copy(monthlyInputMillions = it)) },
             )
-            OptionRow(
-                label = "输入",
-                selected = input.inputTokens,
-                options = INPUT_TOKEN_OPTIONS,
-                format = { formatCompact(it.toDouble()) },
-                onSelect = { onInput(input.copy(inputTokens = it)) },
-            )
-            OptionRow(
-                label = "输出",
-                selected = input.outputTokens,
-                options = OUTPUT_TOKEN_OPTIONS,
-                format = { formatCompact(it.toDouble()) },
-                onSelect = { onInput(input.copy(outputTokens = it)) },
+            OptionRowDouble(
+                label = "月输出 (M tokens)",
+                selected = input.monthlyOutputMillions,
+                options = OUTPUT_VOLUME_OPTIONS,
+                format = ::formatMillions,
+                onSelect = { onInput(input.copy(monthlyOutputMillions = it)) },
             )
 
             Column {
@@ -648,11 +640,8 @@ private fun formatCost(value: Double): String = when {
     else -> "¥${String.format(Locale.US, "%.2f", value)}"
 }
 
-private fun formatCompact(value: Double): String = when {
-    value >= 1_000_000.0 -> "${(value / 1_000_000.0).toInt()}M"
-    value >= 1_000.0 -> "${(value / 1_000.0).toInt()}K"
-    else -> value.toInt().toString()
-}
+private fun formatMillions(value: Double): String =
+    if (value == value.toLong().toDouble()) "${value.toLong()}M" else "${value}M"
 
 private fun EntryDto.isLikelyOpenSource(): Boolean {
     val licenseText = license?.lowercase(Locale.ROOT) ?: return false

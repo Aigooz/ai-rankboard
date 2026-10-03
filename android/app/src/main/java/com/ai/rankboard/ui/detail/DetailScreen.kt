@@ -64,8 +64,8 @@ fun DetailScreen(
     val state by vm.state.collectAsState()
     val favoriteSlugs by vm.favoriteSlugs.collectAsState(initial = emptyList())
     val isFavorite = slug in favoriteSlugs.toSet()
-    var inputTokens by remember { mutableStateOf("1") }
-    var outputTokens by remember { mutableStateOf("1") }
+    var inputMillions by remember { mutableStateOf("1") }
+    var outputMillions by remember { mutableStateOf("1") }
     var calculatorOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -236,10 +236,10 @@ fun DetailScreen(
                                     contentDescription = if (calculatorOpen) "收起价格计算器" else "展开价格计算器",
                                 )
                             }
-                            val input = inputTokens.toDoubleOrNull()
-                            val output = outputTokens.toDoubleOrNull()
-                            val inputCost = priced.priceIn?.let { (it * (input ?: 0.0) / 1_000_000.0) }
-                            val outputCost = priced.priceOut?.let { (it * (output ?: 0.0) / 1_000_000.0) }
+                            val input = inputMillions.toDoubleOrNull()
+                            val output = outputMillions.toDoubleOrNull()
+                            val inputCost = priced.priceIn?.let { it * (input ?: 0.0) }
+                            val outputCost = priced.priceOut?.let { it * (output ?: 0.0) }
                             val symbol = if (priced.currency == "USD") "$" else "¥"
                             val cost = listOfNotNull(inputCost, outputCost).sum()
                             Text(
@@ -260,20 +260,26 @@ fun DetailScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
                                     OutlinedTextField(
-                                        value = inputTokens,
-                                        onValueChange = { inputTokens = it },
-                                        label = { Text("输入 token") },
+                                        value = inputMillions,
+                                        onValueChange = { inputMillions = it },
+                                        label = { Text("输入 (M tokens)") },
                                         singleLine = true,
                                         modifier = Modifier.weight(1f),
                                     )
                                     OutlinedTextField(
-                                        value = outputTokens,
-                                        onValueChange = { outputTokens = it },
-                                        label = { Text("输出 token") },
+                                        value = outputMillions,
+                                        onValueChange = { outputMillions = it },
+                                        label = { Text("输出 (M tokens)") },
                                         singleLine = true,
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
+                                Text(
+                                    "1 = 100 万 tokens",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 5.dp),
+                                )
                             }
                         }
                     }
