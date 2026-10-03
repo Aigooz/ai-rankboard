@@ -3,6 +3,19 @@ package com.ai.rankboard.data
 class LocalSnapshotDataSource(private val store: SnapshotStore) {
     private val snapshot get() = store.snapshot
 
+    private fun EntryDto.withModelMetadata(): EntryDto {
+        val model = snapshot.models[slug] ?: return this
+        return copy(
+            vendor = vendor?.takeIf { it.isNotBlank() } ?: model.vendor?.takeIf { it.isNotBlank() },
+            paramsB = paramsB ?: model.paramsB,
+            license = license?.takeIf { it.isNotBlank() } ?: model.license?.takeIf { it.isNotBlank() },
+            contextWindow = contextWindow?.takeIf { it.isNotBlank() }
+                ?: model.contextWindow?.takeIf { it.isNotBlank() },
+            releaseDate = releaseDate ?: model.releaseDate,
+            sourceUrl = sourceUrl?.takeIf { it.isNotBlank() } ?: model.sourceUrl,
+        )
+    }
+
     fun boards(): List<BoardDto> = snapshot.boards
 
     fun info(): SnapshotInfo = store.info()
@@ -22,11 +35,12 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             snapshot.entriesByBoard[boardSlug].orEmpty()
         }
         return baseEntries
+            .map { it.withModelMetadata() }
             .mapNotNull { it.vendor?.trim() }
             .filter { it.isNotBlank() }
             .distinctBy { it.lowercase() }
             .sortedWith(compareByDescending { it.length })
-            .take(12)
+            .take(40)
     }
 
     fun periodOptions(dimension: String): List<PeriodOption> = Periods.options(
@@ -38,9 +52,9 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         boardSlug: String,
         sort: String,
         query: String?,
-        vendor: String?,
-        license: String?,
-        params: String?,
+        vendor: Set<String>,
+        license: Set<String>,
+        params: Set<String>,
         limit: Int,
         offset: Int,
         periodDimension: String? = null,
@@ -48,6 +62,7 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
     ): EntriesResponse? {
         val board = snapshot.boards.firstOrNull { it.slug == boardSlug } ?: return null
         val baseEntries = snapshot.entriesByBoard[boardSlug].orEmpty()
+            .map { it.withModelMetadata() }
         val filteredByPeriod = if (periodDimension in Periods.supported && !period.isNullOrBlank()) {
             baseEntries.filter { Periods.matches(periodDimension!!, period, it.releaseDate) }
         } else {
@@ -66,27 +81,13 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
                 entry.slug.contains(keyword, ignoreCase = true)
         }
             .filter { entry ->
-                vendor.isNullOrBlank() || entry.vendor.equals(vendor, ignoreCase = true)
+                vendor.isEmpty() || vendor.any { entry.vendor.equals(it, ignoreCase = true) }
             }
             .filter { entry ->
-                when (license) {
-                    "open" -> entry.license?.contains("open", ignoreCase = true) == true ||
-                        entry.license?.contains("apache", ignoreCase = true) == true ||
-                        entry.license?.contains("mit", ignoreCase = true) == true
-                    "proprietary" -> entry.license.isNullOrBlank() ||
-                        !(entry.license.contains("open", ignoreCase = true) ||
-                            entry.license.contains("apache", ignoreCase = true) ||
-                            entry.license.contains("mit", ignoreCase = true))
-                    else -> true
-                }
+                license.isEmpty() || license.any { entry.matchesLicense(it) }
             }
             .filter { entry ->
-                when (params) {
-                    "small" -> entry.paramsB != null && entry.paramsB <= 10.0
-                    "medium" -> entry.paramsB != null && entry.paramsB > 10.0 && entry.paramsB <= 100.0
-                    "large" -> entry.paramsB != null && entry.paramsB > 100.0
-                    else -> true
-                }
+                params.isEmpty() || params.any { entry.matchesParams(it) }
             }
         val sorted = sortEntries(entries, sort)
         return EntriesResponse(
@@ -101,6 +102,24 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
     private fun scoreRanked(entries: List<EntryDto>): List<EntryDto> =
         entries.sortedWith(compareByDescending { it.score ?: Double.NEGATIVE_INFINITY })
             .mapIndexed { index, entry -> entry.copy(rank = index + 1) }
+
+    private fun EntryDto.matchesLicense(value: String): Boolean = when (value) {
+        "open" -> isLikelyOpenSource()
+        "proprietary" -> license.isNullOrBlank() || !isLikelyOpenSource()
+        else -> true
+    }
+
+    private fun EntryDto.isLikelyOpenSource(): Boolean {
+        val licenseText = license?.lowercase() ?: return false
+        return OPEN_SOURCE_MARKERS.any { licenseText.contains(it) }
+    }
+
+    private fun EntryDto.matchesParams(value: String): Boolean = when (value) {
+        "small" -> paramsB != null && paramsB <= 10.0
+        "medium" -> paramsB != null && paramsB > 10.0 && paramsB <= 100.0
+        "large" -> paramsB != null && paramsB > 100.0
+        else -> true
+    }
 
     private fun sortEntries(entries: List<EntryDto>, sort: String): List<EntryDto> = when (sort) {
         "score" -> entries.sortedByDescending { it.score ?: Double.NEGATIVE_INFINITY }
@@ -158,3 +177,8 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         ).take(300)
     }
 }
+
+private val OPEN_SOURCE_MARKERS = listOf(
+    "open", "apache", "mit", "bsd", "gpl", "lgpl", "agpl", "mpl", "epl",
+    "cc-by", "llama", "qwen", "gemma", "falcon", "community", "research",
+)

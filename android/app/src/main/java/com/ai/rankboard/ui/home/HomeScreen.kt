@@ -244,9 +244,7 @@ fun HomeScreen(
                     vm.setParamsFilter(params)
                 },
                 onClear = {
-                    vm.setVendorFilter(null)
-                    vm.setLicenseFilter(null)
-                    vm.setParamsFilter(null)
+                    vm.clearValueFilters()
                 },
             )
         }
@@ -502,9 +500,9 @@ private fun FilterSheet(
     onSelectBoard: (String) -> Unit,
     onSelectPeriod: (String) -> Unit,
     onSelectSource: (String?) -> Unit,
-    onSelectVendor: (String?) -> Unit,
-    onSelectLicense: (String?) -> Unit,
-    onSelectParams: (String?) -> Unit,
+    onSelectVendor: (String) -> Unit,
+    onSelectLicense: (String) -> Unit,
+    onSelectParams: (String) -> Unit,
     onClear: () -> Unit,
 ) {
     Column(
@@ -585,17 +583,15 @@ private fun FilterSheet(
             FilterSection("厂商") {
                 item {
                     FilterChip(
-                        selected = state.vendorFilter == null,
-                        onClick = { onSelectVendor(null) },
+                        selected = state.vendorFilter.isEmpty(),
+                        onClick = { state.vendorFilter.forEach(onSelectVendor) },
                         label = { Text("全部") },
                     )
                 }
                 items(state.vendorOptions, key = { it }) { vendor ->
                     FilterChip(
-                        selected = state.vendorFilter == vendor,
-                        onClick = {
-                            onSelectVendor(if (state.vendorFilter == vendor) null else vendor)
-                        },
+                        selected = vendor in state.vendorFilter,
+                        onClick = { onSelectVendor(vendor) },
                         label = { Text(vendor, maxLines = 1) },
                     )
                 }
@@ -604,22 +600,22 @@ private fun FilterSheet(
         FilterSection("许可") {
             item {
                 FilterChip(
-                    selected = state.licenseFilter == null,
-                    onClick = { onSelectLicense(null) },
+                    selected = state.licenseFilter.isEmpty(),
+                    onClick = { state.licenseFilter.forEach(onSelectLicense) },
                     label = { Text("全部") },
                 )
             }
             item {
                 FilterChip(
-                    selected = state.licenseFilter == "open",
-                    onClick = { onSelectLicense(if (state.licenseFilter == "open") null else "open") },
+                    selected = "open" in state.licenseFilter,
+                    onClick = { onSelectLicense("open") },
                     label = { Text("开源") },
                 )
             }
             item {
                 FilterChip(
-                    selected = state.licenseFilter == "proprietary",
-                    onClick = { onSelectLicense(if (state.licenseFilter == "proprietary") null else "proprietary") },
+                    selected = "proprietary" in state.licenseFilter,
+                    onClick = { onSelectLicense("proprietary") },
                     label = { Text("商业") },
                 )
             }
@@ -627,29 +623,29 @@ private fun FilterSheet(
         FilterSection("参数") {
             item {
                 FilterChip(
-                    selected = state.paramsFilter == null,
-                    onClick = { onSelectParams(null) },
+                    selected = state.paramsFilter.isEmpty(),
+                    onClick = { state.paramsFilter.forEach(onSelectParams) },
                     label = { Text("全部") },
                 )
             }
             item {
                 FilterChip(
-                    selected = state.paramsFilter == "small",
-                    onClick = { onSelectParams(if (state.paramsFilter == "small") null else "small") },
+                    selected = "small" in state.paramsFilter,
+                    onClick = { onSelectParams("small") },
                     label = { Text("≤10B") },
                 )
             }
             item {
                 FilterChip(
-                    selected = state.paramsFilter == "medium",
-                    onClick = { onSelectParams(if (state.paramsFilter == "medium") null else "medium") },
+                    selected = "medium" in state.paramsFilter,
+                    onClick = { onSelectParams("medium") },
                     label = { Text("10-100B") },
                 )
             }
             item {
                 FilterChip(
-                    selected = state.paramsFilter == "large",
-                    onClick = { onSelectParams(if (state.paramsFilter == "large") null else "large") },
+                    selected = "large" in state.paramsFilter,
+                    onClick = { onSelectParams("large") },
                     label = { Text(">100B") },
                 )
             }
@@ -683,12 +679,8 @@ private fun sourceLabel(sourceId: String): String = when (sourceId) {
     else -> "ModelSage"
 }
 
-private fun HomeUiState.activeFilterCount(): Int = listOf<String?>(
-    sourceFilter,
-    vendorFilter,
-    licenseFilter,
-    paramsFilter,
-).count { it != null }
+private fun HomeUiState.activeFilterCount(): Int =
+    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size + paramsFilter.size
 
 @Composable
 private fun ModelRow(

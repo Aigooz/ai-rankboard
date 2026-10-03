@@ -52,9 +52,9 @@ data class HomeUiState(
     val sort: String = "rank",
     val query: String = "",
     val vendorOptions: List<String> = emptyList(),
-    val vendorFilter: String? = null,
-    val licenseFilter: String? = null,
-    val paramsFilter: String? = null,
+    val vendorFilter: Set<String> = emptySet(),
+    val licenseFilter: Set<String> = emptySet(),
+    val paramsFilter: Set<String> = emptySet(),
     val entries: List<EntryDto> = emptyList(),
     val total: Int = 0,
     val loading: Boolean = false,
@@ -107,9 +107,9 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
         _state.update {
             it.copy(
                 selectedBoard = slug,
-                vendorFilter = null,
-                licenseFilter = null,
-                paramsFilter = null,
+                vendorFilter = emptySet(),
+                licenseFilter = emptySet(),
+                paramsFilter = emptySet(),
             )
         }
         loadVendorOptions(slug)
@@ -125,9 +125,9 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
                 boardsForTab = emptyList(),
                 entries = emptyList(),
                 total = 0,
-                vendorFilter = null,
-                licenseFilter = null,
-                paramsFilter = null,
+                vendorFilter = emptySet(),
+                licenseFilter = emptySet(),
+                paramsFilter = emptySet(),
                 loading = true,
             )
         }
@@ -149,21 +149,33 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
         }
     }
 
-    fun setVendorFilter(value: String?) {
-        if (_state.value.vendorFilter == value) return
-        _state.update { it.copy(vendorFilter = value) }
+    fun setVendorFilter(value: String) {
+        _state.update { it.copy(vendorFilter = it.vendorFilter.toggle(value)) }
         refresh(showLoading = true)
     }
 
-    fun setLicenseFilter(value: String?) {
-        if (_state.value.licenseFilter == value) return
-        _state.update { it.copy(licenseFilter = value) }
+    fun setLicenseFilter(value: String) {
+        _state.update { it.copy(licenseFilter = it.licenseFilter.toggle(value)) }
         refresh(showLoading = true)
     }
 
-    fun setParamsFilter(value: String?) {
-        if (_state.value.paramsFilter == value) return
-        _state.update { it.copy(paramsFilter = value) }
+    fun setParamsFilter(value: String) {
+        _state.update { it.copy(paramsFilter = it.paramsFilter.toggle(value)) }
+        refresh(showLoading = true)
+    }
+
+    fun clearValueFilters() {
+        val changed = _state.value.vendorFilter.isNotEmpty() ||
+            _state.value.licenseFilter.isNotEmpty() ||
+            _state.value.paramsFilter.isNotEmpty()
+        if (!changed) return
+        _state.update {
+            it.copy(
+                vendorFilter = emptySet(),
+                licenseFilter = emptySet(),
+                paramsFilter = emptySet(),
+            )
+        }
         refresh(showLoading = true)
     }
 
@@ -377,3 +389,6 @@ private val FALLBACK_BOARDS = mapOf(
     "math" to listOf(BoardDto("livebench-math", "LiveBench 数学", "math", sourceId = "livebench")),
     "analysis" to listOf(BoardDto("livebench-data-analysis", "LiveBench 数据分析", "analysis", sourceId = "livebench")),
 )
+
+private fun Set<String>.toggle(value: String): Set<String> =
+    if (value in this) this - value else this + value
