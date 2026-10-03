@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.ModelDetailResponse
+import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.scoreColor
 import com.ai.rankboard.ui.common.ScoreBar
 import com.ai.rankboard.ui.common.SourceBadge
@@ -84,6 +85,7 @@ fun CompareScreen(
     val board = state.boards.firstOrNull { it.slug == state.selectedBoardSlug }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("模型对比") },
@@ -163,8 +165,8 @@ fun CompareScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
                     ) {
                         item {
                             SummaryCard(
@@ -302,11 +304,11 @@ private fun BenchmarkBar(
     onClick: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 3.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable(onClick = onClick),
     ) {
         Row(
@@ -433,15 +435,11 @@ private fun SummaryCard(
         response.scores.firstOrNull { it.boardSlug == boardSlug }?.let { score -> response to score }
     }
     val winner = scores.maxByOrNull { it.second.score ?: Double.NEGATIVE_INFINITY }
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    AppCard(Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             if (winner == null) {
                 Text(
@@ -494,12 +492,12 @@ private fun CompareHeader(
 ) {
     Row(
         modifier = scrollModifier,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Spacer(Modifier.width(LABEL_WIDTH))
         models.forEach { response ->
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 tonalElevation = 1.dp,
                 modifier = Modifier.width(COLUMN_WIDTH),
             ) {
@@ -571,7 +569,7 @@ private fun MetricRow(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 5.dp, vertical = 6.dp),
+                        .padding(horizontal = 6.dp, vertical = 7.dp),
                 )
             }
         }

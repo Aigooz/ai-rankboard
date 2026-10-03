@@ -70,7 +70,7 @@ fun SourceBadge(
         MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
     }
     Surface(
-        shape = RoundedCornerShape(9.dp),
+        shape = RoundedCornerShape(999.dp),
         color = container,
         border = if (selected) {
             androidx.compose.foundation.BorderStroke(1.dp, visual.color.copy(alpha = 0.5f))
@@ -82,7 +82,7 @@ fun SourceBadge(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
         ) {
             Box(
                 contentAlignment = Alignment.Center,

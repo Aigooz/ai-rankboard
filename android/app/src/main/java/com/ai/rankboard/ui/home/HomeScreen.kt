@@ -1,43 +1,36 @@
 package com.ai.rankboard.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -50,19 +43,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.Periods
-import com.ai.rankboard.ui.common.scoreColor
+import com.ai.rankboard.ui.common.AppCard
+import com.ai.rankboard.ui.common.MetricTile
+import com.ai.rankboard.ui.common.RankBadge
 import com.ai.rankboard.ui.common.ScoreBar
+import com.ai.rankboard.ui.common.SearchField
+import com.ai.rankboard.ui.common.SectionHeader
 import com.ai.rankboard.ui.common.SourceBadge
 import com.ai.rankboard.ui.common.VendorIcon
+import com.ai.rankboard.ui.common.scoreColor
 import java.util.Locale
 
 private val SORT_OPTIONS = listOf(
@@ -97,41 +97,43 @@ fun HomeScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column {
-                OutlinedTextField(
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 6.dp, bottom = 10.dp),
+            ) {
+                SearchField(
                     value = state.query,
                     onValueChange = vm::setQuery,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 2.dp),
-                    placeholder = { Text("模糊搜索模型名称") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    trailingIcon = {
-                        if (state.query.isNotEmpty()) {
-                            IconButton(onClick = { vm.setQuery("") }) {
-                                Icon(Icons.Filled.Close, contentDescription = "清空")
-                            }
-                        }
-                    },
+                    placeholder = "搜索模型或厂商",
                 )
-                ScrollableTabRow(
-                    selectedTabIndex = HOME_TABS.indexOfFirst { it.dimension == state.tab },
-                    edgePadding = 0.dp,
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 10.dp),
                 ) {
-                    HOME_TABS.forEach { tab ->
-                        Tab(
-                            selected = state.tab == tab.dimension,
-                            onClick = { vm.selectTab(tab.dimension) },
-                            text = {
-                                Text(
-                                    tab.label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            },
-                        )
+                    items(HOME_TABS, key = { it.dimension }) { tab ->
+                        val selected = state.tab == tab.dimension
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.48f),
+                            modifier = Modifier.clickable { vm.selectTab(tab.dimension) },
+                        ) {
+                            Text(
+                                text = tab.label,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            )
+                        }
                     }
                 }
                 FilterSummaryBar(
@@ -139,6 +141,7 @@ fun HomeScreen(
                     activeCount = state.activeFilterCount(),
                     snapshotDate = state.snapshotInfo?.generatedAt?.take(10).orEmpty(),
                     onClick = { filterSheetOpen = true },
+                    modifier = Modifier.padding(top = 10.dp),
                 )
             }
         },
@@ -160,26 +163,34 @@ fun HomeScreen(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             if (state.offline) "无网络且无本地缓存，请检查后端连接" else "暂无数据",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 else -> {
-                    Column {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         if (state.offline) {
-                            Text(
-                                "离线数据，下拉可刷新",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                            )
+                            item {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f),
+                                ) {
+                                    Text(
+                                        "离线数据 · 下拉可刷新",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
                         }
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            if (showOverview) item {
+                        if (showOverview) {
+                            item {
                                 LeaderboardOverview(
                                     state = state,
                                     onOpenModel = onOpenModel,
@@ -188,39 +199,44 @@ fun HomeScreen(
                                     scoreMax = state.scoreMax,
                                 )
                             }
-                            items(state.entries, key = { it.slug }) { entry ->
-                                ModelRow(
-                                    entry = entry,
-                                    isFavorite = entry.slug in favoriteSlugs.toSet(),
-                                    scoreMin = state.scoreMin,
-                                    scoreMax = state.scoreMax,
-                                    compact = compactList,
-                                    onClick = { onOpenModel(entry.slug) },
-                                    onToggleFavorite = {
-                                        vm.toggleFavorite(entry.slug, entry.displayName)
-                                    },
-                                )
-                            }
-                            item {
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    when {
-                                        state.loadingMore -> CircularProgressIndicator(Modifier.width(28.dp))
-                                        state.entries.size < state.total -> {
-                                            LaunchedEffect(state.entries.size, state.selectedBoard, state.query, state.sort) {
-                                                vm.loadMore()
-                                            }
+                        }
+                        items(state.entries, key = { it.slug }) { entry ->
+                            ModelRow(
+                                entry = entry,
+                                isFavorite = entry.slug in favoriteSlugs.toSet(),
+                                scoreMin = state.scoreMin,
+                                scoreMax = state.scoreMax,
+                                compact = compactList,
+                                onClick = { onOpenModel(entry.slug) },
+                                onToggleFavorite = {
+                                    vm.toggleFavorite(entry.slug, entry.displayName)
+                                },
+                            )
+                        }
+                        item {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 14.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                when {
+                                    state.loadingMore -> CircularProgressIndicator(Modifier.width(28.dp))
+                                    state.entries.size < state.total -> {
+                                        LaunchedEffect(
+                                            state.entries.size,
+                                            state.selectedBoard,
+                                            state.query,
+                                            state.sort,
+                                        ) {
+                                            vm.loadMore()
                                         }
-                                        else -> Text(
-                                            "已加载全部 ${state.total} 个模型",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
                                     }
+                                    else -> Text(
+                                        "已加载全部 ${state.total} 个模型",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             }
                         }
@@ -236,27 +252,13 @@ fun HomeScreen(
                 state = state,
                 sort = state.sort,
                 onSelectSort = vm::setSort,
-                onSelectBoard = {
-                    vm.selectBoard(it)
-                },
-                onSelectPeriod = { periodId ->
-                    vm.setPeriod(periodId)
-                },
-                onSelectSource = { sourceId ->
-                    vm.setSourceFilter(sourceId)
-                },
-                onSelectVendor = { vendor ->
-                    vm.setVendorFilter(vendor)
-                },
-                onSelectLicense = { license ->
-                    vm.setLicenseFilter(license)
-                },
-                onSelectParams = { params ->
-                    vm.setParamsFilter(params)
-                },
-                onClear = {
-                    vm.clearValueFilters()
-                },
+                onSelectBoard = vm::selectBoard,
+                onSelectPeriod = vm::setPeriod,
+                onSelectSource = vm::setSourceFilter,
+                onSelectVendor = vm::setVendorFilter,
+                onSelectLicense = vm::setLicenseFilter,
+                onSelectParams = vm::setParamsFilter,
+                onClear = vm::clearValueFilters,
             )
         }
     }
@@ -271,48 +273,38 @@ private fun LeaderboardOverview(
     scoreMax: Double?,
 ) {
     val topModels = state.entries.take(3)
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    AppCard(Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    "榜单速览",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                if (state.offline) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                    ) {
-                        Text(
-                            "离线",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                        )
+            SectionHeader(
+                title = "榜单速览",
+                trailing = {
+                    if (state.offline) {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                        ) {
+                            Text(
+                                "离线",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            )
+                        }
                     }
-                }
-            }
+                },
+            )
             if (topModels.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     topModels.forEachIndexed { index, entry ->
                         TopModelCard(
                             entry = entry,
-                            rankColor = when (entry.rank) {
-                                1 -> MaterialTheme.colorScheme.tertiary
-                                2 -> MaterialTheme.colorScheme.secondary
-                                else -> MaterialTheme.colorScheme.primary
+                            accent = when (index) {
+                                0 -> Color(0xFFD97706)
+                                1 -> Color(0xFF64748B)
+                                else -> Color(0xFFB45309)
                             },
                             onClick = { onOpenModel(entry.slug) },
                             modifier = Modifier.weight(1f),
@@ -332,19 +324,21 @@ private fun LeaderboardOverview(
                     onSelectSource = onSelectSource,
                 )
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OverviewMetric(
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MetricTile(
                     label = "模型",
                     value = state.total.toString(),
                     modifier = Modifier.weight(1f),
                 )
-                OverviewMetric(
+                MetricTile(
                     label = "榜单",
                     value = state.allBoardsForTab.size.toString(),
                     modifier = Modifier.weight(1f),
                 )
-                OverviewMetric(
+                MetricTile(
                     label = "更新",
                     value = state.snapshotInfo?.generatedAt?.take(10).orEmpty().ifBlank { "-" },
                     modifier = Modifier.weight(1f),
@@ -357,54 +351,53 @@ private fun LeaderboardOverview(
 @Composable
 private fun TopModelCard(
     entry: EntryDto,
-    rankColor: androidx.compose.ui.graphics.Color,
+    accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     scoreMin: Double?,
     scoreMax: Double?,
 ) {
     Surface(
-        shape = RoundedCornerShape(9.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f),
+        shape = RoundedCornerShape(14.dp),
+        color = accent.copy(alpha = 0.08f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.16f)),
         modifier = modifier.clickable(onClick = onClick),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 5.dp, vertical = 7.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                "#${entry.rank}",
+                text = "#${entry.rank}",
                 style = MaterialTheme.typography.labelMedium,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                color = rankColor,
+                color = accent,
             )
-            VendorIcon(vendor = entry.vendor, size = 21.dp)
+            VendorIcon(vendor = entry.vendor, size = 26.dp)
             Text(
-                parseModelStrength(entry.displayName).first,
+                text = parseModelStrength(entry.displayName).first,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 minLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                textAlign = TextAlign.Center,
             )
-                Text(
-                    entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = scoreColor(entry.score, scoreMin, scoreMax),
-                )
+            Text(
+                text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
+                style = MaterialTheme.typography.titleSmall,
+                fontFamily = FontFamily.Monospace,
+                color = scoreColor(entry.score, scoreMin, scoreMax),
+            )
             ScoreBar(
                 score = entry.score,
                 minScore = scoreMin,
                 maxScore = scoreMax,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -417,15 +410,13 @@ private fun DataSourceStrip(
     onSelectSource: (String?) -> Unit,
 ) {
     if (sources.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            "本期数据来源",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(title = "数据来源")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(
-                sources.sortedWith(compareByDescending<Pair<String, Int>> { it.first == "modelsage" }.thenBy { it.first }),
+                sources.sortedWith(
+                    compareByDescending<Pair<String, Int>> { it.first == "modelsage" }.thenBy { it.first },
+                ),
                 key = { it.first },
             ) { (sourceId, count) ->
                 SourceBadge(
@@ -442,52 +433,31 @@ private fun DataSourceStrip(
 }
 
 @Composable
-private fun OverviewMetric(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            value,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
 private fun FilterSummaryBar(
     boardName: String,
     activeCount: Int,
     snapshotDate: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f),
+        ),
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 3.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Icon(
-                Icons.Filled.Tune,
+                imageVector = Icons.Filled.Tune,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(17.dp),
@@ -501,7 +471,7 @@ private fun FilterSummaryBar(
             )
             if (snapshotDate.isNotBlank()) {
                 Text(
-                    "数据更新 $snapshotDate",
+                    text = "更新 $snapshotDate",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -527,12 +497,12 @@ private fun FilterSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "筛选",
+                text = "筛选",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
@@ -555,12 +525,7 @@ private fun FilterSheet(
                     FilterChip(
                         selected = state.period == option.id,
                         onClick = { onSelectPeriod(option.id) },
-                        label = {
-                            Text(
-                                "${option.label} · ${option.count}",
-                                maxLines = 1,
-                            )
-                        },
+                        label = { Text("${option.label} · ${option.count}", maxLines = 1) },
                     )
                 }
             }
@@ -587,7 +552,10 @@ private fun FilterSheet(
                         label = { Text("全部") },
                     )
                 }
-                items(state.allBoardsForTab.map { it.sourceId }.distinct(), key = { it }) { sourceId ->
+                items(
+                    state.allBoardsForTab.map { it.sourceId }.distinct(),
+                    key = { it },
+                ) { sourceId ->
                     FilterChip(
                         selected = state.sourceFilter == sourceId,
                         onClick = {
@@ -677,16 +645,13 @@ private fun FilterSection(
     title: String,
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            title,
+            text = title,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 3.dp),
         )
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             content()
         }
     }
@@ -711,30 +676,23 @@ private fun ModelRow(
     onToggleFavorite: () -> Unit,
     compact: Boolean = false,
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-    ) {
+    AppCard(Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(
-                horizontal = if (compact) 8.dp else 9.dp,
-                vertical = if (compact) 5.dp else 7.dp,
-            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(
+                    horizontal = if (compact) 10.dp else 12.dp,
+                    vertical = if (compact) 8.dp else 11.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Text(
-                text = entry.rank.toString(),
-                style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                modifier = Modifier.width(if (compact) 27.dp else 30.dp),
+            RankBadge(
+                rank = entry.rank,
+                width = if (compact) 30.dp else 34.dp,
             )
-            VendorIcon(vendor = entry.vendor, size = if (compact) 18.dp else 20.dp)
-            Spacer(Modifier.width(if (compact) 5.dp else 6.dp))
+            VendorIcon(vendor = entry.vendor, size = if (compact) 23.dp else 26.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -746,16 +704,16 @@ private fun ModelRow(
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     parseModelStrength(entry.displayName).second?.let { strength ->
+                        Spacer(Modifier.width(5.dp))
                         Surface(
-                            shape = RoundedCornerShape(5.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.padding(start = 4.dp),
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.82f),
                         ) {
                             Text(
                                 text = strength,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                             )
                         }
                     }
@@ -770,13 +728,18 @@ private fun ModelRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(4.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
-                    style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                    style = if (compact) {
+                        MaterialTheme.typography.titleSmall
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    },
                     fontFamily = FontFamily.Monospace,
                     color = scoreColor(entry.score, scoreMin, scoreMax),
                 )
@@ -785,18 +748,22 @@ private fun ModelRow(
                     minScore = scoreMin,
                     maxScore = scoreMax,
                     modifier = Modifier
-                        .width(if (compact) 44.dp else 52.dp)
-                        .padding(top = 2.dp),
+                        .width(if (compact) 44.dp else 54.dp)
+                        .padding(top = 3.dp),
                 )
             }
             IconButton(
                 onClick = onToggleFavorite,
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(28.dp),
             ) {
                 Icon(
-                    if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
                     contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                    tint = if (isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isFavorite) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     modifier = Modifier.size(18.dp),
                 )
             }

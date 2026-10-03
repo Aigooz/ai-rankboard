@@ -26,8 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,15 +40,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
-import com.ai.rankboard.ui.common.scoreColor
-import com.ai.rankboard.ui.common.boardSourceId
+import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.ScoreBar
+import com.ai.rankboard.ui.common.SectionHeader
 import com.ai.rankboard.ui.common.SourceBadge
-import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.common.VendorIcon
+import com.ai.rankboard.ui.common.boardSourceId
+import com.ai.rankboard.ui.common.openUrl
+import com.ai.rankboard.ui.common.scoreColor
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +61,10 @@ fun DetailScreen(
     onBack: () -> Unit,
     vm: DetailViewModel = viewModel(
         key = slug,
-        factory = DetailViewModel.factory(LocalContext.current.applicationContext as RankboardApp, slug),
+        factory = DetailViewModel.factory(
+            LocalContext.current.applicationContext as RankboardApp,
+            slug,
+        ),
     ),
 ) {
     val state by vm.state.collectAsState()
@@ -70,10 +76,15 @@ fun DetailScreen(
     val context = LocalContext.current
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Text(state.model?.displayName ?: "模型详情", maxLines = 1)
+                    Text(
+                        state.model?.displayName ?: "模型详情",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -85,8 +96,11 @@ fun DetailScreen(
                         Icon(
                             if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
                             contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                            tint = if (isFavorite) MaterialTheme.colorScheme.tertiary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (isFavorite) {
+                                MaterialTheme.colorScheme.tertiary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                     }
                 },
@@ -110,52 +124,54 @@ fun DetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    tonalElevation = 1.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                AppCard(Modifier.fillMaxWidth()) {
                     Column(
-                        Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            VendorIcon(vendor = model.vendor, size = 28.dp)
-                            Column {
+                            VendorIcon(vendor = model.vendor, size = 46.dp)
+                            Column(Modifier.weight(1f)) {
                                 Text(
                                     model.displayName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleLarge,
                                     maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
                                     model.vendor ?: "-",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
                         }
                         val specs = buildList {
-                            model.paramsB?.let { add("参数规模 ${formatNum(it)}B") }
+                            model.paramsB?.let { add("参数 ${formatNum(it)}B") }
                             model.license?.let { add(it) }
                             model.contextWindow?.let { add("上下文 $it") }
+                            model.releaseDate?.takeIf { it.isNotBlank() }?.let {
+                                add("发布 ${it.take(10)}")
+                            }
                         }
                         if (specs.isNotEmpty()) {
                             Text(
                                 specs.joinToString(" · "),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             StatChip(
@@ -168,16 +184,9 @@ fun DetailScreen(
                                     value = "#$bestRank",
                                 )
                             }
-                            model.releaseDate?.takeIf { it.isNotBlank() }?.let { releaseDate ->
-                                StatChip(
-                                    label = "发布",
-                                    value = releaseDate.take(10),
-                                )
-                            }
-                            val sourceUrl = model.sourceUrl
-                            if (!sourceUrl.isNullOrBlank()) {
+                            model.sourceUrl?.takeIf { it.isNotBlank() }?.let {
                                 TextButton(
-                                    onClick = { openUrl(context, sourceUrl) },
+                                    onClick = { openUrl(context, it) },
                                     modifier = Modifier.weight(1f),
                                 ) {
                                     Icon(
@@ -197,29 +206,24 @@ fun DetailScreen(
                 }
             }
             item {
-                Text(
-                    "各榜单成绩与参考价格",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 5.dp, start = 2.dp),
-                )
+                SectionHeader(title = "能力雷达")
             }
             item {
                 ScoreRadarChart(
                     scores = state.scores,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp),
+                        .height(280.dp),
                 )
+            }
+            item {
+                SectionHeader(title = "各榜单成绩")
             }
             item {
                 val priced = state.scores.firstOrNull { it.priceIn != null || it.priceOut != null }
                 if (priced != null) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        tonalElevation = 1.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(Modifier.padding(10.dp)) {
+                    AppCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp)) {
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -248,16 +252,16 @@ fun DetailScreen(
                                 } else {
                                     "约 $symbol${String.format(Locale.US, "%.4f", cost)}"
                                 },
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp),
+                                modifier = Modifier.padding(top = 5.dp),
                             )
                             if (calculatorOpen) {
                                 Row(
                                     Modifier
                                         .fillMaxWidth()
-                                        .padding(top = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        .padding(top = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     OutlinedTextField(
                                         value = inputMillions,
@@ -278,7 +282,7 @@ fun DetailScreen(
                                     "1 = 100 万 tokens",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 5.dp),
+                                    modifier = Modifier.padding(top = 6.dp),
                                 )
                             }
                         }
@@ -287,68 +291,71 @@ fun DetailScreen(
             }
             items(state.scores.size) { i ->
                 val s = state.scores[i]
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    tonalElevation = 1.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(
-                        Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    s.boardName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                val priceText = buildString {
-                                    val symbol = if (s.currency == "USD") "$" else "¥"
-                                    s.priceIn?.let { append(symbol + String.format(Locale.US, "%.2f", it)) }
-                                    s.priceOut?.let {
-                                        if (isNotEmpty()) append(" → ")
-                                        append(symbol + String.format(Locale.US, "%.2f", it))
-                                    }
-                                    if (isNotEmpty()) append(" /1M")
-                                }
-                                Text(
-                                    text = listOfNotNull(
-                                        "#${s.rank}",
-                                        priceText.takeIf { it.isNotEmpty() },
-                                        s.fetchedAt.take(10),
-                                    ).joinToString(" · "),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Text(
-                                text = s.score?.let {
-                                    String.format(Locale.US, "%.1f", it) +
-                                        if (s.scoreCi != null) " ±${s.scoreCi}" else ""
-                                } ?: "-",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontFamily = FontFamily.Monospace,
-                                color = scoreColor(s.score, s.scoreMin, s.scoreMax),
-                            )
-                        }
-                        ScoreBar(
-                            score = s.score,
-                            minScore = s.scoreMin,
-                            maxScore = s.scoreMax,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp),
-                        )
-                        SourceBadge(
-                            sourceId = boardSourceId(s.boardSlug),
-                            selected = true,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-                }
+                ScoreCard(score = s)
             }
+        }
+    }
+}
+
+@Composable
+private fun ScoreCard(
+    score: com.ai.rankboard.data.ScoreDto,
+) {
+    AppCard(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        score.boardName,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val priceText = buildString {
+                        val symbol = if (score.currency == "USD") "$" else "¥"
+                        score.priceIn?.let { append(symbol + String.format(Locale.US, "%.2f", it)) }
+                        score.priceOut?.let {
+                            if (isNotEmpty()) append(" → ")
+                            append(symbol + String.format(Locale.US, "%.2f", it))
+                        }
+                        if (isNotEmpty()) append(" /1M")
+                    }
+                    Text(
+                        text = listOfNotNull(
+                            "#${score.rank}",
+                            priceText.takeIf { it.isNotEmpty() },
+                            score.fetchedAt.take(10),
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                Text(
+                    text = score.score?.let {
+                        String.format(Locale.US, "%.1f", it) +
+                            if (score.scoreCi != null) " ±${score.scoreCi}" else ""
+                    } ?: "-",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    color = scoreColor(score.score, score.scoreMin, score.scoreMax),
+                )
+            }
+            ScoreBar(
+                score = score.score,
+                minScore = score.scoreMin,
+                maxScore = score.scoreMax,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SourceBadge(
+                sourceId = boardSourceId(score.boardSlug),
+                selected = true,
+            )
         }
     }
 }
@@ -359,11 +366,11 @@ private fun StatChip(
     value: String,
 ) {
     Surface(
-        shape = RoundedCornerShape(7.dp),
+        shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
