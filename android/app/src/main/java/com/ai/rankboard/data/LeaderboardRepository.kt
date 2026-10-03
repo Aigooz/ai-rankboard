@@ -123,11 +123,17 @@ class LeaderboardRepository(
         favorites.forEach { dao.addFavorite(it) }
     }
 
-    suspend fun toggleFavorite(slug: String, name: String, isFavorite: Boolean) {
-        if (isFavorite) {
-            dao.removeFavorite(slug)
+    /** 按目标状态（而不是"读库后取反"）设置收藏，连续调用结果可预期。 */
+    suspend fun setFavorite(
+        slug: String,
+        name: String,
+        favorite: Boolean,
+        savedAt: Long = System.currentTimeMillis(),
+    ) {
+        if (favorite) {
+            dao.addFavorite(FavoriteEntity(modelSlug = slug, displayName = name, savedAt = savedAt))
         } else {
-            dao.addFavorite(FavoriteEntity(modelSlug = slug, displayName = name, savedAt = System.currentTimeMillis()))
+            dao.removeFavorite(slug)
         }
     }
 }

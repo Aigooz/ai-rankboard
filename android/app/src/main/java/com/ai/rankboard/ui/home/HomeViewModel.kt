@@ -17,9 +17,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -74,9 +72,6 @@ class HomeViewModel(
 
     private val _state = MutableStateFlow(HomeUiState(tab = initialTab))
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
-
-    val favoriteSlugs: StateFlow<List<String>> = repository.favoriteSlugs()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var loadJob: Job? = null
     private var searchJob: Job? = null
@@ -230,12 +225,6 @@ class HomeViewModel(
             _state.update { it.copy(loadingMore = true) }
             fetchPage(s.selectedBoard, reset = false)
             _state.update { it.copy(loadingMore = false) }
-        }
-    }
-
-    fun toggleFavorite(slug: String, name: String) {
-        viewModelScope.launch {
-            repository.toggleFavorite(slug, name, slug in favoriteSlugs.value.toSet())
         }
     }
 
