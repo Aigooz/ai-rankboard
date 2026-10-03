@@ -40,6 +40,7 @@ import com.ai.rankboard.ui.common.AppUpdateDialog
 import com.ai.rankboard.data.AppUpdateInfo
 import com.ai.rankboard.data.AppUpdateStatus
 import com.ai.rankboard.data.AppUpdater
+import com.ai.rankboard.data.DownloadProgress
 import kotlinx.coroutines.launch
 
 private data class TopLevelDestination(
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
             var updateInstalling by remember { mutableStateOf(false) }
+            var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
             var updateMessage by remember { mutableStateOf("") }
             val updateScope = rememberCoroutineScope()
 
@@ -157,6 +159,7 @@ class MainActivity : ComponentActivity() {
                     AppUpdateDialog(
                         info = info,
                         installing = updateInstalling,
+                        progress = downloadProgress,
                         message = updateMessage,
                         onDismiss = {
                             if (!updateInstalling) {
@@ -165,11 +168,15 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onConfirm = {
-                            updateScope.launch {
-                                updateInstalling = true
-                                updateMessage = ""
-                                val result = AppUpdater.downloadAndInstall(context, info)
-                                if (result.status == AppUpdateStatus.DOWNLOADED) {
+                                updateScope.launch {
+                                    updateInstalling = true
+                                    downloadProgress = DownloadProgress(0L, info.sizeBytes, 0L)
+                                    updateMessage = ""
+                                    val result = AppUpdater.downloadAndInstall(context, info) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    downloadProgress = null
+                                    if (result.status == AppUpdateStatus.DOWNLOADED) {
                                     pendingUpdate = null
                                 } else {
                                     updateMessage = result.message

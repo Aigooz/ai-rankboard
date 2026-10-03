@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -40,7 +39,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -91,19 +89,20 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
+                Text(
+                    "AI 排行榜",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .statusBarsPadding()
-                        .height(44.dp),
-                    title = { Text("AI 排行榜") },
-                    windowInsets = WindowInsets(0.dp),
+                        .padding(horizontal = 16.dp, vertical = 3.dp),
                 )
                 OutlinedTextField(
                     value = state.query,
                     onValueChange = vm::setQuery,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
                     placeholder = { Text("模糊搜索模型名称") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -701,7 +700,7 @@ private fun ModelRow(
                     text = listOfNotNull(
                         entry.vendor,
                         entry.paramsB?.let { "${formatParams(it)}B" },
-                        entry.releaseDate?.take(10)?.let { "发布 $it" } ?: "发布时间未知",
+                        entry.releaseDate?.take(10),
                     ).filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

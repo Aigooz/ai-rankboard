@@ -55,6 +55,7 @@ import com.ai.rankboard.data.AppUpdater
 import com.ai.rankboard.data.AppUpdateInfo
 import com.ai.rankboard.data.AppUpdateStatus
 import com.ai.rankboard.data.AppUpdateWorker
+import com.ai.rankboard.data.DownloadProgress
 import com.ai.rankboard.data.ThemeMode
 import kotlinx.coroutines.launch
 import com.ai.rankboard.ui.common.AppUpdateDialog
@@ -76,6 +77,7 @@ fun SettingsScreen(
     var appUpdateMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var appUpdateInstalling by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
     var canInstall by remember { mutableStateOf(AppUpdater.canInstall(app)) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -345,6 +347,7 @@ fun SettingsScreen(
         AppUpdateDialog(
             info = info,
             installing = appUpdateInstalling,
+            progress = downloadProgress,
             message = appUpdateMessage,
             onDismiss = {
                 if (!appUpdateInstalling) {
@@ -355,8 +358,12 @@ fun SettingsScreen(
             onConfirm = {
                 scope.launch {
                     appUpdateInstalling = true
+                    downloadProgress = DownloadProgress(0L, info.sizeBytes, 0L)
                     appUpdateMessage = ""
-                    val result = AppUpdater.downloadAndInstall(app, info)
+                    val result = AppUpdater.downloadAndInstall(app, info) { progress ->
+                        downloadProgress = progress
+                    }
+                    downloadProgress = null
                     if (result.status == AppUpdateStatus.DOWNLOADED) {
                         pendingUpdate = null
                     } else {

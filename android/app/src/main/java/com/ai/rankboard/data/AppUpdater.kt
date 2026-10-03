@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.BufferedInputStream
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
@@ -39,6 +40,19 @@ data class AppUpdateResult(
     val message: String,
     val info: AppUpdateInfo? = null,
 )
+
+data class DownloadProgress(
+    val bytesRead: Long,
+    val totalBytes: Long,
+    val bytesPerSecond: Long,
+) {
+    val fraction: Float
+        get() = if (totalBytes > 0) {
+            (bytesRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+}
 
 object AppUpdater {
     private const val APK_FILE_NAME = "update.apk"
@@ -98,7 +112,11 @@ object AppUpdater {
         }
     }
 
-    suspend fun downloadAndInstall(context: Context, info: AppUpdateInfo): AppUpdateResult {
+    suspend fun downloadAndInstall(
+        context: Context,
+        info: AppUpdateInfo,
+        onProgress: suspend (DownloadProgress) -> Unit = {},
+    ): AppUpdateResult {
         if (info.versionCode <= BuildConfig.VERSION_CODE) {
             return AppUpdateResult(
                 AppUpdateStatus.UP_TO_DATE,
@@ -116,7 +134,8 @@ object AppUpdater {
             try {
                 val apkFile = apkFile(context)
                 apkFile.delete()
-                val bytes = httpBytes(info.apkUrl)
+                downloadApk(context, info.apkUrl, info.sizeBytes, onProgress)
+                val bytes = apkFile.readBytes()
                 if (!sha256(bytes).equals(info.sha256, ignoreCase = true)) {
                     throw IllegalStateException("APK SHA-256 校验失败")
                 }
@@ -222,6 +241,63 @@ object AppUpdater {
                 throw IllegalStateException("HTTP ${response.code} for $url")
             }
             return response.body?.bytes() ?: throw IllegalStateException("空响应：$url")
+        }
+    }
+
+    private suspend fun downloadApk(
+        context: Context,
+        url: String,
+        fallbackSize: Long,
+        onProgress: suspend (DownloadProgress) -> Unit,
+    ) {
+        val target = apkFile(context)
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "AI-Rankboard-Updater/${BuildConfig.VERSION_NAME}")
+            .build()
+        val client = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("HTTP ${response.code} for $url")
+            }
+            val body = response.body ?: throw IllegalStateException("空响应：$url")
+            val totalBytes = body.contentLength().takeIf { it > 0 } ?: fallbackSize
+            var bytesRead = 0L
+            var lastProgressBytes = 0L
+            var lastProgressAt = System.currentTimeMillis()
+            target.delete()
+
+            BufferedInputStream(body.byteStream()).use { input ->
+                target.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        if (read > 0) {
+                            output.write(buffer, 0, read)
+                            bytesRead += read
+                        }
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastProgressAt >= 200L) {
+                            val elapsed = (now - lastProgressAt).coerceAtLeast(1L)
+                            val bytesPerSecond = (bytesRead - lastProgressBytes) * 1_000L / elapsed
+                            onProgress(DownloadProgress(bytesRead, totalBytes, bytesPerSecond))
+                            lastProgressAt = now
+                            lastProgressBytes = bytesRead
+                        }
+                    }
+                    output.flush()
+                    onProgress(DownloadProgress(bytesRead, totalBytes, 0L))
+                }
+            }
+
+            if (totalBytes > 0 && bytesRead != totalBytes) {
+                throw IllegalStateException("APK 下载不完整")
+            }
         }
     }
 

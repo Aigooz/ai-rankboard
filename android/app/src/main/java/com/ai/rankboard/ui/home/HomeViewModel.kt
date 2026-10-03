@@ -48,7 +48,7 @@ data class HomeUiState(
     val allBoardsForTab: List<BoardDto> = emptyList(),
     val period: String? = null,
     val periodOptions: List<PeriodOption> = emptyList(),
-    val sourceFilter: String? = null,
+    val sourceFilter: String? = "modelsage",
     val sort: String = "rank",
     val query: String = "",
     val vendorOptions: List<String> = emptyList(),
@@ -88,7 +88,7 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
             it.copy(
                 tab = dimension,
                 allBoardsForTab = emptyList(),
-                sourceFilter = null,
+                sourceFilter = "modelsage",
                 boardsForTab = emptyList(),
                 selectedBoard = "",
                 period = null,
@@ -254,18 +254,32 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
                 return@launch
             }
             val allBoards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
+            val preferredSource = _state.value.sourceFilter
             val filtered = allBoards.filter { board ->
-                _state.value.sourceFilter == null || board.sourceId == _state.value.sourceFilter
+                preferredSource == null || board.sourceId == preferredSource
             }
+            val effectiveSource = when {
+                filtered.isNotEmpty() -> preferredSource
+                allBoards.isNotEmpty() -> null
+                else -> preferredSource
+            }
+            val displayedBoards = when (effectiveSource) {
+                null -> allBoards
+                else -> filtered
+            }
+            val sortedBoards = displayedBoards.sortedWith(
+                compareByDescending { it.sourceId.equals("modelsage", ignoreCase = true) },
+            )
             _state.update {
                 it.copy(
-                    allBoardsForTab = allBoards,
-                    boardsForTab = filtered,
+                    allBoardsForTab = sortedBoards,
+                    boardsForTab = sortedBoards,
+                    sourceFilter = effectiveSource,
                     loading = false,
                 )
             }
-            if (filtered.isNotEmpty() && _state.value.selectedBoard.isEmpty()) {
-                selectBoard(filtered.first().slug)
+            if (sortedBoards.isNotEmpty() && _state.value.selectedBoard.isEmpty()) {
+                selectBoard(sortedBoards.first().slug)
             }
         }
     }
@@ -350,7 +364,10 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
 
 private val FALLBACK_BOARDS = mapOf(
     "overall" to listOf(BoardDto("overall", "综合能力", "overall")),
-    "coding" to listOf(BoardDto("coding", "代码能力", "coding")),
+    "coding" to listOf(
+        BoardDto("coding", "ModelSage 代码能力", "coding", sourceId = "modelsage"),
+        BoardDto("livebench-coding", "LiveBench 代码", "coding", sourceId = "livebench"),
+    ),
     "writing" to listOf(BoardDto("arena-text", "Arena 写作盲测", "writing")),
     "multimodal" to listOf(
         BoardDto("arena-vision", "Arena 视觉理解", "multimodal"),
