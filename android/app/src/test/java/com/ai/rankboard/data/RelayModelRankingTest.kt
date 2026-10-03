@@ -113,7 +113,10 @@ class RelayModelRankingTest {
         """.trimIndent()
 
         val models = RelayModelClient.parseModels(json)
-        assertEquals(listOf("gpt-6-astra", "qwen3.8-flash", "glm-5.3-flash"), models.map { it.id })
+        assertEquals(
+            listOf("gpt-6-astra", "qwen3.8-flash", "GPT-6-Astra", "glm-5.3-flash"),
+            models.map { it.id },
+        )
     }
 
     @Test
@@ -124,5 +127,63 @@ class RelayModelRankingTest {
 
         assertEquals("https://gzjy.me/api/v1/model-plaza", candidates[1])
         assertTrue("https://gzjy.me/v1/models" in candidates)
+    }
+
+    @Test
+    fun `parses model plaza pricing and rate multiplier`() {
+        val json = """
+        {
+          "data": {
+            "currency": "USD",
+            "groups": [
+              {
+                "name": "Pro",
+                "rate_multiplier": 0.16,
+                "models": [
+                  {
+                    "name": "gpt-6-astra",
+                    "pricing": {"input_price": 0.00002, "output_price": 0.00008},
+                    "official_pricing": {"input_price": 0.00001, "output_price": 0.00005}
+                  }
+                ]
+              }
+            ]
+          }
+        }
+        """.trimIndent()
+
+        val models = RelayModelClient.parseModels(json)
+        assertEquals(1, models.size)
+        assertEquals("Pro", models.single().groupName)
+        assertEquals(0.16, models.single().rateMultiplier!!, 0.000001)
+        assertEquals(0.00002, models.single().actualPrice?.input!!, 0.0000001)
+        assertEquals(0.00005, models.single().officialPrice?.output!!, 0.0000001)
+        assertEquals("USD", models.single().actualPrice?.currency)
+        assertEquals("USD", models.single().officialPrice?.currency)
+    }
+
+    @Test
+    fun `rank keeps the lowest priced offer when a model repeats across groups`() {
+        val ranking = RelayModelRanking.rank(
+            listOf(
+                RelayRemoteModel(
+                    "gpt-6-astra",
+                    groupName = "Expensive",
+                    rateMultiplier = 0.50,
+                ),
+                RelayRemoteModel(
+                    "gpt-6-astra",
+                    groupName = "Cheap",
+                    rateMultiplier = 0.16,
+                    actualPrice = RelayPrice(input = 0.00002, currency = "USD"),
+                    officialPrice = RelayPrice(input = 0.00001, currency = "USD"),
+                ),
+            ),
+            snapshot,
+        )
+
+        assertEquals("Cheap", ranking.models.single().groupName)
+        assertEquals(0.16, ranking.models.single().rateMultiplier!!, 0.000001)
+        assertEquals(2.0, ranking.models.single().priceMultiplier!!, 0.000001)
     }
 }

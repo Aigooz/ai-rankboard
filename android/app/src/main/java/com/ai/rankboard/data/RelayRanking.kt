@@ -16,6 +16,18 @@ enum class RelayMatchQuality(val label: String) {
 data class RelayRemoteModel(
     val id: String,
     val ownedBy: String? = null,
+    val groupName: String? = null,
+    val rateMultiplier: Double? = null,
+    val actualPrice: RelayPrice? = null,
+    val officialPrice: RelayPrice? = null,
+)
+
+data class RelayPrice(
+    val input: Double? = null,
+    val output: Double? = null,
+    val cacheWrite: Double? = null,
+    val cacheRead: Double? = null,
+    val currency: String? = null,
 )
 
 data class RelayModelRank(
@@ -27,6 +39,11 @@ data class RelayModelRank(
     val score: Double?,
     val matchQuality: RelayMatchQuality,
     val matchedSlug: String? = null,
+    val groupName: String? = null,
+    val rateMultiplier: Double? = null,
+    val actualPrice: RelayPrice? = null,
+    val officialPrice: RelayPrice? = null,
+    val priceMultiplier: Double? = null,
 )
 
 data class RelayRanking(
@@ -132,6 +149,10 @@ class RelayModelClient(
     companion object {
         fun parseModels(text: String): List<RelayRemoteModel> = runCatching {
             val root = JsonParser.parseString(text)
+            if (root.isJsonObject) {
+                parsePlaza(root.asJsonObject).takeIf { it.isNotEmpty() }?.let { return it }
+            }
+
             val array = when {
                 root.isJsonArray -> root.asJsonArray
                 root.isJsonObject -> modelArray(root.asJsonObject)
@@ -155,6 +176,66 @@ class RelayModelClient(
                 }
             }.distinctBy { it.id.lowercase() }
         }.getOrDefault(emptyList())
+
+        private fun parsePlaza(root: com.google.gson.JsonObject): List<RelayRemoteModel> {
+            val data = root.get("data")?.takeIf { it.isJsonObject }?.asJsonObject ?: root
+            val currency = data.get("currency")
+                ?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.uppercase()
+            val groups = data.get("groups")
+                ?.takeIf { it.isJsonArray }?.asJsonArray
+                ?: return emptyList()
+
+            return groups.mapNotNull { group ->
+                group.takeIf { it.isJsonObject }?.asJsonObject
+            }.flatMap { group ->
+                val groupName = group.get("name")
+                    ?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.takeIf { it.isNotBlank() }
+                val rate = group.get("rate_multiplier")
+                    ?.takeIf { it.isJsonPrimitive }?.asDouble
+                val models = group.get("models")
+                    ?.takeIf { it.isJsonArray }?.asJsonArray
+                    ?: return@flatMap emptyList()
+
+                models.mapNotNull { item ->
+                    item.takeIf { it.isJsonObject }?.asJsonObject
+                }.mapNotNull { item ->
+                    val id = item.get(
+                        listOf("name", "id", "model", "model_id", "model_name"),
+                    )?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+                    if (id.isBlank()) return@mapNotNull null
+
+                    RelayRemoteModel(
+                        id = id,
+                        ownedBy = item.get("platform")
+                            ?.takeIf { it.isJsonPrimitive }?.asString?.trim(),
+                        groupName = groupName,
+                        rateMultiplier = rate,
+                        actualPrice = parsePrice(item.get("pricing"), currency),
+                        officialPrice = parsePrice(item.get("official_pricing"), "USD"),
+                    )
+                }
+            }
+        }
+
+        private fun parsePrice(
+            element: com.google.gson.JsonElement?,
+            currency: String?,
+        ): RelayPrice? {
+            val obj = element?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+            fun number(keys: List<String>) = obj.get(keys)
+                ?.takeIf { it.isJsonPrimitive }
+                ?.takeIf { !it.asString.isNullOrBlank() }
+                ?.asDouble
+                ?.takeIf { !it.isNaN() && !it.isInfinite() }
+
+            return RelayPrice(
+                input = number(listOf("input_price", "input")),
+                output = number(listOf("output_price", "output")),
+                cacheWrite = number(listOf("cache_write_price", "cache_write")),
+                cacheRead = number(listOf("cache_read_price", "cache_read")),
+                currency = currency?.takeIf { it.isNotBlank() },
+            )
+        }
 
         private fun modelArray(obj: com.google.gson.JsonObject): com.google.gson.JsonArray? {
             val plazaGroups = obj.get("data")?.takeIf { it.isJsonObject }?.asJsonObject
@@ -189,8 +270,7 @@ class RelayModelClient(
 object RelayModelRanking {
     fun rank(models: List<RelayRemoteModel>, snapshot: Snapshot): RelayRanking {
         val baseEntries = snapshot.entriesByBoard["overall"].orEmpty()
-        val ranked = models
-            .distinctBy { it.id.trim().lowercase() }
+        val ranked = bestOffers(models)
             .map { model -> match(model, baseEntries) }
             .sortedWith(
                 compareByDescending<RelayModelRank> { it.matchQuality != RelayMatchQuality.NONE }
@@ -208,6 +288,18 @@ object RelayModelRanking {
             matched = ranked.count { it.matchQuality != RelayMatchQuality.NONE },
         )
     }
+
+    private fun bestOffers(models: List<RelayRemoteModel>): List<RelayRemoteModel> =
+        models
+            .groupBy { it.id.trim().lowercase() }
+            .map { (_, offers) ->
+                offers.minByOrNull { offer ->
+                    listOfNotNull(
+                        offer.rateMultiplier,
+                        offer.priceMultiplier(),
+                    ).minOrNull() ?: Double.MAX_VALUE
+                } ?: offers.first()
+            }
 
     private fun match(model: RelayRemoteModel, entries: List<EntryDto>): RelayModelRank {
         val normalizedRemote = normalize(model.id)
@@ -251,7 +343,24 @@ object RelayModelRanking {
             score = entry?.score,
             matchQuality = quality,
             matchedSlug = entry?.slug,
+            groupName = model.groupName,
+            rateMultiplier = model.rateMultiplier,
+            actualPrice = model.actualPrice,
+            officialPrice = model.officialPrice,
+            priceMultiplier = model.priceMultiplier(),
         )
+    }
+
+    private fun RelayRemoteModel.priceMultiplier(): Double? {
+        val actual = actualPrice ?: return null
+        val official = officialPrice ?: return null
+        if (actual.currency != official.currency) return null
+
+        val ratios = buildList {
+            actual.input?.let { input -> official.input?.takeIf { it > 0.0 }?.let { official -> add(input / official) } }
+            actual.output?.let { output -> official.output?.takeIf { it > 0.0 }?.let { official -> add(output / official) } }
+        }.filter { it.isFinite() }
+        return ratios.takeIf { it.isNotEmpty() }?.average()
     }
 
     private fun candidateWins(

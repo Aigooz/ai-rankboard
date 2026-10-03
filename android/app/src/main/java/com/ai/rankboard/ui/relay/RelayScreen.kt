@@ -230,6 +230,15 @@ private fun RelayModelRow(model: RelayModelRank) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                model.priceSummary()?.let { summary ->
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             Spacer(Modifier.width(6.dp))
             Column(horizontalAlignment = Alignment.End) {
@@ -251,4 +260,29 @@ private fun RelayModelRow(model: RelayModelRank) {
             }
         }
     }
+}
+
+private fun RelayModelRank.priceSummary(): String? {
+    val parts = listOfNotNull(
+        groupName,
+        actualPrice?.let { "实付 ${formatPrice(it)}" },
+        officialPrice?.let { "官方 ${formatPrice(it)}" },
+        rateMultiplier?.let { String.format(Locale.US, "%.2fx", it) },
+        priceMultiplier?.let { String.format(Locale.US, "%.0f%% 官方价", it * 100) },
+    )
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
+private fun formatPrice(price: com.ai.rankboard.data.RelayPrice): String {
+    val symbol = when (price.currency?.uppercase()) {
+        "USD" -> "$"
+        "CNY", "RMB" -> "¥"
+        else -> price.currency?.let { "$it " } ?: ""
+    }
+    return "${symbol}${formatPerMillion(price.input)}/${formatPerMillion(price.output)} /M"
+}
+
+private fun formatPerMillion(value: Double?): String {
+    if (value == null) return "-"
+    return String.format(Locale.US, "%.2f", value * 1_000_000.0)
 }
