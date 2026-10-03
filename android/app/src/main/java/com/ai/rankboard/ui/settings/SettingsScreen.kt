@@ -102,6 +102,7 @@ private data class FavoriteBackupItem(
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenFavorites: () -> Unit = {},
 ) {
     val app = LocalContext.current.applicationContext as RankboardApp
     val settings by app.settingsStore.settings.collectAsState()
@@ -465,6 +466,12 @@ fun SettingsScreen(
 
             item {
                 SettingsGroup(title = "收藏与备份", icon = Icons.Filled.Star) {
+                    SettingsLinkRow(
+                        title = "我的收藏",
+                        detail = "查看收藏的模型与各榜单成绩",
+                        icon = Icons.Filled.Star,
+                        onClick = onOpenFavorites,
+                    )
                     TextRow(
                         title = "收藏数量",
                         value = "${favorites.size} 个",

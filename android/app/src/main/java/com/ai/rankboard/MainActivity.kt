@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -60,7 +59,6 @@ private val TOP_LEVEL_DESTINATIONS = listOf(
     TopLevelDestination("select", Icons.Filled.Savings, "选型"),
     TopLevelDestination("compare", Icons.AutoMirrored.Filled.CompareArrows, "对比"),
     TopLevelDestination("relay", Icons.Filled.Hub, "中转"),
-    TopLevelDestination("favorites", Icons.Outlined.StarBorder, "收藏"),
     TopLevelDestination("settings", Icons.Outlined.Settings, "设置"),
 )
 
@@ -141,6 +139,7 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
                                 onOpenAbout = { navController.navigate("about") },
+                                onOpenFavorites = { navController.navigate("favorites") },
                             )
                         }
                         composable("about") {
