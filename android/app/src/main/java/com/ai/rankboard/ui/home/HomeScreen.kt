@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
@@ -83,7 +86,11 @@ fun HomeScreen(
         topBar = {
             Column {
                 TopAppBar(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .height(44.dp),
                     title = { Text("AI 排行榜") },
+                    windowInsets = WindowInsets(0.dp),
                 )
                 OutlinedTextField(
                     value = state.query,
@@ -102,7 +109,10 @@ fun HomeScreen(
                         }
                     },
                 )
-                ScrollableTabRow(selectedTabIndex = HOME_TABS.indexOfFirst { it.dimension == state.tab }) {
+                ScrollableTabRow(
+                    selectedTabIndex = HOME_TABS.indexOfFirst { it.dimension == state.tab },
+                    edgePadding = 0.dp,
+                ) {
                     HOME_TABS.forEach { tab ->
                         Tab(
                             selected = state.tab == tab.dimension,
