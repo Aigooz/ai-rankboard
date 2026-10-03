@@ -1,5 +1,6 @@
 package com.ai.rankboard.ui.detail
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +57,7 @@ fun DetailScreen(
     val isFavorite = slug in favoriteSlugs.toSet()
     var inputTokens by remember { mutableStateOf("1") }
     var outputTokens by remember { mutableStateOf("1") }
+    var calculatorOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -96,8 +100,8 @@ fun DetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             item {
                 Surface(
@@ -106,21 +110,26 @@ fun DetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(
-                        Modifier.padding(16.dp),
+                        Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            VendorIcon(vendor = model.vendor, size = 44.dp)
+                            VendorIcon(vendor = model.vendor, size = 28.dp)
                             Column {
                                 Text(
                                     model.displayName,
-                                    style = MaterialTheme.typography.titleLarge,
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
                                 )
-                                Text(model.vendor ?: "-", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    model.vendor ?: "-",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                         val specs = buildList {
@@ -141,8 +150,8 @@ fun DetailScreen(
             item {
                 Text(
                     "各榜单成绩与参考价格",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 5.dp, start = 2.dp),
                 )
             }
             item {
@@ -153,27 +162,21 @@ fun DetailScreen(
                         tonalElevation = 1.dp,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("价格计算器", style = MaterialTheme.typography.titleMedium)
+                        Column(Modifier.padding(10.dp)) {
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    .clickable { calculatorOpen = !calculatorOpen },
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                OutlinedTextField(
-                                    value = inputTokens,
-                                    onValueChange = { inputTokens = it },
-                                    label = { Text("输入 token") },
-                                    singleLine = true,
+                                Text(
+                                    "价格计算器",
+                                    style = MaterialTheme.typography.titleSmall,
                                     modifier = Modifier.weight(1f),
                                 )
-                                OutlinedTextField(
-                                    value = outputTokens,
-                                    onValueChange = { outputTokens = it },
-                                    label = { Text("输出 token") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f),
+                                Icon(
+                                    if (calculatorOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                    contentDescription = if (calculatorOpen) "收起价格计算器" else "展开价格计算器",
                                 )
                             }
                             val input = inputTokens.toDoubleOrNull()
@@ -188,9 +191,33 @@ fun DetailScreen(
                                 } else {
                                     "约 $symbol${String.format(Locale.US, "%.4f", cost)}"
                                 },
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 8.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp),
                             )
+                            if (calculatorOpen) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    OutlinedTextField(
+                                        value = inputTokens,
+                                        onValueChange = { inputTokens = it },
+                                        label = { Text("输入 token") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    OutlinedTextField(
+                                        value = outputTokens,
+                                        onValueChange = { outputTokens = it },
+                                        label = { Text("输出 token") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -203,7 +230,7 @@ fun DetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {

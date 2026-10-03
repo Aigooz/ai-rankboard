@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -32,11 +34,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -79,6 +83,9 @@ fun HomeScreen(
     val state by vm.state.collectAsState()
     val favoriteSlugs by vm.favoriteSlugs.collectAsState(initial = emptyList())
     var sortMenuOpen by remember { mutableStateOf(false) }
+    var filterSheetOpen by remember { mutableStateOf(false) }
+    val selectedBoard = state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
+        ?: state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
 
     Scaffold(
         topBar = {
@@ -115,10 +122,10 @@ fun HomeScreen(
                     onValueChange = vm::setQuery,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     placeholder = { Text("模糊搜索模型名称") },
                     singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
                             IconButton(onClick = { vm.setQuery("") }) {
@@ -132,146 +139,21 @@ fun HomeScreen(
                         Tab(
                             selected = state.tab == tab.dimension,
                             onClick = { vm.selectTab(tab.dimension) },
-                            text = { Text(tab.label) },
+                            text = {
+                                Text(
+                                    tab.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            },
                         )
                     }
                 }
-                state.snapshotInfo?.let { info ->
-                    Text(
-                        text = buildString {
-                            append("数据来源 ")
-                            append(info.sourceName.ifBlank { "ModelSage" })
-                            append(" · 快照 ")
-                            append(info.generatedAt.take(10).ifBlank { "未知" })
-                            if (info.isDownloaded) append(" · 远端更新")
-                            if (!info.verified) append(" · 校验未通过")
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
-                if (state.updateMessage.isNotBlank()) {
-                    Text(
-                        text = state.updateMessage,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-                    )
-                }
-                if (state.boardsForTab.size > 1) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(state.boardsForTab, key = { it.slug }) { board ->
-                            FilterChip(
-                                selected = state.selectedBoard == board.slug,
-                                onClick = { vm.selectBoard(board.slug) },
-                                label = { Text(board.name) },
-                            )
-                        }
-                    }
-                }
-                if (state.allBoardsForTab.map { it.sourceId }.distinct().size > 1) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = state.sourceFilter == null,
-                                onClick = { vm.setSourceFilter(null) },
-                                label = { Text("全部来源") },
-                            )
-                        }
-                        items(
-                            state.allBoardsForTab.map { it.sourceId }.distinct(),
-                            key = { it },
-                        ) { sourceId ->
-                            FilterChip(
-                                selected = state.sourceFilter == sourceId,
-                                onClick = {
-                                    vm.setSourceFilter(if (state.sourceFilter == sourceId) null else sourceId)
-                                },
-                                label = { Text(sourceLabel(sourceId)) },
-                            )
-                        }
-                    }
-                }
-                if (state.vendorOptions.isNotEmpty() || state.licenseFilter != null || state.paramsFilter != null) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = state.vendorFilter == null,
-                                onClick = { vm.setVendorFilter(null) },
-                                label = { Text("厂商") },
-                            )
-                        }
-                        items(state.vendorOptions, key = { it }) { vendor ->
-                            FilterChip(
-                                selected = state.vendorFilter == vendor,
-                                onClick = {
-                                    vm.setVendorFilter(if (state.vendorFilter == vendor) null else vendor)
-                                },
-                                label = { Text(vendor, maxLines = 1) },
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = state.licenseFilter == "open",
-                                onClick = {
-                                    vm.setLicenseFilter(if (state.licenseFilter == "open") null else "open")
-                                },
-                                label = { Text("开源") },
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = state.licenseFilter == "proprietary",
-                                onClick = {
-                                    vm.setLicenseFilter(
-                                        if (state.licenseFilter == "proprietary") null else "proprietary",
-                                    )
-                                },
-                                label = { Text("商业") },
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = state.paramsFilter == "small",
-                                onClick = {
-                                    vm.setParamsFilter(if (state.paramsFilter == "small") null else "small")
-                                },
-                                label = { Text("≤10B") },
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = state.paramsFilter == "medium",
-                                onClick = {
-                                    vm.setParamsFilter(if (state.paramsFilter == "medium") null else "medium")
-                                },
-                                label = { Text("10-100B") },
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = state.paramsFilter == "large",
-                                onClick = {
-                                    vm.setParamsFilter(if (state.paramsFilter == "large") null else "large")
-                                },
-                                label = { Text(">100B") },
-                            )
-                        }
-                    }
-                }
+                FilterSummaryBar(
+                    boardName = selectedBoard?.name ?: "选择榜单",
+                    activeCount = state.activeFilterCount(),
+                    snapshotDate = state.snapshotInfo?.generatedAt?.take(10).orEmpty(),
+                    onClick = { filterSheetOpen = true },
+                )
             }
         },
     ) { padding ->
@@ -308,8 +190,8 @@ fun HomeScreen(
                         }
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
                             items(state.entries, key = { it.slug }) { entry ->
                                 ModelRow(
@@ -349,6 +231,230 @@ fun HomeScreen(
             }
         }
     }
+
+    if (filterSheetOpen) {
+        ModalBottomSheet(onDismissRequest = { filterSheetOpen = false }) {
+            FilterSheet(
+                state = state,
+                onSelectBoard = {
+                    vm.selectBoard(it)
+                },
+                onSelectSource = { sourceId ->
+                    vm.setSourceFilter(sourceId)
+                },
+                onSelectVendor = { vendor ->
+                    vm.setVendorFilter(vendor)
+                },
+                onSelectLicense = { license ->
+                    vm.setLicenseFilter(license)
+                },
+                onSelectParams = { params ->
+                    vm.setParamsFilter(params)
+                },
+                onClear = {
+                    vm.setVendorFilter(null)
+                    vm.setLicenseFilter(null)
+                    vm.setParamsFilter(null)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterSummaryBar(
+    boardName: String,
+    activeCount: Int,
+    snapshotDate: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 3.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                Icons.Filled.Tune,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(17.dp),
+            )
+            Text(
+                text = if (activeCount == 0) boardName else "$boardName · $activeCount 项筛选",
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (snapshotDate.isNotBlank()) {
+                Text(
+                    snapshotDate,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSheet(
+    state: HomeUiState,
+    onSelectBoard: (String) -> Unit,
+    onSelectSource: (String?) -> Unit,
+    onSelectVendor: (String?) -> Unit,
+    onSelectLicense: (String?) -> Unit,
+    onSelectParams: (String?) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "筛选",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onClear) {
+                Text("清除筛选")
+            }
+        }
+        FilterSection("榜单") {
+            items(state.boardsForTab, key = { it.slug }) { board ->
+                FilterChip(
+                    selected = state.selectedBoard == board.slug,
+                    onClick = { onSelectBoard(board.slug) },
+                    label = { Text(board.name, maxLines = 1) },
+                )
+            }
+        }
+        if (state.allBoardsForTab.map { it.sourceId }.distinct().size > 1) {
+            FilterSection("来源") {
+                item {
+                    FilterChip(
+                        selected = state.sourceFilter == null,
+                        onClick = { onSelectSource(null) },
+                        label = { Text("全部") },
+                    )
+                }
+                items(state.allBoardsForTab.map { it.sourceId }.distinct(), key = { it }) { sourceId ->
+                    FilterChip(
+                        selected = state.sourceFilter == sourceId,
+                        onClick = {
+                            onSelectSource(if (state.sourceFilter == sourceId) null else sourceId)
+                        },
+                        label = { Text(sourceLabel(sourceId), maxLines = 1) },
+                    )
+                }
+            }
+        }
+        if (state.vendorOptions.isNotEmpty()) {
+            FilterSection("厂商") {
+                item {
+                    FilterChip(
+                        selected = state.vendorFilter == null,
+                        onClick = { onSelectVendor(null) },
+                        label = { Text("全部") },
+                    )
+                }
+                items(state.vendorOptions, key = { it }) { vendor ->
+                    FilterChip(
+                        selected = state.vendorFilter == vendor,
+                        onClick = {
+                            onSelectVendor(if (state.vendorFilter == vendor) null else vendor)
+                        },
+                        label = { Text(vendor, maxLines = 1) },
+                    )
+                }
+            }
+        }
+        FilterSection("许可") {
+            item {
+                FilterChip(
+                    selected = state.licenseFilter == null,
+                    onClick = { onSelectLicense(null) },
+                    label = { Text("全部") },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = state.licenseFilter == "open",
+                    onClick = { onSelectLicense(if (state.licenseFilter == "open") null else "open") },
+                    label = { Text("开源") },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = state.licenseFilter == "proprietary",
+                    onClick = { onSelectLicense(if (state.licenseFilter == "proprietary") null else "proprietary") },
+                    label = { Text("商业") },
+                )
+            }
+        }
+        FilterSection("参数") {
+            item {
+                FilterChip(
+                    selected = state.paramsFilter == null,
+                    onClick = { onSelectParams(null) },
+                    label = { Text("全部") },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = state.paramsFilter == "small",
+                    onClick = { onSelectParams(if (state.paramsFilter == "small") null else "small") },
+                    label = { Text("≤10B") },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = state.paramsFilter == "medium",
+                    onClick = { onSelectParams(if (state.paramsFilter == "medium") null else "medium") },
+                    label = { Text("10-100B") },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = state.paramsFilter == "large",
+                    onClick = { onSelectParams(if (state.paramsFilter == "large") null else "large") },
+                    label = { Text(">100B") },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSection(
+    title: String,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 3.dp),
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            content()
+        }
+    }
 }
 
 private fun sourceLabel(sourceId: String): String = when (sourceId) {
@@ -357,6 +463,13 @@ private fun sourceLabel(sourceId: String): String = when (sourceId) {
     else -> "ModelSage"
 }
 
+private fun HomeUiState.activeFilterCount(): Int = listOf<String?>(
+    sourceFilter,
+    vendorFilter,
+    licenseFilter,
+    paramsFilter,
+).count { it != null }
+
 @Composable
 private fun ModelRow(
     entry: EntryDto,
@@ -364,15 +477,15 @@ private fun ModelRow(
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    tonalElevation = 2.dp,
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 1.dp,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -380,45 +493,48 @@ private fun ModelRow(
                 style = MaterialTheme.typography.labelLarge,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.width(28.dp),
+                modifier = Modifier.width(21.dp),
             )
-            VendorIcon(vendor = entry.vendor, size = 26.dp)
-            Spacer(Modifier.width(8.dp))
+            VendorIcon(vendor = entry.vendor, size = 20.dp)
+            Spacer(Modifier.width(6.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = parseModelStrength(entry.displayName).first,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = entry.vendor ?: "-",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = parseModelStrength(entry.displayName).first,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     parseModelStrength(entry.displayName).second?.let { strength ->
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(5.dp),
                             color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(start = 4.dp),
                         ) {
                             Text(
                                 text = strength,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                             )
                         }
                     }
                 }
+                Text(
+                    text = listOfNotNull(
+                        entry.vendor,
+                        entry.paramsB?.let { "${formatParams(it)}B" },
+                        entry.fetchedAt.take(10),
+                    ).filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
@@ -426,22 +542,24 @@ private fun ModelRow(
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Text(
-                    text = entry.fetchedAt.take(10),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
-            IconButton(onClick = onToggleFavorite) {
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(30.dp),
+            ) {
                 Icon(
                     if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
                     contentDescription = if (isFavorite) "取消收藏" else "收藏",
                     tint = if (isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
     }
 }
+
+private fun formatParams(value: Double): String =
+    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
 
 private fun parseModelStrength(displayName: String): Pair<String, String?> {
     val match = Regex("\\s*\\((xhigh|high|medium|low|max|non-reasoning|reasoning)( with fallback)?\\)$")

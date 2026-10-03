@@ -105,8 +105,8 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
                 SettingsGroup(title = "外观", icon = Icons.Filled.Palette) {
@@ -130,8 +130,8 @@ fun SettingsScreen(
                         }
                     }
                     SwitchRow(
-                        title = "Material You 动态取色",
-                        subtitle = "Android 12+ 跟随壁纸配色；关闭后使用应用品牌配色",
+                        title = "动态取色",
+                        subtitle = "Android 12+ 跟随壁纸配色",
                         checked = settings.dynamicColor,
                         onCheckedChange = app.settingsStore::setDynamicColor,
                     )
@@ -152,13 +152,13 @@ fun SettingsScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 14.dp, vertical = 2.dp),
                         singleLine = true,
                     )
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 14.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -191,7 +191,7 @@ fun SettingsScreen(
                         subtitle = if (BuildConfig.SNAPSHOT_URL.isBlank()) {
                             "当前未配置远端快照地址，只使用内置数据"
                         } else {
-                            "后台发现新快照时发送系统通知"
+                            "发现新快照时发送系统通知"
                         },
                         checked = settings.updateReminders,
                         onCheckedChange = { enabled ->
@@ -211,7 +211,7 @@ fun SettingsScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 14.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
@@ -243,7 +243,7 @@ fun SettingsScreen(
                             updateMessage,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp),
                         )
                     }
                     Text(
@@ -251,7 +251,7 @@ fun SettingsScreen(
                             " · Schema v${snapshot.schemaVersion}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp),
                     )
                 }
             }
@@ -261,13 +261,13 @@ fun SettingsScreen(
                         text = "当前版本 v${BuildConfig.VERSION_NAME}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp),
                     )
                     Text(
-                        text = "启动时和每天自动检查新版本。发现更新后会后台下载并通知安装，无需配置地址。",
+                        text = "启动和每日自动检查，发现更新后下载并通知安装。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
                     )
                     Text(
                         text = if (canInstall) {
@@ -277,7 +277,7 @@ fun SettingsScreen(
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp),
                     )
                     Button(
                         onClick = {
@@ -297,7 +297,7 @@ fun SettingsScreen(
                             }
                         },
                         enabled = !appUpdateChecking,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
                     ) {
                         if (appUpdateChecking) {
                             CircularProgressIndicator(Modifier.size(18.dp))
@@ -314,7 +314,7 @@ fun SettingsScreen(
                             appUpdateMessage,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp),
                         )
                     }
                 }
@@ -340,13 +340,13 @@ private fun SettingsGroup(
     content: @Composable () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 2.dp,
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(vertical = 10.dp)) {
+        Column(Modifier.padding(vertical = 8.dp)) {
             Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -368,7 +368,7 @@ private fun SwitchRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

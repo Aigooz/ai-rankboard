@@ -1,5 +1,6 @@
 package com.ai.rankboard.ui.about
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,10 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dataset
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ai.rankboard.BuildConfig
@@ -88,7 +88,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     Image(
                         painter = painterResource(R.drawable.ic_launcher_foreground),
                         contentDescription = null,
-                        modifier = Modifier.size(84.dp),
+                    modifier = Modifier.size(64.dp),
                     )
                     Text(
                         "AI 排行榜",
@@ -105,24 +105,16 @@ fun AboutScreen(onBack: () -> Unit) {
             }
             item {
                 AboutGroup(title = "项目", icon = Icons.Filled.Code) {
-                    Button(
+                    AboutLinkRow(
                         onClick = { openUrl(context, GITHUB_URL) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                        Text("GitHub 仓库", modifier = Modifier.padding(start = 6.dp))
-                    }
-                    OutlinedButton(
+                        icon = Icons.AutoMirrored.Filled.OpenInNew,
+                        label = "GitHub 仓库",
+                    )
+                    AboutLinkRow(
                         onClick = { openUrl(context, ISSUES_URL) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                    ) {
-                        Icon(Icons.Filled.BugReport, contentDescription = null)
-                        Text("反馈问题", modifier = Modifier.padding(start = 6.dp))
-                    }
+                        icon = Icons.Filled.BugReport,
+                        label = "反馈问题",
+                    )
                 }
             }
             item {
@@ -133,24 +125,20 @@ fun AboutScreen(onBack: () -> Unit) {
                             "快照生成：${snapshot.generatedAt.take(19).replace("T", " ")}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp),
                     )
                     sources.forEach { source ->
-                        OutlinedButton(
+                        AboutLinkRow(
                             onClick = { openUrl(context, source.url.ifBlank { SOURCE_URL }) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                            Text("打开 ${source.name.ifBlank { source.id }}", modifier = Modifier.padding(start = 6.dp))
-                        }
+                            icon = Icons.AutoMirrored.Filled.OpenInNew,
+                            label = source.name.ifBlank { source.id },
+                        )
                     }
                 }
             }
             item {
                 Text(
-                    "榜单数据仅用于聚合展示和模型选型参考。应用内置快照可离线使用；配置远端地址后可后台更新。",
+                    "榜单数据仅用于聚合展示和模型选型参考，应用内置快照可离线使用。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp),
@@ -182,5 +170,29 @@ private fun AboutGroup(
             }
             content()
         }
+    }
+}
+
+@Composable
+private fun AboutLinkRow(
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
