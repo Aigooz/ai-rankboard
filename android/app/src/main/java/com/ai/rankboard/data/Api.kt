@@ -54,6 +54,8 @@ data class EntriesResponse(
     val total: Int = 0,
     val limit: Int = 50,
     val offset: Int = 0,
+    @SerializedName("score_min") val scoreMin: Double? = null,
+    @SerializedName("score_max") val scoreMax: Double? = null,
 )
 
 data class ScoreDto(
@@ -69,6 +71,9 @@ data class ScoreDto(
     @SerializedName("price_out") val priceOut: Double? = null,
     val currency: String = "CNY",
     @SerializedName("fetched_at") val fetchedAt: String = "",
+    @SerializedName("score_min") val scoreMin: Double? = null,
+    @SerializedName("score_max") val scoreMax: Double? = null,
+    @SerializedName("entry_count") val entryCount: Int = 0,
 )
 
 data class ModelDetailDto(

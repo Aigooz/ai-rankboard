@@ -115,11 +115,13 @@ fun SourceBadge(
 @Composable
 fun ScoreBar(
     score: Double?,
+    minScore: Double? = 0.0,
+    maxScore: Double? = 100.0,
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 6.dp,
 ) {
-    val ratio = (((score ?: 0.0).coerceIn(0.0, 100.0)) / 100.0).toFloat()
-    val color = scoreColor(score)
+    val ratio = normalizedScoreRatio(score, minScore, maxScore) ?: 0f
+    val color = scoreColor(score, minScore, maxScore)
     Box(
         modifier = modifier
             .height(height)

@@ -57,6 +57,8 @@ data class HomeUiState(
     val paramsFilter: Set<String> = emptySet(),
     val entries: List<EntryDto> = emptyList(),
     val total: Int = 0,
+    val scoreMin: Double? = null,
+    val scoreMax: Double? = null,
     val loading: Boolean = false,
     val refreshing: Boolean = false,
     val loadingMore: Boolean = false,
@@ -336,7 +338,13 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
                 s.entries + response.entries.filterNot { it.slug in existing }
             }
             _state.update {
-                it.copy(entries = combined, total = response.total, offline = false)
+                it.copy(
+                    entries = combined,
+                    total = response.total,
+                    scoreMin = response.scoreMin,
+                    scoreMax = response.scoreMax,
+                    offline = false,
+                )
             }
             if (reset) runCatching { repository.saveEntries(boardSlug, response.entries) }
         } else {
@@ -346,6 +354,8 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
                     it.copy(
                         entries = cached.map { c -> c.toDto() },
                         total = cached.size,
+                        scoreMin = null,
+                        scoreMax = null,
                         offline = true,
                     )
                 }

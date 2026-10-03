@@ -96,6 +96,8 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             total = sorted.size,
             limit = limit,
             offset = offset,
+            scoreMin = sorted.mapNotNull { it.score }.minOrNull(),
+            scoreMax = sorted.mapNotNull { it.score }.maxOrNull(),
         )
     }
 
@@ -146,6 +148,8 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         val scores = snapshot.boards.mapNotNull { board ->
             val entry = snapshot.entriesByBoard[board.slug]?.firstOrNull { it.slug == slug }
                 ?: return@mapNotNull null
+            val boardScores = snapshot.entriesByBoard[board.slug].orEmpty()
+                .mapNotNull { it.score }
             ScoreDto(
                 boardSlug = board.slug,
                 boardName = board.name,
@@ -159,6 +163,9 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
                 priceOut = entry.priceOut,
                 currency = entry.currency,
                 fetchedAt = entry.fetchedAt,
+                scoreMin = boardScores.minOrNull(),
+                scoreMax = boardScores.maxOrNull(),
+                entryCount = boardScores.size,
             )
         }
         return ModelDetailResponse(model, scores)

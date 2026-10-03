@@ -471,10 +471,12 @@ private fun SummaryCard(
                         winner.second.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
                         style = MaterialTheme.typography.titleMedium,
                         fontFamily = FontFamily.Monospace,
-                        color = scoreColor(winner.second.score),
+                        color = scoreColor(winner.second.score, winner.second.scoreMin, winner.second.scoreMax),
                     )
                     ScoreBar(
                         score = winner.second.score,
+                        minScore = winner.second.scoreMin,
+                        maxScore = winner.second.scoreMax,
                         modifier = Modifier
                             .width(52.dp)
                             .padding(top = 3.dp),

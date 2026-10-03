@@ -204,6 +204,14 @@ fun DetailScreen(
                 )
             }
             item {
+                ScoreRadarChart(
+                    scores = state.scores,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp),
+                )
+            }
+            item {
                 val priced = state.scores.firstOrNull { it.priceIn != null || it.priceOut != null }
                 if (priced != null) {
                     Surface(
@@ -316,11 +324,13 @@ fun DetailScreen(
                                 } ?: "-",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontFamily = FontFamily.Monospace,
-                                color = scoreColor(s.score),
+                                color = scoreColor(s.score, s.scoreMin, s.scoreMax),
                             )
                         }
                         ScoreBar(
                             score = s.score,
+                            minScore = s.scoreMin,
+                            maxScore = s.scoreMax,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 6.dp),

@@ -178,12 +178,16 @@ fun HomeScreen(
                                     state = state,
                                     onOpenModel = onOpenModel,
                                     onSelectSource = vm::setSourceFilter,
+                                    scoreMin = state.scoreMin,
+                                    scoreMax = state.scoreMax,
                                 )
                             }
                             items(state.entries, key = { it.slug }) { entry ->
                                 ModelRow(
                                     entry = entry,
                                     isFavorite = entry.slug in favoriteSlugs.toSet(),
+                                    scoreMin = state.scoreMin,
+                                    scoreMax = state.scoreMax,
                                     onClick = { onOpenModel(entry.slug) },
                                     onToggleFavorite = {
                                         vm.toggleFavorite(entry.slug, entry.displayName)
@@ -256,6 +260,8 @@ private fun LeaderboardOverview(
     state: HomeUiState,
     onOpenModel: (String) -> Unit,
     onSelectSource: (String?) -> Unit,
+    scoreMin: Double?,
+    scoreMax: Double?,
 ) {
     val topModels = state.entries.take(3)
     Surface(
@@ -303,6 +309,8 @@ private fun LeaderboardOverview(
                             },
                             onClick = { onOpenModel(entry.slug) },
                             modifier = Modifier.weight(1f),
+                            scoreMin = scoreMin,
+                            scoreMax = scoreMax,
                         )
                     }
                 }
@@ -345,6 +353,8 @@ private fun TopModelCard(
     rankColor: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    scoreMin: Double?,
+    scoreMax: Double?,
 ) {
     Surface(
         shape = RoundedCornerShape(9.dp),
@@ -375,14 +385,16 @@ private fun TopModelCard(
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            Text(
-                entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
-                style = MaterialTheme.typography.titleSmall,
-                fontFamily = FontFamily.Monospace,
-                color = scoreColor(entry.score),
-            )
+                Text(
+                    entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = scoreColor(entry.score, scoreMin, scoreMax),
+                )
             ScoreBar(
                 score = entry.score,
+                minScore = scoreMin,
+                maxScore = scoreMax,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 2.dp),
@@ -686,6 +698,8 @@ private fun HomeUiState.activeFilterCount(): Int =
 private fun ModelRow(
     entry: EntryDto,
     isFavorite: Boolean,
+    scoreMin: Double?,
+    scoreMax: Double?,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
@@ -753,10 +767,12 @@ private fun ModelRow(
                     text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
-                    color = scoreColor(entry.score),
+                    color = scoreColor(entry.score, scoreMin, scoreMax),
                 )
                 ScoreBar(
                     score = entry.score,
+                    minScore = scoreMin,
+                    maxScore = scoreMax,
                     modifier = Modifier
                         .width(52.dp)
                         .padding(top = 2.dp),
