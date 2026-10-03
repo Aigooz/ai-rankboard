@@ -29,6 +29,7 @@ data class AppSettings(
     val appUpdateUrl: String = "",
     val relayUrl: String = "",
     val relayApiKey: String = "",
+    val compareModels: List<String> = emptyList(),
 )
 
 class SettingsStore(private val context: Context) {
@@ -94,6 +95,11 @@ class SettingsStore(private val context: Context) {
         _settings.value = _settings.value.copy(relayUrl = normalizedUrl, relayApiKey = normalizedKey)
     }
 
+    fun setCompareModels(slugs: List<String>) {
+        prefs.edit().putString(KEY_COMPARE_MODELS, slugs.joinToString(",")).apply()
+        _settings.value = _settings.value.copy(compareModels = slugs)
+    }
+
     fun reset() {
         prefs.edit().clear().apply()
         _settings.value = read()
@@ -115,6 +121,10 @@ class SettingsStore(private val context: Context) {
             appUpdateUrl = prefs.getString(KEY_APP_UPDATE_URL, "").orEmpty().trim(),
             relayUrl = prefs.getString(KEY_RELAY_URL, "").orEmpty().trim(),
             relayApiKey = prefs.getString(KEY_RELAY_API_KEY, "").orEmpty().trim(),
+            compareModels = prefs.getString(KEY_COMPARE_MODELS, "").orEmpty()
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotBlank() },
         )
     }
 
@@ -131,5 +141,6 @@ class SettingsStore(private val context: Context) {
         private const val KEY_APP_UPDATE_URL = "app_update_url"
         private const val KEY_RELAY_URL = "relay_url"
         private const val KEY_RELAY_API_KEY = "relay_api_key"
+        private const val KEY_COMPARE_MODELS = "compare_models"
     }
 }

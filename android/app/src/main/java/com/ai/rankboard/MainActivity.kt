@@ -163,6 +163,7 @@ class MainActivity : ComponentActivity() {
                         composable("compare") {
                             CompareScreen(
                                 onBack = { navController.popBackStack() },
+                                onOpenModel = { slug -> navController.navigate("model/$slug") },
                             )
                         }
                         composable("select") {

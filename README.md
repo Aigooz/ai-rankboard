@@ -142,4 +142,4 @@ com/ai/rankboard/
 
 `keystore.properties`、`release.keystore`、`local.properties`、构建产物和 APK 都已加入 `.gitignore`，不要提交私钥。GitHub Actions 会在 `push`/`pull_request` 时执行后端单测、Android 单测和 release 构建，并上传未签名 APK artifact。
 
-> Windows 提示：如果源码路径包含中文导致 Gradle test worker/KSP 异常，可在同盘建立 ASCII 路径联接后从该路径构建，例如 `New-Item -ItemType Junction -Path D:\1Project\ai-rankboard -Target "D:\1Project\手机ai排行榜软件"`。
+> Windows 提示：如果源码路径包含中文导致 Gradle test worker/KSP 异常，可在同盘建立 ASCII 路径联接后从该路径构建，例如 `New-Item -ItemType Junction -Path D:\1Project\ai-rankboard -Target "D:\1Project\手机ai排行榜软件"`。注意：路径联接能解决编译，但 Gradle 会把项目目录还原为真实中文路径，`testReleaseUnitTest` 的 worker 仍会全部 ClassNotFoundException；跑单测需要把 `android/` 完整拷贝到纯 ASCII 目录（如 `D:\ai-rankboard-test`）后在该目录构建，首次可用 `tar -cf - --exclude=.gradle --exclude=build . | (cd /d/ai-rankboard-test && tar -xf -)` 同步。

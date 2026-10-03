@@ -7,19 +7,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +25,7 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -59,24 +56,15 @@ import com.ai.rankboard.data.ModelDetailDto
 import com.ai.rankboard.data.ModelDetailResponse
 import com.ai.rankboard.data.ScoreDto
 import com.ai.rankboard.ui.common.AppCard
-import com.ai.rankboard.ui.common.ScoreBar
 import com.ai.rankboard.ui.common.SearchField
 import com.ai.rankboard.ui.common.SectionHeader
-import com.ai.rankboard.ui.common.SourceBadge
 import com.ai.rankboard.ui.common.VendorIcon
 import com.ai.rankboard.ui.common.scoreColor
-import java.util.Locale
-
-private val MODEL_ACCENTS = listOf(
-    Color(0xFF6366F1),
-    Color(0xFF0EA5E9),
-    Color(0xFFF97316),
-    Color(0xFF10B981),
-)
 
 @Composable
 fun CompareScreen(
     onBack: () -> Unit,
+    onOpenModel: (String) -> Unit,
     vm: CompareViewModel = viewModel(
         factory = CompareViewModel.factory(LocalContext.current.applicationContext as RankboardApp),
     ),
@@ -149,6 +137,7 @@ fun CompareScreen(
                         models = state.models,
                         boards = visibleBoards,
                         selectedBoard = selectedBoard,
+                        onOpenModel = onOpenModel,
                     )
                 }
             }
@@ -166,6 +155,7 @@ fun CompareScreen(
             onQueryChange = vm::setQuery,
             onTabChange = vm::setPickerTab,
             onToggle = vm::toggleSelection,
+            onToggleFavorite = vm::toggleFavorite,
             onDismiss = { vm.setPickerOpen(false) },
         )
     }
@@ -300,30 +290,30 @@ private fun SelectionBar(
         }
         if (canAdd) {
             item(key = "add") {
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.clickable(onClick = onAdd),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.clickable(onClick = onAdd),
                 ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Text(
-                        text = "添加",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "添加",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                 }
             }
-        }
         }
     }
 }
@@ -353,7 +343,7 @@ private fun EmptyCompare(
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "已收藏模型会自动进入对比，也可以按厂商分类添加。",
+                text = "默认带入收藏的模型，也可以按厂商或搜索添加；上次的选择会自动保留。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -370,12 +360,16 @@ private fun CompareContent(
     models: List<ModelDetailResponse>,
     boards: List<BoardDto>,
     selectedBoard: BoardDto?,
+    onOpenModel: (String) -> Unit,
 ) {
     val selectedBoardSlug = selectedBoard?.slug.orEmpty()
-    val leader = models.maxByOrNull { response ->
-        response.scores.firstOrNull { it.boardSlug == selectedBoardSlug }?.score
-            ?: Double.NEGATIVE_INFINITY
-    }
+    val entries = models.map { it to it.scores.firstOrNull { s -> s.boardSlug == selectedBoardSlug } }
+    val scoredEntries = entries.filter { it.second?.score != null }
+    val leader = scoredEntries.maxByOrNull { it.second!!.score!! }
+        ?: entries.filter { (it.second?.rank ?: 0) > 0 }.minByOrNull { it.second!!.rank }
+    val runnerUpScore = scoredEntries
+        .filter { it.first.model.slug != leader?.first?.model?.slug }
+        .maxOfOrNull { it.second!!.score!! }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -383,48 +377,30 @@ private fun CompareContent(
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         item(key = "leader") {
-            LeaderCard(leader = leader, board = selectedBoard)
-        }
-        items(models, key = { it.model.slug }) { response ->
-            val score = response.scores.firstOrNull { it.boardSlug == selectedBoardSlug }
-            ModelCompareCard(
-                response = response,
-                score = score,
-                isLeader = leader?.model?.slug == response.model.slug && score?.score != null,
+            LeaderCard(
+                leader = leader?.first,
+                score = leader?.second,
+                runnerUpScore = runnerUpScore,
+                board = selectedBoard,
             )
         }
-        item(key = "matrix-header") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeader(title = "全维度矩阵")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    models.forEachIndexed { index, response ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            modifier = Modifier.widthIn(max = 82.dp),
-                        ) {
-                            Box(
-                                Modifier
-                                    .size(7.dp)
-                                    .background(MODEL_ACCENTS[index % MODEL_ACCENTS.size], CircleShape),
-                            )
-                            Text(
-                                text = parseModelStrength(response.model.displayName).first,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
+        item(key = "radar") {
+            CompareRadarSection(models)
         }
-        items(boards, key = { "matrix:${it.slug}" }) { board ->
-            BoardComparisonCard(board = board, models = models)
+        item(key = "table") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionHeader(title = "对比总表")
+                CompareTableCard(
+                    models = models,
+                    selectedBoard = selectedBoard,
+                    boards = boards,
+                    onOpenModel = onOpenModel,
+                )
+            }
         }
         item(key = "note") {
             Text(
-                text = "价格为每百万 token 成本；颜色按当前榜单的分数区间计算。",
+                text = "价格为每百万 tokens 成本；底色高亮为该行最优：分数取最高、价格取最低、票选榜取名次最前。",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp),
@@ -434,11 +410,21 @@ private fun CompareContent(
 }
 
 @Composable
+private fun CompareRadarSection(models: List<ModelDetailResponse>) {
+    if (selectCompareAxes(models).size < 3) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(title = "能力雷达")
+        CompareRadarChart(models)
+    }
+}
+
+@Composable
 private fun LeaderCard(
     leader: ModelDetailResponse?,
+    score: ScoreDto?,
+    runnerUpScore: Double?,
     board: BoardDto?,
 ) {
-    val score = leader?.scores?.firstOrNull { it.boardSlug == board?.slug.orEmpty() }
     AppCard(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -468,289 +454,48 @@ private fun LeaderCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    val delta = runnerUpScore?.let { runnerUp -> score.score?.minus(runnerUp) }
+                    if (delta != null && delta > 0) {
+                        Text(
+                            text = "领先第 2 名 ${formatDelta(delta)} 分",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = formatScore(score.score),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold,
-                        color = scoreColor(score.score, score.scoreMin, score.scoreMax),
-                    )
-                    Text(
-                        text = formatRank(score.rank),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModelCompareCard(
-    response: ModelDetailResponse,
-    score: ScoreDto?,
-    isLeader: Boolean,
-) {
-    val model = response.model
-    val strength = parseModelStrength(model.displayName).second
-    AppCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                VendorIcon(vendor = model.vendor, size = 30.dp)
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (score.score != null) {
                         Text(
-                            text = parseModelStrength(model.displayName).first,
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = formatScore(score.score),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            color = scoreColor(score.score, score.scoreMin, score.scoreMax),
                         )
-                        strength?.let { value ->
-                            Spacer(Modifier.width(5.dp))
-                            Surface(
-                                shape = RoundedCornerShape(5.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f),
-                            ) {
-                                Text(
-                                    text = value,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 1,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = listOfNotNull(
-                            model.vendor,
-                            model.paramsB?.let { "${formatNum(it)}B" },
-                            model.releaseDate?.take(10)?.takeIf { it.isNotBlank() },
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(7.dp),
-                    color = if (isLeader) {
-                        MaterialTheme.colorScheme.primaryContainer
+                        Text(
+                            text = formatRank(score.rank),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
-                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
-                    },
-                ) {
-                    Text(
-                        text = if (isLeader) "领先" else formatRank(score?.rank ?: 0),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isLeader) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                    )
-                }
-            }
-
-            ScoreBar(
-                score = score?.score,
-                minScore = score?.scoreMin,
-                maxScore = score?.scoreMax,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                StatCell(
-                    label = "得分",
-                    value = formatScore(score?.score),
-                    color = scoreColor(score?.score, score?.scoreMin, score?.scoreMax),
-                    modifier = Modifier.weight(1.15f),
-                )
-                StatCell(
-                    label = "输入价/M",
-                    value = formatPrice(score?.priceIn, score?.currency),
-                    modifier = Modifier.weight(1f),
-                )
-                StatCell(
-                    label = "输出价/M",
-                    value = formatPrice(score?.priceOut, score?.currency),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Text(
-                text = listOfNotNull(
-                    model.license?.let { "许可 $it" },
-                    model.contextWindow?.let { "上下文 $it" },
-                    score?.fetchedAt?.take(10)?.let { "数据 $it" },
-                ).joinToString(" · ").ifBlank { "暂无扩展信息" },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatCell(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface,
-) {
-    Surface(
-        shape = RoundedCornerShape(9.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.55f),
-        modifier = modifier,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 7.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.labelMedium,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-                color = color,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-@Composable
-private fun BoardComparisonCard(
-    board: BoardDto,
-    models: List<ModelDetailResponse>,
-) {
-    val rows = models.mapIndexed { index, response ->
-        ComparisonRow(
-            response = response,
-            accent = MODEL_ACCENTS[index % MODEL_ACCENTS.size],
-            score = response.scores.firstOrNull { it.boardSlug == board.slug },
-        )
-    }
-    val bestScore = rows.mapNotNull { it.score?.score }.maxOrNull()
-    val bestRank = rows.mapNotNull { it.score?.takeIf { item -> item.score == null }?.rank }
-        .filter { it > 0 }.minOrNull()
-
-    AppCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(11.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                Text(
-                    text = board.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                SourceBadge(sourceId = board.sourceId)
-            }
-            if (rows.all { it.score == null }) {
-                Text(
-                    text = "所选模型均未进入该榜单",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                rows.forEach { row ->
-                    val isBest = row.score?.score?.let { bestScore != null && it == bestScore } ?: false
-                    val rankBest = row.score?.score == null && row.score?.rank?.takeIf { it > 0 } == bestRank
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isBest || rankBest) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        } else {
-                            Color.Transparent
-                        },
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp),
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 5.dp),
-                        ) {
-                            Box(
-                                Modifier
-                                    .size(7.dp)
-                                    .background(row.accent, CircleShape),
-                            )
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = parseModelStrength(row.response.model.displayName).first,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (isBest || rankBest) FontWeight.SemiBold else FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    text = "${formatRank(row.score?.rank ?: 0)} · ${sourceLabel(board.sourceId)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
-                            }
-                            ScoreBar(
-                                score = row.score?.score,
-                                minScore = row.score?.scoreMin,
-                                maxScore = row.score?.scoreMax,
-                                modifier = Modifier.width(42.dp),
-                            )
-                            Text(
-                                text = formatScore(row.score?.score),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.SemiBold,
-                                color = scoreColor(row.score?.score, row.score?.scoreMin, row.score?.scoreMax),
-                                maxLines = 1,
-                                modifier = Modifier.width(46.dp),
-                                textAlign = TextAlign.End,
-                            )
-                        }
+                        Text(
+                            text = "#${score.rank}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = "票选排名",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
         }
     }
 }
-
-private data class ComparisonRow(
-    val response: ModelDetailResponse,
-    val accent: Color,
-    val score: ScoreDto?,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -764,6 +509,7 @@ private fun ModelPickerSheet(
     onQueryChange: (String) -> Unit,
     onTabChange: (PickerTab) -> Unit,
     onToggle: (String) -> Unit,
+    onToggleFavorite: (ModelDetailDto) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val favoriteSlugs = favoriteModels.map { it.slug }.toSet()
@@ -830,7 +576,7 @@ private fun ModelPickerSheet(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "还没有收藏模型，去榜单页点亮星标吧",
+                        text = "还没有收藏模型，在模型详情页点亮星标即可加入这里",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -866,6 +612,7 @@ private fun ModelPickerSheet(
                             favoriteSlugs = favoriteSlugs,
                             maxCount = maxCount,
                             onToggle = onToggle,
+                            onToggleFavorite = onToggleFavorite,
                         )
                     }
                 }
@@ -881,6 +628,7 @@ private fun ModelGroupSection(
     favoriteSlugs: Set<String>,
     maxCount: Int,
     onToggle: (String) -> Unit,
+    onToggleFavorite: (ModelDetailDto) -> Unit,
 ) {
     Column {
         Row(
@@ -913,6 +661,7 @@ private fun ModelGroupSection(
                 favorite = model.slug in favoriteSlugs,
                 disabled = model.slug !in selectedSlugs && selectedSlugs.size >= maxCount,
                 onToggle = { onToggle(model.slug) },
+                onToggleFavorite = { onToggleFavorite(model) },
             )
         }
     }
@@ -925,6 +674,7 @@ private fun ModelPickerRow(
     favorite: Boolean,
     disabled: Boolean,
     onToggle: () -> Unit,
+    onToggleFavorite: () -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -954,7 +704,7 @@ private fun ModelPickerRow(
                 Text(
                     text = listOfNotNull(
                         model.vendor,
-                        model.paramsB?.let { "${formatNum(it)}B" },
+                        model.paramsB?.let { params -> "${formatNum(params)}B" },
                         parseModelStrength(model.displayName).second,
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
@@ -963,12 +713,19 @@ private fun ModelPickerRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (favorite) {
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(28.dp),
+            ) {
                 Icon(
-                    Icons.Filled.Star,
-                    contentDescription = "已收藏",
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(16.dp),
+                    if (favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    contentDescription = if (favorite) "取消收藏" else "收藏",
+                    tint = if (favorite) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(17.dp),
                 )
             }
             if (selected) {
@@ -982,55 +739,3 @@ private fun ModelPickerRow(
         }
     }
 }
-
-private fun dimensionLabel(dimension: String): String = when (dimension) {
-    "overall" -> "综合"
-    "coding" -> "代码"
-    "writing" -> "写作"
-    "multimodal" -> "多模态"
-    "agent" -> "智能体"
-    "search" -> "搜索"
-    "speed" -> "速度"
-    "value" -> "性价比"
-    "math" -> "数学"
-    "analysis" -> "数据分析"
-    else -> dimension.replaceFirstChar { it.uppercase(Locale.US) }
-}
-
-private fun sourceLabel(sourceId: String): String = when (sourceId.lowercase(Locale.US)) {
-    "modelsage" -> "ModelSage"
-    "livebench" -> "LiveBench"
-    "swebench", "swe-bench" -> "SWE-bench"
-    "arena", "lmarena" -> "Arena"
-    else -> sourceId
-}
-
-private fun parseModelStrength(displayName: String): Pair<String, String?> {
-    val match = Regex("\\s*\\((xhigh|high|medium|low|max|non-reasoning|reasoning)( with fallback)?\\)$")
-        .find(displayName) ?: return displayName to null
-    val strength = match.groupValues[1].replaceFirstChar { it.uppercase() } +
-        if (match.groupValues[2].isNotBlank()) " FB" else ""
-    return displayName.removeRange(match.range) to strength
-}
-
-private fun formatScore(value: Double?): String {
-    if (value == null) return "未上榜"
-    return if (value >= 1000) {
-        String.format(Locale.US, "%.0f", value)
-    } else {
-        String.format(Locale.US, "%.1f", value)
-    }
-}
-
-private fun formatRank(rank: Int?): String {
-    return if (rank != null && rank > 0) "#$rank" else "未上榜"
-}
-
-private fun formatPrice(value: Double?, currency: String?): String {
-    if (value == null) return "-"
-    val symbol = if (currency.equals("USD", ignoreCase = true)) "$" else "¥"
-    return "$symbol${String.format(Locale.US, "%.2f", value)}"
-}
-
-private fun formatNum(value: Double): String =
-    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()

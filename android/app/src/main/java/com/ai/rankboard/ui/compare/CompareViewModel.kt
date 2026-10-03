@@ -7,9 +7,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.BoardDto
+import com.ai.rankboard.data.FavoriteEntity
 import com.ai.rankboard.data.LeaderboardRepository
 import com.ai.rankboard.data.ModelDetailDto
 import com.ai.rankboard.data.ModelDetailResponse
+import com.ai.rankboard.data.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,8 +32,13 @@ data class CompareUiState(
     val loading: Boolean = false,
 )
 
-class CompareViewModel(private val repository: LeaderboardRepository) : ViewModel() {
-    private var favoriteModels: List<ModelDetailDto> = emptyList()
+class CompareViewModel(
+    private val repository: LeaderboardRepository,
+    private val settingsStore: SettingsStore,
+) : ViewModel() {
+
+    // 收藏列表依赖逐条查详情，缓存避免快照未变时反复解析。
+    private val detailCache = mutableMapOf<String, ModelDetailDto>()
 
     private val _state = MutableStateFlow(CompareUiState())
     val state: StateFlow<CompareUiState> = _state.asStateFlow()
@@ -39,9 +46,13 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
     init {
         viewModelScope.launch {
             val boards = repository.boards()
-            favoriteModels = repository.favoriteModels()
-            val favorites = favoriteModels.map { it.slug }
-            val initialSelection = favorites.take(MAX_MODELS)
+            repository.modelOptions("").forEach { detailCache[it.slug] = it }
+            val favorites = favoriteDetails(repository.favoriteList())
+            _state.update { it.copy(favoriteModels = favorites) }
+            val savedSelection = settingsStore.settings.value.compareModels
+                .filter { it in detailCache }
+                .take(MAX_MODELS)
+            val initialSelection = savedSelection.ifEmpty { favorites.take(MAX_MODELS).map { it.slug } }
             _state.update {
                 it.copy(
                     boards = boards,
@@ -49,13 +60,22 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
                     selectedBoardSlug = boards.firstOrNull { board -> board.slug == "overall" }?.slug
                         ?: boards.firstOrNull()?.slug.orEmpty(),
                     selectedSlugs = initialSelection,
-                    favoriteModels = favoriteModels,
                     pickerTab = if (favorites.isEmpty()) PickerTab.Vendors else PickerTab.Favorites,
                     candidates = pickerCandidates(""),
                     loading = initialSelection.isNotEmpty(),
                 )
             }
             loadModels(initialSelection)
+        }
+        // 收藏列表保持实时：在其他页面点亮/取消星标后，选择器的收藏分组立即同步。
+        viewModelScope.launch {
+            repository.favorites().collect { favorites ->
+                val details = favoriteDetails(favorites)
+                _state.update { it.copy(favoriteModels = details) }
+                _state.update { current ->
+                    current.copy(candidates = pickerCandidates(current.query))
+                }
+            }
         }
     }
 
@@ -75,8 +95,16 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
             else -> current + slug
         }
         if (next == current) return
+        settingsStore.setCompareModels(next)
         _state.update { it.copy(selectedSlugs = next, loading = true) }
         viewModelScope.launch { loadModels(next) }
+    }
+
+    fun toggleFavorite(model: ModelDetailDto) {
+        val target = _state.value.favoriteModels.none { it.slug == model.slug }
+        viewModelScope.launch {
+            repository.setFavorite(model.slug, model.displayName, target)
+        }
     }
 
     fun selectBoard(slug: String) {
@@ -111,8 +139,16 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
         }
     }
 
+    private suspend fun favoriteDetails(favorites: List<FavoriteEntity>): List<ModelDetailDto> =
+        favorites.map { favorite ->
+            detailCache.getOrPut(favorite.modelSlug) {
+                repository.modelDetail(favorite.modelSlug)?.model
+                    ?: ModelDetailDto(slug = favorite.modelSlug, displayName = favorite.displayName)
+            }
+        }
+
     private fun pickerCandidates(query: String): List<ModelDetailDto> {
-        val matchingFavorites = favoriteModels.filter { ModelPickerGroups.matches(it, query) }
+        val matchingFavorites = _state.value.favoriteModels.filter { ModelPickerGroups.matches(it, query) }
         return (matchingFavorites + repository.modelOptions(query))
             .distinctBy { it.slug }
     }
@@ -121,7 +157,7 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
         const val MAX_MODELS = 4
 
         fun factory(app: RankboardApp): ViewModelProvider.Factory = viewModelFactory {
-            initializer { CompareViewModel(app.repository) }
+            initializer { CompareViewModel(app.repository, app.settingsStore) }
         }
     }
 }
