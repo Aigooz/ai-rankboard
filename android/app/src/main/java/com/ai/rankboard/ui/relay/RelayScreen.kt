@@ -1,11 +1,13 @@
 package com.ai.rankboard.ui.relay
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,8 +21,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -29,6 +33,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,8 +45,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
-import com.ai.rankboard.data.RelayMatchQuality
 import com.ai.rankboard.data.RelayModelRank
+import com.ai.rankboard.ui.common.scoreColor
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
@@ -51,6 +58,7 @@ fun RelayScreen(
     ),
 ) {
     val state by vm.state.collectAsState()
+    var selectedModel by remember { mutableStateOf<RelayModelRank?>(null) }
 
     Scaffold(
         topBar = {
@@ -183,20 +191,35 @@ fun RelayScreen(
                         count = visible.size,
                         key = { index -> visible[index].remoteId },
                     ) { index ->
-                        RelayModelRow(visible[index])
+                        RelayModelRow(
+                            model = visible[index],
+                            onClick = { selectedModel = visible[index] },
+                        )
                     }
                 }
             }
         }
     }
+
+    selectedModel?.let { model ->
+        RelayModelDetailSheet(
+            model = model,
+            onDismiss = { selectedModel = null },
+        )
+    }
 }
 
 @Composable
-private fun RelayModelRow(model: RelayModelRank) {
+private fun RelayModelRow(
+    model: RelayModelRank,
+    onClick: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
@@ -204,10 +227,11 @@ private fun RelayModelRow(model: RelayModelRank) {
         ) {
             Text(
                 text = model.relayRank.toString(),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.width(24.dp),
+                maxLines = 1,
+                modifier = Modifier.width(30.dp),
             )
             VendorIcon(vendor = model.vendor, size = 20.dp)
             Spacer(Modifier.width(7.dp))
@@ -230,7 +254,7 @@ private fun RelayModelRow(model: RelayModelRank) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                model.priceSummary()?.let { summary ->
+                model.priceHint()?.let { summary ->
                     Text(
                         text = summary,
                         style = MaterialTheme.typography.labelSmall,
@@ -246,11 +270,7 @@ private fun RelayModelRow(model: RelayModelRank) {
                     text = model.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
                     style = MaterialTheme.typography.titleSmall,
                     fontFamily = FontFamily.Monospace,
-                    color = if (model.matchQuality == RelayMatchQuality.NONE) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
+                    color = scoreColor(model.score),
                 )
                 Text(
                     text = model.globalRank?.let { "#$it" } ?: "无榜单",
@@ -262,15 +282,125 @@ private fun RelayModelRow(model: RelayModelRank) {
     }
 }
 
-private fun RelayModelRank.priceSummary(): String? {
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RelayModelDetailSheet(
+    model: RelayModelRank,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                VendorIcon(vendor = model.vendor, size = 34.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = model.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = model.remoteId,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = model.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    color = scoreColor(model.score),
+                )
+            }
+
+            DetailItem("厂商", model.vendor ?: "未知")
+            DetailItem("匹配状态", model.matchQuality.label)
+            DetailItem("全球排名", model.globalRank?.let { "#$it" } ?: "未上榜")
+            DetailItem("分组", model.groupName ?: "默认")
+            DetailItem(
+                "分组倍率",
+                model.rateMultiplier
+                    ?.let { "${String.format(Locale.US, "%.2f", it)}x" }
+                    ?: "-",
+            )
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+            )
+
+            Text(
+                "价格对比",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            DetailItem("中转站实付价", model.actualPrice?.let { formatPrice(it) } ?: "未提供")
+            DetailItem("官方参考价", model.officialPrice?.let { formatPrice(it) } ?: "未提供")
+            DetailItem("实付 / 官方", priceComparison(model))
+            Text(
+                "价格为输入/输出价格，按每百万 tokens 展示；分组倍率由中转站提供。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+private fun priceComparison(model: RelayModelRank): String {
+    val multiplier = model.priceMultiplier
+    if (multiplier != null) {
+        return String.format(Locale.US, "%.0f%% 官方价（%.2fx）", multiplier * 100, multiplier)
+    }
+
+    val actualCurrency = model.actualPrice?.currency
+    val officialCurrency = model.officialPrice?.currency
+    if (actualCurrency != null && officialCurrency != null && actualCurrency != officialCurrency) {
+        return "币种不同，暂不折算"
+    }
+    return "价格数据不足"
+}
+
+@Composable
+private fun DetailItem(
+    label: String,
+    value: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(104.dp),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+private fun RelayModelRank.priceHint(): String? {
     val parts = listOfNotNull(
         groupName,
-        actualPrice?.let { "实付 ${formatPrice(it)}" },
-        officialPrice?.let { "官方 ${formatPrice(it)}" },
         rateMultiplier?.let { String.format(Locale.US, "%.2fx", it) },
-        priceMultiplier?.let { String.format(Locale.US, "%.0f%% 官方价", it * 100) },
     )
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    return parts.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 
 private fun formatPrice(price: com.ai.rankboard.data.RelayPrice): String {

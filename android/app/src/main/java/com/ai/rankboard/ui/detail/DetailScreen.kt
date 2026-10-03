@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
+import com.ai.rankboard.ui.common.scoreColor
 import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
@@ -309,7 +310,7 @@ fun DetailScreen(
                             } ?: "-",
                             style = MaterialTheme.typography.titleMedium,
                             fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = scoreColor(s.score),
                         )
                     }
                 }

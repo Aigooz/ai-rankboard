@@ -58,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.Periods
+import com.ai.rankboard.ui.common.scoreColor
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
@@ -365,7 +366,7 @@ private fun TopModelCard(
                 entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
                 style = MaterialTheme.typography.titleSmall,
                 fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.primary,
+                color = scoreColor(entry.score),
             )
         }
     }
@@ -657,10 +658,11 @@ private fun ModelRow(
         ) {
             Text(
                 text = entry.rank.toString(),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.width(21.dp),
+                maxLines = 1,
+                modifier = Modifier.width(30.dp),
             )
             VendorIcon(vendor = entry.vendor, size = 20.dp)
             Spacer(Modifier.width(6.dp))
@@ -707,7 +709,7 @@ private fun ModelRow(
                     text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = scoreColor(entry.score),
                 )
             }
             IconButton(
