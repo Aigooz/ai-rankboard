@@ -69,7 +69,6 @@ fun SettingsScreen(
     var refreshing by remember { mutableStateOf(false) }
     var updateMessage by remember { mutableStateOf("") }
     var remoteUrl by remember { mutableStateOf(settings.snapshotUrl) }
-    var appUpdateUrl by remember { mutableStateOf(settings.appUpdateUrl) }
     var appUpdateChecking by remember { mutableStateOf(false) }
     var appUpdateMessage by remember { mutableStateOf("") }
     var canInstall by remember { mutableStateOf(AppUpdater.canInstall(app)) }
@@ -258,45 +257,28 @@ fun SettingsScreen(
             }
             item {
                 SettingsGroup(title = "应用更新", icon = Icons.Filled.Refresh) {
-                    OutlinedTextField(
-                        value = appUpdateUrl,
-                        onValueChange = { appUpdateUrl = it },
-                        label = { Text("应用更新清单地址") },
-                        placeholder = { Text("https://example.com/app-update.json") },
-                        supportingText = {
-                            Text(
-                                "清单包含 versionCode、versionName、apkUrl、sha256",
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        singleLine = true,
+                    Text(
+                        text = "当前版本 v${BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = if (settings.appUpdateUrl.isBlank()) {
-                                "未配置，需先安装本版本一次"
-                            } else {
-                                "已保存更新清单地址"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(
-                            onClick = { app.settingsStore.setAppUpdateUrl(appUpdateUrl.trim()) },
-                            enabled = appUpdateUrl.trim() != settings.appUpdateUrl,
-                        ) {
-                            Text("保存地址")
-                        }
-                    }
+                    Text(
+                        text = "启动时和每天自动检查新版本。发现更新后会后台下载并通知安装，无需配置地址。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    Text(
+                        text = if (canInstall) {
+                            "已允许从本应用安装更新"
+                        } else {
+                            "尚未允许安装应用更新"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
                     Button(
                         onClick = {
                             if (!canInstall) {
@@ -305,7 +287,10 @@ fun SettingsScreen(
                                 scope.launch {
                                     appUpdateChecking = true
                                     appUpdateMessage = ""
-                                    val result = AppUpdater.updateAndInstall(app, settings.appUpdateUrl)
+                                    val result = AppUpdater.updateAndInstall(
+                                        app,
+                                        settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
+                                    )
                                     appUpdateMessage = result.message
                                     appUpdateChecking = false
                                 }
