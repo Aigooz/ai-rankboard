@@ -2,6 +2,7 @@ package com.ai.rankboard
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -59,6 +60,7 @@ private val TOP_LEVEL_DESTINATIONS = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             val app = applicationContext as RankboardApp
             val settings by app.settingsStore.settings.collectAsState()
