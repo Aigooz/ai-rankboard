@@ -67,9 +67,12 @@ data class HomeUiState(
     val updateMessage: String = "",
 )
 
-class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel() {
+class HomeViewModel(
+    private val repository: LeaderboardRepository,
+    initialTab: String = "overall",
+) : ViewModel() {
 
-    private val _state = MutableStateFlow(HomeUiState())
+    private val _state = MutableStateFlow(HomeUiState(tab = initialTab))
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
     val favoriteSlugs: StateFlow<List<String>> = repository.favoriteSlugs()
@@ -81,7 +84,7 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
 
     init {
         _state.update { it.copy(snapshotInfo = repository.snapshotInfo()) }
-        loadBoardsForTab(HOME_TABS.first().dimension)
+        loadBoardsForTab(initialTab)
     }
 
     fun selectTab(dimension: String) {
@@ -378,8 +381,8 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
     )
 
     companion object {
-        fun factory(app: RankboardApp): ViewModelProvider.Factory = viewModelFactory {
-            initializer { HomeViewModel(app.repository) }
+        fun factory(app: RankboardApp, initialTab: String = "overall"): ViewModelProvider.Factory = viewModelFactory {
+            initializer { HomeViewModel(app.repository, initialTab) }
         }
     }
 }

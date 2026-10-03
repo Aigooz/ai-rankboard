@@ -27,7 +27,10 @@ class RankboardApp : Application() {
         super.onCreate()
         val settings = settingsStore.settings.value
         if (settings.updateReminders) {
-            snapshotStore.scheduleDailyUpdate(settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL })
+            snapshotStore.scheduleDailyUpdate(
+                settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
+                settings.snapshotFrequency.days,
+            )
             AppUpdateWorker.schedule(
                 this,
                 true,

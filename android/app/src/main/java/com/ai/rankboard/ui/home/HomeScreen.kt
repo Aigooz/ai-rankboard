@@ -75,8 +75,14 @@ private val SORT_OPTIONS = listOf(
 @Composable
 fun HomeScreen(
     onOpenModel: (String) -> Unit,
+    defaultTab: String = "overall",
+    compactList: Boolean = false,
+    showOverview: Boolean = true,
     vm: HomeViewModel = viewModel(
-        factory = HomeViewModel.factory(LocalContext.current.applicationContext as RankboardApp),
+        factory = HomeViewModel.factory(
+            LocalContext.current.applicationContext as RankboardApp,
+            defaultTab,
+        ),
     ),
 ) {
     val state by vm.state.collectAsState()
@@ -173,7 +179,7 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
-                            item {
+                            if (showOverview) item {
                                 LeaderboardOverview(
                                     state = state,
                                     onOpenModel = onOpenModel,
@@ -188,6 +194,7 @@ fun HomeScreen(
                                     isFavorite = entry.slug in favoriteSlugs.toSet(),
                                     scoreMin = state.scoreMin,
                                     scoreMax = state.scoreMax,
+                                    compact = compactList,
                                     onClick = { onOpenModel(entry.slug) },
                                     onToggleFavorite = {
                                         vm.toggleFavorite(entry.slug, entry.displayName)
@@ -702,6 +709,7 @@ private fun ModelRow(
     scoreMax: Double?,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
+    compact: Boolean = false,
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -711,19 +719,22 @@ private fun ModelRow(
             .clickable(onClick = onClick),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+            modifier = Modifier.padding(
+                horizontal = if (compact) 8.dp else 9.dp,
+                vertical = if (compact) 5.dp else 7.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = entry.rank.toString(),
-                style = MaterialTheme.typography.labelMedium,
+                style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
-                modifier = Modifier.width(30.dp),
+                modifier = Modifier.width(if (compact) 27.dp else 30.dp),
             )
-            VendorIcon(vendor = entry.vendor, size = 20.dp)
-            Spacer(Modifier.width(6.dp))
+            VendorIcon(vendor = entry.vendor, size = if (compact) 18.dp else 20.dp)
+            Spacer(Modifier.width(if (compact) 5.dp else 6.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -765,7 +776,7 @@ private fun ModelRow(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
                     color = scoreColor(entry.score, scoreMin, scoreMax),
                 )
@@ -774,7 +785,7 @@ private fun ModelRow(
                     minScore = scoreMin,
                     maxScore = scoreMax,
                     modifier = Modifier
-                        .width(52.dp)
+                        .width(if (compact) 44.dp else 52.dp)
                         .padding(top = 2.dp),
                 )
             }

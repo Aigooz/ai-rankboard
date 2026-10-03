@@ -48,6 +48,9 @@ interface LeaderboardDao {
     @Query("SELECT * FROM favorites ORDER BY savedAt DESC")
     fun favorites(): Flow<List<FavoriteEntity>>
 
+    @Query("SELECT * FROM favorites ORDER BY savedAt DESC")
+    suspend fun favoriteList(): List<FavoriteEntity>
+
     @Query("SELECT modelSlug FROM favorites")
     fun favoriteSlugs(): Flow<List<String>>
 
@@ -56,6 +59,12 @@ interface LeaderboardDao {
 
     @Query("DELETE FROM favorites WHERE modelSlug = :slug")
     suspend fun removeFavorite(slug: String)
+
+    @Query("SELECT COUNT(*) FROM cached_entries")
+    suspend fun cachedEntryCount(): Int
+
+    @Query("DELETE FROM cached_entries")
+    suspend fun clearCachedEntries()
 }
 
 @Database(entities = [CachedEntryEntity::class, FavoriteEntity::class], version = 1, exportSchema = false)
@@ -69,4 +78,3 @@ abstract class AppDatabase : RoomDatabase() {
                 .build()
     }
 }
-

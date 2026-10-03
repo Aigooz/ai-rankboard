@@ -111,6 +111,18 @@ class LeaderboardRepository(
 
     fun favoriteSlugs(): Flow<List<String>> = dao.favoriteSlugs()
 
+    suspend fun favoriteList(): List<FavoriteEntity> = dao.favoriteList()
+
+    suspend fun cachedEntryCount(): Int = dao.cachedEntryCount()
+
+    suspend fun clearCache() {
+        dao.clearCachedEntries()
+    }
+
+    suspend fun importFavorites(favorites: List<FavoriteEntity>) {
+        favorites.forEach { dao.addFavorite(it) }
+    }
+
     suspend fun toggleFavorite(slug: String, name: String, isFavorite: Boolean) {
         if (isFavorite) {
             dao.removeFavorite(slug)

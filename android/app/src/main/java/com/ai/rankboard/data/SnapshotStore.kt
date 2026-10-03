@@ -161,19 +161,20 @@ class SnapshotStore(private val context: Context) {
     private fun parseHash(content: String): String =
         content.trim().split(Regex("\\s+")).first().orEmpty()
 
-    fun scheduleDailyUpdate(url: String) {
+    fun scheduleDailyUpdate(url: String, intervalDays: Int = 1) {
         if (url.isBlank()) return
-        val request = PeriodicWorkRequestBuilder<SnapshotUpdateWorker>(1, TimeUnit.DAYS)
+        val safeDays = intervalDays.coerceIn(1, 7)
+        val request = PeriodicWorkRequestBuilder<SnapshotUpdateWorker>(safeDays.toLong(), TimeUnit.DAYS)
             .setInputData(androidx.work.Data.Builder().putString(SnapshotUpdateWorker.KEY_URL, url).build())
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             DAILY_UPDATE_WORK,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
     }
 
-    fun setDailyUpdateEnabled(enabled: Boolean, url: String) {
+    fun setDailyUpdateEnabled(enabled: Boolean, url: String, intervalDays: Int = 1) {
         if (enabled) {
             scheduleDailyUpdate(url)
         } else {

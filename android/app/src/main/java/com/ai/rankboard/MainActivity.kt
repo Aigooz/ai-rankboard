@@ -129,6 +129,9 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 onOpenModel = { slug -> navController.navigate("model/$slug") },
+                                defaultTab = settings.defaultTab,
+                                compactList = settings.compactList,
+                                showOverview = settings.showOverview,
                             )
                         }
                         composable("settings") {
