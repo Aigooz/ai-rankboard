@@ -61,6 +61,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.ModelDetailResponse
+import com.ai.rankboard.ui.common.scoreColor
+import com.ai.rankboard.ui.common.ScoreBar
+import com.ai.rankboard.ui.common.SourceBadge
+import com.ai.rankboard.ui.common.sourceVisual
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
@@ -462,12 +466,20 @@ private fun SummaryCard(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                Text(
-                    winner.second.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        winner.second.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = FontFamily.Monospace,
+                        color = scoreColor(winner.second.score),
+                    )
+                    ScoreBar(
+                        score = winner.second.score,
+                        modifier = Modifier
+                            .width(52.dp)
+                            .padding(top = 3.dp),
+                    )
+                }
             }
         }
     }
@@ -897,10 +909,10 @@ private fun BoardPickerSheet(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                Text(
-                                    sourceLabel(board.sourceId),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                SourceBadge(
+                                    sourceId = board.sourceId,
+                                    selected = board.slug == selectedSlug,
+                                    modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
                             if (board.slug == selectedSlug) {
@@ -923,11 +935,7 @@ private data class CompareMetric(
     val best: Boolean = false,
 )
 
-private fun sourceLabel(sourceId: String): String = when (sourceId) {
-    "livebench" -> "LiveBench"
-    "swebench" -> "SWE-bench"
-    else -> "ModelSage"
-}
+private fun sourceLabel(sourceId: String): String = sourceVisual(sourceId).label
 
 private fun formatNum(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()

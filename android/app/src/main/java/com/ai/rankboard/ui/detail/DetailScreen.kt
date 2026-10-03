@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.ui.common.scoreColor
+import com.ai.rankboard.ui.common.boardSourceId
+import com.ai.rankboard.ui.common.ScoreBar
+import com.ai.rankboard.ui.common.SourceBadge
 import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
@@ -274,43 +278,57 @@ fun DetailScreen(
                     tonalElevation = 1.dp,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Row(
+                    Column(
                         Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                s.boardName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            val priceText = buildString {
-                                val symbol = if (s.currency == "USD") "$" else "¥"
-                                s.priceIn?.let { append(symbol + String.format(Locale.US, "%.2f", it)) }
-                                s.priceOut?.let {
-                                    if (isNotEmpty()) append(" → ")
-                                    append(symbol + String.format(Locale.US, "%.2f", it))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    s.boardName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                val priceText = buildString {
+                                    val symbol = if (s.currency == "USD") "$" else "¥"
+                                    s.priceIn?.let { append(symbol + String.format(Locale.US, "%.2f", it)) }
+                                    s.priceOut?.let {
+                                        if (isNotEmpty()) append(" → ")
+                                        append(symbol + String.format(Locale.US, "%.2f", it))
+                                    }
+                                    if (isNotEmpty()) append(" /1M")
                                 }
-                                if (isNotEmpty()) append(" /1M")
+                                Text(
+                                    text = listOfNotNull(
+                                        "#${s.rank}",
+                                        priceText.takeIf { it.isNotEmpty() },
+                                        s.fetchedAt.take(10),
+                                    ).joinToString(" · "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                             Text(
-                                text = listOfNotNull(
-                                    "#${s.rank}",
-                                    priceText.takeIf { it.isNotEmpty() },
-                                    s.fetchedAt.take(10),
-                                ).joinToString(" · "),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = s.score?.let {
+                                    String.format(Locale.US, "%.1f", it) +
+                                        if (s.scoreCi != null) " ±${s.scoreCi}" else ""
+                                } ?: "-",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = FontFamily.Monospace,
+                                color = scoreColor(s.score),
                             )
                         }
-                        Text(
-                            text = s.score?.let {
-                                String.format(Locale.US, "%.1f", it) +
-                                    if (s.scoreCi != null) " ±${s.scoreCi}" else ""
-                            } ?: "-",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontFamily = FontFamily.Monospace,
-                            color = scoreColor(s.score),
+                        ScoreBar(
+                            score = s.score,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp),
+                        )
+                        SourceBadge(
+                            sourceId = boardSourceId(s.boardSlug),
+                            selected = true,
+                            modifier = Modifier.padding(top = 6.dp),
                         )
                     }
                 }

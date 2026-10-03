@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -59,6 +60,8 @@ import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.Periods
 import com.ai.rankboard.ui.common.scoreColor
+import com.ai.rankboard.ui.common.ScoreBar
+import com.ai.rankboard.ui.common.SourceBadge
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
@@ -174,6 +177,7 @@ fun HomeScreen(
                                 LeaderboardOverview(
                                     state = state,
                                     onOpenModel = onOpenModel,
+                                    onSelectSource = vm::setSourceFilter,
                                 )
                             }
                             items(state.entries, key = { it.slug }) { entry ->
@@ -253,6 +257,7 @@ fun HomeScreen(
 private fun LeaderboardOverview(
     state: HomeUiState,
     onOpenModel: (String) -> Unit,
+    onSelectSource: (String?) -> Unit,
 ) {
     val topModels = state.entries.take(3)
     Surface(
@@ -303,6 +308,16 @@ private fun LeaderboardOverview(
                         )
                     }
                 }
+            }
+            if (state.tab !in Periods.supported) {
+                DataSourceStrip(
+                    sources = state.allBoardsForTab
+                        .groupingBy { it.sourceId }
+                        .eachCount()
+                        .toList(),
+                    selectedSource = state.sourceFilter,
+                    onSelectSource = onSelectSource,
+                )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -368,6 +383,43 @@ private fun TopModelCard(
                 fontFamily = FontFamily.Monospace,
                 color = scoreColor(entry.score),
             )
+            ScoreBar(
+                score = entry.score,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DataSourceStrip(
+    sources: List<Pair<String, Int>>,
+    selectedSource: String?,
+    onSelectSource: (String?) -> Unit,
+) {
+    if (sources.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "本期数据来源",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(
+                sources.sortedWith(compareByDescending<Pair<String, Int>> { it.first == "modelsage" }.thenBy { it.first }),
+                key = { it.first },
+            ) { (sourceId, count) ->
+                SourceBadge(
+                    sourceId = sourceId,
+                    count = count,
+                    selected = selectedSource == sourceId || sources.size == 1,
+                    onClick = if (sources.size == 1) null else {
+                        { onSelectSource(if (selectedSource == sourceId) null else sourceId) }
+                    },
+                )
+            }
         }
     }
 }
@@ -710,6 +762,12 @@ private fun ModelRow(
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
                     color = scoreColor(entry.score),
+                )
+                ScoreBar(
+                    score = entry.score,
+                    modifier = Modifier
+                        .width(52.dp)
+                        .padding(top = 2.dp),
                 )
             }
             IconButton(
