@@ -72,7 +72,7 @@ fun RelayScreen(
                     placeholder = { Text("https://example.com") },
                     supportingText = {
                         Text(
-                            "支持 OpenAI 兼容的 /v1/models 接口，粘贴根地址会自动尝试。",
+                            "支持公开模型广场和 OpenAI 兼容接口；粘贴网页或根地址会自动尝试。",
                             style = MaterialTheme.typography.labelSmall,
                         )
                     },

@@ -83,4 +83,46 @@ class RelayModelRankingTest {
         assertEquals("gpt-6-astra", models.first().id)
         assertEquals("openai", models.first().ownedBy)
     }
+
+    @Test
+    fun `parses grouped model plaza response`() {
+        val json = """
+        {
+          "code": 0,
+          "data": {
+            "groups": [
+              {
+                "name": "Group A",
+                "platform": "openai",
+                "models": [
+                  {"name": "gpt-6-astra", "platform": "openai"},
+                  {"name": "qwen3.8-flash", "platform": "openai"}
+                ]
+              },
+              {
+                "name": "Group B",
+                "platform": "openai",
+                "models": [
+                  {"name": "GPT-6-Astra", "platform": "openai"},
+                  {"name": "glm-5.3-flash", "platform": "openai"}
+                ]
+              }
+            ]
+          }
+        }
+        """.trimIndent()
+
+        val models = RelayModelClient.parseModels(json)
+        assertEquals(listOf("gpt-6-astra", "qwen3.8-flash", "glm-5.3-flash"), models.map { it.id })
+    }
+
+    @Test
+    fun `web model plaza address uses public plaza endpoint`() {
+        val candidates = RelayModelClient().endpointCandidates(
+            "https://gzjy.me/model-plaza?embedded=1",
+        )
+
+        assertEquals("https://gzjy.me/api/v1/model-plaza", candidates[1])
+        assertTrue("https://gzjy.me/v1/models" in candidates)
+    }
 }

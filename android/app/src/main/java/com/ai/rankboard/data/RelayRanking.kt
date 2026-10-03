@@ -79,12 +79,12 @@ class RelayModelClient(
             }
             val body = response.body?.string().orEmpty()
             return parseModels(body).ifEmpty {
-                throw IllegalStateException("响应不是 OpenAI 兼容的模型列表")
+                throw IllegalStateException("响应不是可识别的模型列表")
             }
         }
     }
 
-    private fun endpointCandidates(rawUrl: String): List<String> {
+    internal fun endpointCandidates(rawUrl: String): List<String> {
         val normalized = rawUrl.trim().removeSuffix("/")
         val withScheme = if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
             normalized
@@ -98,12 +98,21 @@ class RelayModelClient(
         candidates += withScheme
         val path = withScheme.toPath()
         val origin = withScheme.toOrigin()
+        val plaza = "$origin/api/v1/model-plaza"
+        val openAiModels = "$origin/v1/models"
         when {
-            path.isBlank() || path == "/" -> candidates += "$origin/v1/models"
+            path.endsWith("/api/v1/model-plaza") -> Unit
+            path.isBlank() || path == "/" || path.endsWith("/model-plaza") -> {
+                candidates += plaza
+                candidates += openAiModels
+            }
             path.endsWith("/v1") -> candidates += "$withScheme/models"
             path.endsWith("/models") && !path.contains("/v1/") ->
-                candidates += "$origin/v1/models"
-            !path.contains("/v1/models") -> candidates += "$origin/v1/models"
+                candidates += openAiModels
+            !path.contains("/v1/models") -> {
+                candidates += openAiModels
+                candidates += plaza
+            }
         }
         return candidates.toList()
     }
@@ -148,6 +157,19 @@ class RelayModelClient(
         }.getOrDefault(emptyList())
 
         private fun modelArray(obj: com.google.gson.JsonObject): com.google.gson.JsonArray? {
+            val plazaGroups = obj.get("data")?.takeIf { it.isJsonObject }?.asJsonObject
+                ?.get("groups")?.takeIf { it.isJsonArray }
+                ?: obj.get("groups")?.takeIf { it.isJsonArray }
+            plazaGroups?.asJsonArray?.let { groups ->
+                val models = com.google.gson.JsonArray()
+                groups.forEach { group ->
+                    group.takeIf { it.isJsonObject }?.asJsonObject
+                        ?.get("models")?.takeIf { it.isJsonArray }
+                        ?.asJsonArray?.forEach(models::add)
+                }
+                if (models.size() > 0) return models
+            }
+
             val direct = obj.get("data") ?: obj.get("models") ?: obj.get("model_list")
                 ?: obj.get("result") ?: obj.get("items")
             direct?.asJsonArray?.let { return it }
