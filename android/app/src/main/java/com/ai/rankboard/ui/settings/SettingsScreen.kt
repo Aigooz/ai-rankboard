@@ -52,9 +52,12 @@ import androidx.compose.ui.unit.dp
 import com.ai.rankboard.BuildConfig
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.AppUpdater
+import com.ai.rankboard.data.AppUpdateInfo
+import com.ai.rankboard.data.AppUpdateStatus
 import com.ai.rankboard.data.AppUpdateWorker
 import com.ai.rankboard.data.ThemeMode
 import kotlinx.coroutines.launch
+import com.ai.rankboard.ui.common.AppUpdateDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +74,8 @@ fun SettingsScreen(
     var remoteUrl by remember { mutableStateOf(settings.snapshotUrl) }
     var appUpdateChecking by remember { mutableStateOf(false) }
     var appUpdateMessage by remember { mutableStateOf("") }
+    var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var appUpdateInstalling by remember { mutableStateOf(false) }
     var canInstall by remember { mutableStateOf(AppUpdater.canInstall(app)) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -287,11 +292,15 @@ fun SettingsScreen(
                                 scope.launch {
                                     appUpdateChecking = true
                                     appUpdateMessage = ""
-                                    val result = AppUpdater.updateAndInstall(
+                                    val result = AppUpdater.checkUpdate(
                                         app,
                                         settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
                                     )
-                                    appUpdateMessage = result.message
+                                    if (result.status == AppUpdateStatus.AVAILABLE) {
+                                        pendingUpdate = result.info
+                                    } else {
+                                        appUpdateMessage = result.message
+                                    }
                                     appUpdateChecking = false
                                 }
                             }
@@ -330,6 +339,33 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    pendingUpdate?.let { info ->
+        AppUpdateDialog(
+            info = info,
+            installing = appUpdateInstalling,
+            message = appUpdateMessage,
+            onDismiss = {
+                if (!appUpdateInstalling) {
+                    pendingUpdate = null
+                    appUpdateMessage = ""
+                }
+            },
+            onConfirm = {
+                scope.launch {
+                    appUpdateInstalling = true
+                    appUpdateMessage = ""
+                    val result = AppUpdater.downloadAndInstall(app, info)
+                    if (result.status == AppUpdateStatus.DOWNLOADED) {
+                        pendingUpdate = null
+                    } else {
+                        appUpdateMessage = result.message
+                    }
+                    appUpdateInstalling = false
+                }
+            },
+        )
     }
 }
 

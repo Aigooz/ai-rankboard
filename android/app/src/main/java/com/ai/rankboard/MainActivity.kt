@@ -14,8 +14,14 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -30,6 +36,11 @@ import com.ai.rankboard.ui.favorites.FavoritesScreen
 import com.ai.rankboard.ui.home.HomeScreen
 import com.ai.rankboard.ui.settings.SettingsScreen
 import com.ai.rankboard.ui.theme.RankboardTheme
+import com.ai.rankboard.ui.common.AppUpdateDialog
+import com.ai.rankboard.data.AppUpdateInfo
+import com.ai.rankboard.data.AppUpdateStatus
+import com.ai.rankboard.data.AppUpdater
+import kotlinx.coroutines.launch
 
 private data class TopLevelDestination(
     val route: String,
@@ -54,9 +65,26 @@ class MainActivity : ComponentActivity() {
                 themeMode = settings.themeMode,
                 dynamicColor = settings.dynamicColor,
             ) {
-                val navController = rememberNavController()
-                val backStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = backStackEntry?.destination?.route
+            val navController = rememberNavController()
+            val backStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = backStackEntry?.destination?.route
+            val context = LocalContext.current
+            var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+            var updateInstalling by remember { mutableStateOf(false) }
+            var updateMessage by remember { mutableStateOf("") }
+            val updateScope = rememberCoroutineScope()
+
+            LaunchedEffect(Unit) {
+                if (settings.updateReminders) {
+                    val result = AppUpdater.checkUpdate(
+                        context,
+                        settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
+                    )
+                    if (result.status == AppUpdateStatus.AVAILABLE) {
+                        pendingUpdate = result.info
+                    }
+                }
+            }
 
                 Scaffold(
                     bottomBar = {
@@ -123,6 +151,33 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                }
+
+                pendingUpdate?.let { info ->
+                    AppUpdateDialog(
+                        info = info,
+                        installing = updateInstalling,
+                        message = updateMessage,
+                        onDismiss = {
+                            if (!updateInstalling) {
+                                pendingUpdate = null
+                                updateMessage = ""
+                            }
+                        },
+                        onConfirm = {
+                            updateScope.launch {
+                                updateInstalling = true
+                                updateMessage = ""
+                                val result = AppUpdater.downloadAndInstall(context, info)
+                                if (result.status == AppUpdateStatus.DOWNLOADED) {
+                                    pendingUpdate = null
+                                } else {
+                                    updateMessage = result.message
+                                }
+                                updateInstalling = false
+                            }
+                        },
+                    )
                 }
             }
         }

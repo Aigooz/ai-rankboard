@@ -33,6 +33,7 @@ class AppUpdateWorker(
                 AppUpdateNotifier(context).notifyReady(result.info)
                 Result.success()
             }
+            AppUpdateStatus.AVAILABLE -> Result.success()
             AppUpdateStatus.UP_TO_DATE -> Result.success()
             AppUpdateStatus.ERROR -> Result.retry()
         }

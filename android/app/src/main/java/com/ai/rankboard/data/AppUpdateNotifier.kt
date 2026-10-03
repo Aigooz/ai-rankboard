@@ -56,6 +56,9 @@ class AppUpdateNotifier(private val context: Context) {
                         listOfNotNull(
                             context.getString(R.string.app_update_message, versionName),
                             info?.notes?.takeIf { it.isNotBlank() },
+                            info?.sizeBytes?.takeIf { it > 0 }?.let {
+                                "安装包 ${AppUpdater.formatSize(it)}"
+                            },
                         ).joinToString(" "),
                     ),
             )
