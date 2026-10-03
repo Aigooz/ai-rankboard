@@ -6,6 +6,7 @@ import com.ai.rankboard.data.LeaderboardRepository
 import com.ai.rankboard.data.LocalSnapshotDataSource
 import com.ai.rankboard.data.SettingsStore
 import com.ai.rankboard.data.SnapshotStore
+import com.ai.rankboard.data.AppUpdateWorker
 import com.ai.rankboard.BuildConfig
 
 class RankboardApp : Application() {
@@ -27,6 +28,13 @@ class RankboardApp : Application() {
         val settings = settingsStore.settings.value
         if (settings.updateReminders) {
             snapshotStore.scheduleDailyUpdate(settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL })
+            AppUpdateWorker.schedule(
+                this,
+                true,
+                settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
+            )
+        } else {
+            AppUpdateWorker.schedule(this, false, "")
         }
     }
 }

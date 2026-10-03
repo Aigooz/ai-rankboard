@@ -15,12 +15,18 @@ android {
         applicationId = "com.ai.rankboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.8.0"
+        versionCode = 9
+        versionName = "0.9.0"
         buildConfigField(
             "String",
             "SNAPSHOT_URL",
             "\"${providers.gradleProperty("SNAPSHOT_URL").orNull.orEmpty()}\"",
+        )
+        buildConfigField(
+            "String",
+            "APP_UPDATE_URL",
+            "\"${providers.gradleProperty("APP_UPDATE_URL").orNull
+                ?: "https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/app-update.json"}\"",
         )
     }
 

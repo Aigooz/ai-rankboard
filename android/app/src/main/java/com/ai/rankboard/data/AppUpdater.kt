@@ -40,6 +40,7 @@ data class AppUpdateResult(
 
 object AppUpdater {
     private const val APK_FILE_NAME = "update.apk"
+    const val APK_FILE_PATH = "app_update/update.apk"
 
     fun canInstall(context: Context): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
@@ -54,6 +55,14 @@ object AppUpdater {
     }
 
     suspend fun updateAndInstall(context: Context, url: String): AppUpdateResult {
+        val prepared = prepareUpdate(context, url)
+        if (prepared.status == AppUpdateStatus.DOWNLOADED) {
+            context.startActivity(installIntent(context, apkFile(context)))
+        }
+        return prepared
+    }
+
+    suspend fun prepareUpdate(context: Context, url: String): AppUpdateResult {
         if (url.isBlank()) {
             return AppUpdateResult(AppUpdateStatus.ERROR, "未配置应用更新地址")
         }
@@ -102,7 +111,6 @@ object AppUpdater {
                     throw IllegalStateException("APK 包名或版本不匹配")
                 }
 
-                install(context, apkFile)
                 AppUpdateResult(
                     AppUpdateStatus.DOWNLOADED,
                     "已下载 v${info.versionName.ifBlank { info.versionCode.toString() }}，请确认安装",
@@ -114,7 +122,7 @@ object AppUpdater {
         }
     }
 
-    private fun install(context: Context, apkFile: File) {
+    fun installIntent(context: Context, apkFile: File): Intent {
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
@@ -125,7 +133,7 @@ object AppUpdater {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
+        return intent
     }
 
     private fun apkFile(context: Context): File {

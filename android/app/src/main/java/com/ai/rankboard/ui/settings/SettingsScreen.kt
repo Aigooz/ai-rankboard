@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.rankboard.BuildConfig
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.AppUpdater
+import com.ai.rankboard.data.AppUpdateWorker
 import com.ai.rankboard.data.ThemeMode
 import kotlinx.coroutines.launch
 
@@ -199,6 +200,11 @@ fun SettingsScreen(
                             app.snapshotStore.setDailyUpdateEnabled(
                                 enabled,
                                 BuildConfig.SNAPSHOT_URL,
+                            )
+                            AppUpdateWorker.schedule(
+                                app,
+                                enabled,
+                                settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
                             )
                             if (enabled) requestNotificationPermission()
                         },

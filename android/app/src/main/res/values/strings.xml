@@ -4,4 +4,8 @@
     <string name="snapshot_update_channel_name">榜单更新提醒</string>
     <string name="snapshot_update_title">AI 排行榜数据已更新</string>
     <string name="snapshot_update_message">打开查看最新模型排名。</string>
+    <string name="app_update_channel_name">应用更新</string>
+    <string name="app_update_title">AI 排行榜更新已就绪</string>
+    <string name="app_update_message">v%s 已下载，点击安装。</string>
+    <string name="app_update_fallback_version">最新</string>
 </resources>
