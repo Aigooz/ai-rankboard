@@ -69,6 +69,24 @@ SNAPSHOT_URL=https://your-domain.example.com/leaderboards.json
 
 从 v0.4.0 起，后台 Worker 检测到新快照后会发送系统通知“AI 排行榜数据已更新”。首次启动时 App 会请求 Android 13+ 的通知权限；如果拒绝，后续可到系统设置里重新开启“通知”。点击通知会回到应用首页。
 
+## 应用内自更新
+
+v0.7.0 起支持应用内自更新。流程是：设置页填写更新清单地址，App 下载新版 APK、校验 SHA-256、校验包名和版本号，然后调起系统安装器确认升级。因为 Android 系统限制，不能完全静默安装；首次安装需要在“允许安装未知应用”里授权一次。只要新版 APK 使用同一签名密钥，确认后会原位覆盖升级，不需要卸载。
+
+更新清单示例：
+
+```json
+{
+  "versionCode": 8,
+  "versionName": "0.7.1",
+  "apkUrl": "https://example.com/app-release.apk",
+  "sha256": "APK_FILE_SHA256",
+  "notes": "优化界面和更新流程"
+}
+```
+
+把这个文件和签名后的 APK 上传到任意 HTTPS 静态地址，然后在 App 设置页填入 `app-update.json` 地址即可。
+
 ## 数据可信度与归一
 
 - schema v2 记录 `schemaVersion`、`generatedAt`、`sources`，每个榜单保留原始 URL 和最后抓取时间。

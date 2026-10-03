@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.rankboard.BuildConfig
 import com.ai.rankboard.RankboardApp
+import com.ai.rankboard.data.AppUpdater
 import com.ai.rankboard.data.ThemeMode
 import kotlinx.coroutines.launch
 
@@ -67,9 +68,16 @@ fun SettingsScreen(
     var refreshing by remember { mutableStateOf(false) }
     var updateMessage by remember { mutableStateOf("") }
     var remoteUrl by remember { mutableStateOf(settings.snapshotUrl) }
+    var appUpdateUrl by remember { mutableStateOf(settings.appUpdateUrl) }
+    var appUpdateChecking by remember { mutableStateOf(false) }
+    var appUpdateMessage by remember { mutableStateOf("") }
+    var canInstall by remember { mutableStateOf(AppUpdater.canInstall(app)) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { canInstall = AppUpdater.canInstall(app) }
 
     fun requestNotificationPermission() {
         if (
@@ -243,6 +251,84 @@ fun SettingsScreen(
                 }
             }
             item {
+                SettingsGroup(title = "应用更新", icon = Icons.Filled.Refresh) {
+                    OutlinedTextField(
+                        value = appUpdateUrl,
+                        onValueChange = { appUpdateUrl = it },
+                        label = { Text("应用更新清单地址") },
+                        placeholder = { Text("https://example.com/app-update.json") },
+                        supportingText = {
+                            Text(
+                                "清单包含 versionCode、versionName、apkUrl、sha256",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        singleLine = true,
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (settings.appUpdateUrl.isBlank()) {
+                                "未配置，需先安装本版本一次"
+                            } else {
+                                "已保存更新清单地址"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            onClick = { app.settingsStore.setAppUpdateUrl(appUpdateUrl.trim()) },
+                            enabled = appUpdateUrl.trim() != settings.appUpdateUrl,
+                        ) {
+                            Text("保存地址")
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            if (!canInstall) {
+                                installPermissionLauncher.launch(AppUpdater.installPermissionIntent(app))
+                            } else {
+                                scope.launch {
+                                    appUpdateChecking = true
+                                    appUpdateMessage = ""
+                                    val result = AppUpdater.updateAndInstall(app, settings.appUpdateUrl)
+                                    appUpdateMessage = result.message
+                                    appUpdateChecking = false
+                                }
+                            }
+                        },
+                        enabled = !appUpdateChecking,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    ) {
+                        if (appUpdateChecking) {
+                            CircularProgressIndicator(Modifier.size(18.dp))
+                        } else {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                        }
+                        Text(
+                            if (appUpdateChecking) "检查应用更新中" else if (canInstall) "检查并安装更新" else "允许安装应用更新",
+                            modifier = Modifier.padding(start = 6.dp),
+                        )
+                    }
+                    if (appUpdateMessage.isNotBlank()) {
+                        Text(
+                            appUpdateMessage,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
+                }
+            }
+            item {
                 SettingsGroup(title = "项目", icon = Icons.Filled.Info) {
                     TextButton(
                         onClick = onOpenAbout,
@@ -262,9 +348,9 @@ private fun SettingsGroup(
     icon: ImageVector,
     content: @Composable () -> Unit,
 ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    tonalElevation = 2.dp,
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(vertical = 10.dp)) {

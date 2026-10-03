@@ -16,6 +16,7 @@ data class AppSettings(
     val dynamicColor: Boolean = false,
     val updateReminders: Boolean = true,
     val snapshotUrl: String = "",
+    val appUpdateUrl: String = "",
 )
 
 class SettingsStore(private val context: Context) {
@@ -44,6 +45,12 @@ class SettingsStore(private val context: Context) {
         _settings.value = _settings.value.copy(snapshotUrl = normalized)
     }
 
+    fun setAppUpdateUrl(url: String) {
+        val normalized = url.trim()
+        prefs.edit().putString(KEY_APP_UPDATE_URL, normalized).apply()
+        _settings.value = _settings.value.copy(appUpdateUrl = normalized)
+    }
+
     private fun read(): AppSettings {
         val themeName = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name)
         return AppSettings(
@@ -51,6 +58,7 @@ class SettingsStore(private val context: Context) {
             dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, false),
             updateReminders = prefs.getBoolean(KEY_UPDATE_REMINDERS, true),
             snapshotUrl = prefs.getString(KEY_SNAPSHOT_URL, "").orEmpty().trim(),
+            appUpdateUrl = prefs.getString(KEY_APP_UPDATE_URL, "").orEmpty().trim(),
         )
     }
 
@@ -60,5 +68,6 @@ class SettingsStore(private val context: Context) {
         private const val KEY_DYNAMIC_COLOR = "dynamic_color"
         private const val KEY_UPDATE_REMINDERS = "update_reminders"
         private const val KEY_SNAPSHOT_URL = "snapshot_url"
+        private const val KEY_APP_UPDATE_URL = "app_update_url"
     }
 }
