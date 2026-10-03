@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
+import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,12 +114,18 @@ private fun ModelCompareCard(response: com.ai.rankboard.data.ModelDetailResponse
         modifier = Modifier.width(280.dp),
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text(
-                model.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VendorIcon(vendor = model.vendor, size = 34.dp)
+                Text(
+                    model.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                )
+            }
             Text(
                 model.vendor ?: "-",
                 style = MaterialTheme.typography.labelSmall,

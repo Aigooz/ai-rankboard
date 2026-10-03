@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
+import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
 private val SORT_OPTIONS = listOf(
@@ -346,6 +347,7 @@ private fun ModelRow(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.width(28.dp),
             )
+            VendorIcon(vendor = entry.vendor)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = entry.displayName,

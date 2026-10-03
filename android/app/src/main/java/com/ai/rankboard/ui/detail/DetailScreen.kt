@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
+import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,12 +109,20 @@ fun DetailScreen(
                         Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(
-                            model.displayName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(model.vendor ?: "-", style = MaterialTheme.typography.bodyMedium)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            VendorIcon(vendor = model.vendor, size = 44.dp)
+                            Column {
+                                Text(
+                                    model.displayName,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(model.vendor ?: "-", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
                         val specs = buildList {
                             model.paramsB?.let { add("参数规模 ${formatNum(it)}B") }
                             model.license?.let { add(it) }
