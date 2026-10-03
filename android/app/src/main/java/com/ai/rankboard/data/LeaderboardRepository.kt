@@ -12,6 +12,10 @@ class LeaderboardRepository(
     private val dao get() = db.dao()
     private val boardsCache = mutableMapOf<String, List<BoardDto>>()
 
+    fun boards(): List<BoardDto> = local.boards()
+
+    fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
+
     suspend fun boardsForDimension(dimension: String): List<BoardDto>? =
         boardsCache.getOrPut(dimension) {
             local.boardsForDimension(dimension)

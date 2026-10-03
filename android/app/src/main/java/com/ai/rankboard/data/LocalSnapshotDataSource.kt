@@ -3,6 +3,8 @@ package com.ai.rankboard.data
 class LocalSnapshotDataSource(private val store: SnapshotStore) {
     private val snapshot get() = store.snapshot
 
+    fun boards(): List<BoardDto> = snapshot.boards
+
     fun info(): SnapshotInfo = store.info()
 
     fun boardsForDimension(dimension: String): List<BoardDto> =
@@ -102,5 +104,18 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             )
         }
         return ModelDetailResponse(model, scores)
+    }
+
+    fun modelOptions(query: String = ""): List<ModelDetailDto> {
+        val keyword = query.trim()
+        return snapshot.models.values.filter { model ->
+            keyword.isBlank() ||
+                model.displayName.contains(keyword, ignoreCase = true) ||
+                model.vendor?.contains(keyword, ignoreCase = true) == true ||
+                model.slug.contains(keyword, ignoreCase = true)
+        }.sortedWith(
+            compareBy<ModelDetailDto> { it.displayName.length }
+                .thenBy { it.displayName.lowercase() },
+        ).take(80)
     }
 }
