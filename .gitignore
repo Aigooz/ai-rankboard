@@ -11,6 +11,9 @@ android/local.properties
 android/keystore.properties
 android/release.keystore
 android/*.jks
+ios/build/
+dist/
+*.ipa
 .idea/
 .vscode/
 .DS_Store
