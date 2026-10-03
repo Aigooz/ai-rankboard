@@ -1,0 +1,125 @@
+# AI 排行榜聚合（Android + FastAPI）
+
+聚合 modelsage.cn 各榜单（综合 / 代码 / Agent / 搜索 / 写作 / 视觉 / 图像 / 视频 / 速度 / 性价比），安卓端以静态快照启动，支持 WorkManager 后台更新快照。首页开放综合、代码、写作、多模态、智能体、搜索、速度、性价比维度，支持搜索、排序、筛选、下拉刷新、分页加载、模型对比、价格计算器、本地收藏与离线缓存。
+
+## 目录结构
+
+- `backend/` Python FastAPI 后端：定时抓取 modelsage.cn 榜单页，解析入库 SQLite，暴露 REST API。
+- `android/` Kotlin + Jetpack Compose (Material 3) 安卓端：Retrofit 拉取 + Room 离线缓存/收藏。
+
+## 后端启动
+
+```bash
+cd backend
+pip install -r requirements.txt
+python run.py            # http://127.0.0.1:8000
+```
+
+首次启动会自动抓取全部 12 个榜单；之后每 6 小时自动刷新。手动刷新：
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/admin/refresh
+```
+
+主要接口：
+
+| 接口 | 说明 |
+|---|---|
+| `GET /v1/meta` | 各榜单健康状态与最后更新时间 |
+| `GET /v1/leaderboards` | 榜单列表（可按 dimension 过滤） |
+| `GET /v1/leaderboards/{slug}?sort=rank\|score\|updated&q=关键词&limit=50&offset=0` | 榜单条目（分页，返回 total） |
+| `GET /v1/models?q=` | 跨榜单模型搜索 |
+| `GET /v1/models/{slug}` | 模型详情（全部榜单成绩 + 价格） |
+
+## 安卓端
+
+用 Android Studio 打开 `android/` 目录即可构建运行（AGP 8.7 / Kotlin 2.0 / minSdk 26）。包名 `com.ai.rankboard`。
+项目已包含 Gradle Wrapper。首次构建：
+
+```powershell
+cd android
+.\gradlew.bat :app:testReleaseUnitTest :app:assembleRelease
+```
+
+当前版本已改为“离线优先”：不再需要电脑保持后端运行。APK 内置 `android/app/src/main/assets/leaderboards.json` 初始快照；可选远端更新见下文。
+
+## 远端快照更新
+
+后端导出 schema v2 快照：
+
+```bash
+cd backend
+python -m app.snapshot ../android/app/src/main/assets/leaderboards.json
+```
+
+会同时生成：
+
+```text
+leaderboards.json
+leaderboards.json.sha256
+```
+
+把这两个文件上传到任意静态 HTTP 服务（对象存储、Cloudflare Pages、GitHub Pages、Nginx 均可），然后在 `android/gradle.properties` 配置：
+
+```properties
+SNAPSHOT_URL=https://your-domain.example.com/leaderboards.json
+```
+
+重新构建 APK 后，WorkManager 会每天检查一次；用户下拉首页也会立即检查。更新文件必须通过 SHA-256 校验，`schemaVersion` 必须被 App 支持。无网络、校验失败或解析失败时，继续使用内置快照或最后一次成功下载的快照。
+
+## 数据可信度与归一
+
+- schema v2 记录 `schemaVersion`、`generatedAt`、`sources`，每个榜单保留原始 URL 和最后抓取时间。
+- `backend/app/model_identity.py` 会把 “Claude 4.5 Sonnet” / “Claude Sonnet 4.5”、推理档位差异、fallback 标记等归一到稳定 canonical slug，避免跨榜漏配。
+- 真实 HTML 保存在 `backend/tests/fixtures/`，每次网站改版会由回归测试提前发现。
+- 后续可接入 Artificial Analysis、LMArena、OpenRouter、OpenCompass、HELM、LiveBench、SuperCLUE 等源；当前 `sources` 字段已为多源扩展预留。
+
+核心结构：
+
+```
+com/ai/rankboard/
+├── RankboardApp.kt        # Application + Retrofit/Room 初始化（API 地址在这里改）
+├── MainActivity.kt        # 导航宿主（home / model/{slug} / favorites）
+├── data/
+│   ├── Api.kt             # Retrofit 接口 + DTO
+│   ├── LocalDb.kt         # Room：离线缓存 + 收藏
+│   └── LeaderboardRepository.kt
+└── ui/
+    ├── home/              # 首页：四维度 Tab + 搜索 + 下拉刷新 + 分页
+    ├── detail/            # 模型详情：基础信息 / 各榜单成绩 / 价格 / 收藏
+    ├── favorites/         # 我的收藏：取消收藏
+    └── theme/             # Material 3 动态取色，自动适配深色模式
+```
+
+## 说明
+
+- 数据来源于 modelsage.cn 公开榜单页，仅作聚合展示，应用内会展示数据来源；抓取频率已压到最低（每 6 小时一次），商用前请确认目标站点的使用条款。
+- 榜单页改版时，解析器按表头文本映射列，有一定容错；某源失败不影响其他源，`/v1/meta` 可看到每个榜单的健康状态。
+
+## 正式发布
+
+1. 生成或替换 `android/release.keystore`，并在 `android/keystore.properties` 配置：
+
+   ```properties
+   storeFile=release.keystore
+   storePassword=...
+   keyAlias=...
+   keyPassword=...
+   ```
+
+2. 构建签名 release：
+
+   ```powershell
+   cd android
+   .\gradlew.bat clean :app:assembleRelease :app:testReleaseUnitTest
+   ```
+
+3. 校验签名：
+
+   ```powershell
+   <android-sdk>\build-tools\35.0.0\apksigner.bat verify --verbose --print-certs app\build\outputs\apk\release\app-release.apk
+   ```
+
+`keystore.properties`、`release.keystore`、`local.properties`、构建产物和 APK 都已加入 `.gitignore`，不要提交私钥。GitHub Actions 会在 `push`/`pull_request` 时执行后端单测、Android 单测和 release 构建，并上传未签名 APK artifact。
+
+> Windows 提示：如果源码路径包含中文导致 Gradle test worker/KSP 异常，可在同盘建立 ASCII 路径联接后从该路径构建，例如 `New-Item -ItemType Junction -Path D:\1Project\ai-rankboard -Target "D:\1Project\手机ai排行榜软件"`。
