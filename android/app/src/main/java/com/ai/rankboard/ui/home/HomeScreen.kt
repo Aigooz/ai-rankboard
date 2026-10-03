@@ -89,19 +89,12 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             Column {
-                Text(
-                    "AI 排行榜",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 3.dp),
-                )
                 OutlinedTextField(
                     value = state.query,
                     onValueChange = vm::setQuery,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .statusBarsPadding()
                         .padding(horizontal = 12.dp, vertical = 2.dp),
                     placeholder = { Text("模糊搜索模型名称") },
                     singleLine = true,
