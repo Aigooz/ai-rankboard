@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: SnapshotStore
     @ObservedObject var favorites: FavoritesStore
+    @ObservedObject var appUpdate: AppUpdateStore
     @State private var remoteURL = ""
     @State private var remoteToken = ""
 
@@ -71,6 +72,45 @@ struct SettingsView: View {
                             }
                         } else {
                             Text(source.name.isEmpty ? source.id : source.name)
+                        }
+                    }
+                }
+
+                Section("应用更新") {
+                    row("当前版本", "v\(appUpdate.currentVersionName) (\(appUpdate.currentVersionCode))")
+
+                    Button {
+                        Task { await appUpdate.check() }
+                    } label: {
+                        HStack {
+                            if appUpdate.isChecking {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text("检查应用更新")
+                        }
+                    }
+                    .disabled(appUpdate.isChecking)
+
+                    if !appUpdate.message.isEmpty {
+                        Text(appUpdate.message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let update = appUpdate.update {
+                        Text(update.summary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            appUpdate.open(update)
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.up.forward.app")
+                                Text("打开更新入口")
+                            }
                         }
                     }
                 }

@@ -14,6 +14,7 @@ final class SnapshotStore: ObservableObject {
     private let fileManager = FileManager.default
     private let remoteURLKey = "remoteSnapshotURL"
     private let remoteTokenKey = "remoteSnapshotToken"
+    private let lastRefreshKey = "lastSnapshotRefreshAt"
 
     var remoteURLString: String {
         get { UserDefaults.standard.string(forKey: remoteURLKey) ?? Self.defaultRemoteURL }
@@ -32,6 +33,7 @@ final class SnapshotStore: ObservableObject {
     init() {
         Task {
             await loadInitial()
+            await refreshIfStale()
         }
     }
 
@@ -89,6 +91,13 @@ final class SnapshotStore: ObservableObject {
                 message = "远端数据校验失败"
                 return
             }
+            if let existing = try? Data(contentsOf: downloadedJSONURL),
+               let expectedHash = try await remoteHash(for: url),
+               verify(existing, expectedHash: expectedHash) {
+                message = "榜单数据已是最新"
+                UserDefaults.standard.set(Date(), forKey: lastRefreshKey)
+                return
+            }
             guard let decoded = try? decoder.decode(Snapshot.self, from: data) else {
                 message = "远端数据解析失败"
                 return
@@ -101,6 +110,7 @@ final class SnapshotStore: ObservableObject {
             try data.write(to: downloadedJSONURL, options: .atomic)
             snapshot = decoded
             message = "榜单数据已更新"
+            UserDefaults.standard.set(Date(), forKey: lastRefreshKey)
         } catch {
             message = "更新失败：\(error.localizedDescription)"
         }
@@ -142,5 +152,13 @@ final class SnapshotStore: ObservableObject {
 
     private var downloadedJSONURL: URL {
         documentsDirectory.appendingPathComponent("leaderboards.json")
+    }
+
+    private func refreshIfStale() async {
+        let last = UserDefaults.standard.object(forKey: lastRefreshKey) as? Date
+        if let last, Date().timeIntervalSince(last) < 6 * 60 * 60 {
+            return
+        }
+        await refresh()
     }
 }
