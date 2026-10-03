@@ -17,6 +17,12 @@ class LeaderboardRepository(
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
 
+    suspend fun relayRanking(url: String, apiKey: String): RelayRanking {
+        val models = RelayModelClient().fetchModels(url, apiKey)
+        return RelayModelRanking.rank(models, snapshotStore?.snapshot ?: Snapshot())
+            .copy(url = url.trim())
+    }
+
     fun periodOptions(dimension: String): List<PeriodOption> = local.periodOptions(dimension)
 
     suspend fun favoriteModels(): List<ModelDetailDto> = favorites().first().map { favorite ->

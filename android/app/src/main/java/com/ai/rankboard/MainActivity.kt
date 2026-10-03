@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
@@ -36,6 +37,7 @@ import com.ai.rankboard.ui.compare.CompareScreen
 import com.ai.rankboard.ui.detail.DetailScreen
 import com.ai.rankboard.ui.favorites.FavoritesScreen
 import com.ai.rankboard.ui.home.HomeScreen
+import com.ai.rankboard.ui.relay.RelayScreen
 import com.ai.rankboard.ui.settings.SettingsScreen
 import com.ai.rankboard.ui.theme.RankboardTheme
 import com.ai.rankboard.ui.common.AppUpdateDialog
@@ -54,6 +56,7 @@ private data class TopLevelDestination(
 private val TOP_LEVEL_DESTINATIONS = listOf(
     TopLevelDestination("home", Icons.Filled.Home, "榜单"),
     TopLevelDestination("compare", Icons.AutoMirrored.Filled.CompareArrows, "对比"),
+    TopLevelDestination("relay", Icons.Filled.Hub, "中转"),
     TopLevelDestination("favorites", Icons.Outlined.StarBorder, "收藏"),
     TopLevelDestination("settings", Icons.Outlined.Settings, "设置"),
 )
@@ -155,6 +158,9 @@ class MainActivity : ComponentActivity() {
                             CompareScreen(
                                 onBack = { navController.popBackStack() },
                             )
+                        }
+                        composable("relay") {
+                            RelayScreen()
                         }
                     }
                 }

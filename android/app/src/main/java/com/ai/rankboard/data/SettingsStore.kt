@@ -17,6 +17,8 @@ data class AppSettings(
     val updateReminders: Boolean = true,
     val snapshotUrl: String = "",
     val appUpdateUrl: String = "",
+    val relayUrl: String = "",
+    val relayApiKey: String = "",
 )
 
 class SettingsStore(private val context: Context) {
@@ -51,6 +53,16 @@ class SettingsStore(private val context: Context) {
         _settings.value = _settings.value.copy(appUpdateUrl = normalized)
     }
 
+    fun setRelay(url: String, apiKey: String) {
+        val normalizedUrl = url.trim()
+        val normalizedKey = apiKey.trim()
+        prefs.edit()
+            .putString(KEY_RELAY_URL, normalizedUrl)
+            .putString(KEY_RELAY_API_KEY, normalizedKey)
+            .apply()
+        _settings.value = _settings.value.copy(relayUrl = normalizedUrl, relayApiKey = normalizedKey)
+    }
+
     private fun read(): AppSettings {
         val themeName = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name)
         return AppSettings(
@@ -59,6 +71,8 @@ class SettingsStore(private val context: Context) {
             updateReminders = prefs.getBoolean(KEY_UPDATE_REMINDERS, true),
             snapshotUrl = prefs.getString(KEY_SNAPSHOT_URL, "").orEmpty().trim(),
             appUpdateUrl = prefs.getString(KEY_APP_UPDATE_URL, "").orEmpty().trim(),
+            relayUrl = prefs.getString(KEY_RELAY_URL, "").orEmpty().trim(),
+            relayApiKey = prefs.getString(KEY_RELAY_API_KEY, "").orEmpty().trim(),
         )
     }
 
@@ -69,5 +83,7 @@ class SettingsStore(private val context: Context) {
         private const val KEY_UPDATE_REMINDERS = "update_reminders"
         private const val KEY_SNAPSHOT_URL = "snapshot_url"
         private const val KEY_APP_UPDATE_URL = "app_update_url"
+        private const val KEY_RELAY_URL = "relay_url"
+        private const val KEY_RELAY_API_KEY = "relay_api_key"
     }
 }
