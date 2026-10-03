@@ -23,6 +23,7 @@ data class AppUpdateInfo(
     val versionCode: Int = 0,
     val versionName: String = "",
     val apkUrl: String = "",
+    val mirrorUrls: List<String> = emptyList(),
     val sha256: String = "",
     val notes: String = "",
     val sizeBytes: Long = 0L,
@@ -34,6 +35,8 @@ enum class AppUpdateStatus {
     DOWNLOADED,
     ERROR,
 }
+
+private class SlowDownloadException(message: String) : Exception(message)
 
 data class AppUpdateResult(
     val status: AppUpdateStatus,
@@ -134,7 +137,7 @@ object AppUpdater {
             try {
                 val apkFile = apkFile(context)
                 apkFile.delete()
-                downloadApk(context, info.apkUrl, info.sizeBytes, onProgress)
+                downloadWithFallback(context, info, onProgress)
                 val bytes = apkFile.readBytes()
                 if (!sha256(bytes).equals(info.sha256, ignoreCase = true)) {
                     throw IllegalStateException("APK SHA-256 校验失败")
@@ -268,6 +271,7 @@ object AppUpdater {
             var bytesRead = 0L
             var lastProgressBytes = 0L
             var lastProgressAt = System.currentTimeMillis()
+            val startTime = lastProgressAt
             target.delete()
 
             BufferedInputStream(body.byteStream()).use { input ->
@@ -285,6 +289,10 @@ object AppUpdater {
                         if (now - lastProgressAt >= 200L) {
                             val elapsed = (now - lastProgressAt).coerceAtLeast(1L)
                             val bytesPerSecond = (bytesRead - lastProgressBytes) * 1_000L / elapsed
+                            val elapsedSinceStart = now - startTime
+                            if (elapsedSinceStart > 4_000L && bytesPerSecond < 64 * 1024L) {
+                                throw SlowDownloadException("下载源过慢")
+                            }
                             onProgress(DownloadProgress(bytesRead, totalBytes, bytesPerSecond))
                             lastProgressAt = now
                             lastProgressBytes = bytesRead
@@ -299,6 +307,30 @@ object AppUpdater {
                 throw IllegalStateException("APK 下载不完整")
             }
         }
+    }
+
+    private suspend fun downloadWithFallback(
+        context: Context,
+        info: AppUpdateInfo,
+        onProgress: suspend (DownloadProgress) -> Unit,
+    ) {
+        val urls = buildList {
+            add(info.apkUrl)
+            addAll(info.mirrorUrls.filter { it.isNotBlank() && it != info.apkUrl })
+        }.distinct()
+
+        var lastError: Exception? = null
+        for ((index, url) in urls.withIndex()) {
+            try {
+                downloadApk(context, url, info.sizeBytes, onProgress)
+                return
+            } catch (exc: Exception) {
+                lastError = exc
+                onProgress(DownloadProgress(0L, info.sizeBytes, 0L))
+                if (index == urls.lastIndex) throw exc
+            }
+        }
+        throw lastError ?: IllegalStateException("APK 下载失败")
     }
 
     private fun remoteFileSize(url: String): Long {
