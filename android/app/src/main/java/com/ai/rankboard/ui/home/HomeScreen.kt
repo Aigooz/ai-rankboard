@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Star
@@ -67,6 +68,7 @@ fun HomeScreen(
     onOpenModel: (String) -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenCompare: () -> Unit,
+    onOpenSettings: () -> Unit,
     vm: HomeViewModel = viewModel(
         factory = HomeViewModel.factory(LocalContext.current.applicationContext as RankboardApp),
     ),
@@ -99,6 +101,9 @@ fun HomeScreen(
                         }
                         IconButton(onClick = onOpenFavorites) {
                             Icon(Icons.Outlined.StarBorder, contentDescription = "收藏")
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Outlined.Settings, contentDescription = "设置")
                         }
                     },
                 )

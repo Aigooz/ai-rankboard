@@ -173,6 +173,14 @@ class SnapshotStore(private val context: Context) {
         )
     }
 
+    fun setDailyUpdateEnabled(enabled: Boolean, url: String) {
+        if (enabled) {
+            scheduleDailyUpdate(url)
+        } else {
+            WorkManager.getInstance(context).cancelUniqueWork(DAILY_UPDATE_WORK)
+        }
+    }
+
     companion object {
         const val SNAPSHOT_FILE_NAME = "leaderboards.json"
         const val SNAPSHOT_HASH_FILE_NAME = "leaderboards.json.sha256"

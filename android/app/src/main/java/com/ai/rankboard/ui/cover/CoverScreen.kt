@@ -15,9 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.ai.rankboard.R
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -74,16 +74,15 @@ fun CoverScreen(onEnter: () -> Unit) {
                 verticalArrangement = Arrangement.Center,
             ) {
                 Surface(
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(28.dp),
                     color = Color.White.copy(alpha = 0.16f),
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Leaderboard,
+                    Image(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
                         contentDescription = null,
-                        tint = Color.White,
                         modifier = Modifier
                             .padding(24.dp)
-                            .size(44.dp),
+                            .size(64.dp),
                     )
                 }
                 Spacer(Modifier.height(28.dp))
