@@ -23,6 +23,12 @@ class ModelIdentityTests(unittest.TestCase):
             canonical_slug("Claude Opus 5.5 (high)"),
         )
 
+    def test_livebench_and_modelsage_variants_join(self) -> None:
+        self.assertEqual(
+            canonical_slug("Claude 4.5 Opus (high)"),
+            canonical_slug("Claude Opus 4.5 (high with fallback)"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

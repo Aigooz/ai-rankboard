@@ -32,12 +32,16 @@ val HOME_TABS = listOf(
     HomeTab("search", "搜索榜"),
     HomeTab("speed", "速度榜"),
     HomeTab("value", "性价比榜"),
+    HomeTab("math", "数学榜"),
+    HomeTab("analysis", "数据分析榜"),
 )
 
 data class HomeUiState(
     val tab: String = HOME_TABS.first().dimension,
     val boardsForTab: List<BoardDto> = emptyList(),
     val selectedBoard: String = "",
+    val allBoardsForTab: List<BoardDto> = emptyList(),
+    val sourceFilter: String? = null,
     val sort: String = "rank",
     val query: String = "",
     val vendorOptions: List<String> = emptyList(),
@@ -76,6 +80,8 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
         _state.update {
             it.copy(
                 tab = dimension,
+                allBoardsForTab = emptyList(),
+                sourceFilter = null,
                 boardsForTab = emptyList(),
                 selectedBoard = "",
                 entries = emptyList(),
@@ -99,6 +105,24 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
         }
         loadVendorOptions(slug)
         refresh(showLoading = true)
+    }
+
+    fun setSourceFilter(sourceId: String?) {
+        if (_state.value.sourceFilter == sourceId) return
+        _state.update {
+            it.copy(
+                sourceFilter = sourceId,
+                selectedBoard = "",
+                boardsForTab = emptyList(),
+                entries = emptyList(),
+                total = 0,
+                vendorFilter = null,
+                licenseFilter = null,
+                paramsFilter = null,
+                loading = true,
+            )
+        }
+        loadBoardsForTab(_state.value.tab)
     }
 
     fun setSort(sort: String) {
@@ -185,10 +209,19 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
 
     private fun loadBoardsForTab(dimension: String) {
         viewModelScope.launch {
-            val boards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
-            _state.update { it.copy(boardsForTab = boards, loading = false) }
-            if (boards.isNotEmpty() && _state.value.selectedBoard.isEmpty()) {
-                selectBoard(boards.first().slug)
+            val allBoards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
+            val filtered = allBoards.filter { board ->
+                _state.value.sourceFilter == null || board.sourceId == _state.value.sourceFilter
+            }
+            _state.update {
+                it.copy(
+                    allBoardsForTab = allBoards,
+                    boardsForTab = filtered,
+                    loading = false,
+                )
+            }
+            if (filtered.isNotEmpty() && _state.value.selectedBoard.isEmpty()) {
+                selectBoard(filtered.first().slug)
             }
         }
     }
@@ -271,4 +304,6 @@ private val FALLBACK_BOARDS = mapOf(
         BoardDto("arena-image", "Arena 图像生成", "multimodal"),
         BoardDto("arena-video", "Arena 视频生成", "multimodal"),
     ),
+    "math" to listOf(BoardDto("livebench-math", "LiveBench 数学", "math", sourceId = "livebench")),
+    "analysis" to listOf(BoardDto("livebench-data-analysis", "LiveBench 数据分析", "analysis", sourceId = "livebench")),
 )

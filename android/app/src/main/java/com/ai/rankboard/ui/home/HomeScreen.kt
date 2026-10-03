@@ -174,6 +174,33 @@ fun HomeScreen(
                         }
                     }
                 }
+                if (state.allBoardsForTab.map { it.sourceId }.distinct().size > 1) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = state.sourceFilter == null,
+                                onClick = { vm.setSourceFilter(null) },
+                                label = { Text("全部来源") },
+                            )
+                        }
+                        items(
+                            state.allBoardsForTab.map { it.sourceId }.distinct(),
+                            key = { it },
+                        ) { sourceId ->
+                            FilterChip(
+                                selected = state.sourceFilter == sourceId,
+                                onClick = {
+                                    vm.setSourceFilter(if (state.sourceFilter == sourceId) null else sourceId)
+                                },
+                                label = { Text(sourceLabel(sourceId)) },
+                            )
+                        }
+                    }
+                }
                 if (state.vendorOptions.isNotEmpty() || state.licenseFilter != null || state.paramsFilter != null) {
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -322,6 +349,12 @@ fun HomeScreen(
             }
         }
     }
+}
+
+private fun sourceLabel(sourceId: String): String = when (sourceId) {
+    "livebench" -> "LiveBench"
+    "swebench" -> "SWE-bench"
+    else -> "ModelSage"
 }
 
 @Composable

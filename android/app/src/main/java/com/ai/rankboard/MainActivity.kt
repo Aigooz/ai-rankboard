@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.ai.rankboard.ui.cover.CoverScreen
 import com.ai.rankboard.ui.about.AboutScreen
 import com.ai.rankboard.ui.compare.CompareScreen
 import com.ai.rankboard.ui.detail.DetailScreen
@@ -28,16 +27,7 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = settings.dynamicColor,
             ) {
                 val navController = rememberNavController()
-                NavHost(navController = navController, startDestination = "cover") {
-                    composable("cover") {
-                        CoverScreen(
-                            onEnter = {
-                                navController.navigate("home") {
-                                    popUpTo("cover") { inclusive = true }
-                                }
-                            },
-                        )
-                    }
+                NavHost(navController = navController, startDestination = "home") {
                     composable("home") {
                         HomeScreen(
                             onOpenModel = { slug -> navController.navigate("model/$slug") },

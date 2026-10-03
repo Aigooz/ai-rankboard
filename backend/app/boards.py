@@ -1,7 +1,9 @@
-"""Registry of leaderboard pages aggregated from modelsage.cn."""
+"""Registry of leaderboard pages aggregated from public sources."""
 
 AA = "aa_index"
 ARENA = "arena_elo"
+LIVEBENCH = "livebench"
+SWE_BENCH = "swe_bench"
 
 BOARDS = [
     {"slug": "overall", "name": "综合能力", "dimension": "overall", "score_type": AA, "path": "/leaderboards/overall"},
@@ -16,7 +18,14 @@ BOARDS = [
     {"slug": "arena-search", "name": "Arena 搜索", "dimension": "search", "score_type": ARENA, "path": "/leaderboards/arena/search/overall"},
     {"slug": "arena-image", "name": "Arena 图像生成", "dimension": "multimodal", "score_type": ARENA, "path": "/leaderboards/arena/text-to-image/overall"},
     {"slug": "arena-video", "name": "Arena 视频生成", "dimension": "multimodal", "score_type": ARENA, "path": "/leaderboards/arena/text-to-video/overall"},
+    {"slug": "livebench-overall", "name": "LiveBench 综合", "dimension": "overall", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "*", "release": "2026-06-25"},
+    {"slug": "livebench-coding", "name": "LiveBench 代码", "dimension": "coding", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Coding", "release": "2026-06-25"},
+    {"slug": "livebench-agentic-coding", "name": "LiveBench 智能体代码", "dimension": "coding", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Agentic Coding", "release": "2026-06-25"},
+    {"slug": "livebench-writing", "name": "LiveBench 语言", "dimension": "writing", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Language", "release": "2026-06-25"},
+    {"slug": "livebench-math", "name": "LiveBench 数学", "dimension": "math", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Mathematics", "release": "2026-06-25"},
+    {"slug": "livebench-data-analysis", "name": "LiveBench 数据分析", "dimension": "analysis", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Data Analysis", "release": "2026-06-25"},
+    {"slug": "swe-bench-verified", "name": "SWE-bench Verified", "dimension": "coding", "score_type": SWE_BENCH, "kind": SWE_BENCH, "swe_board": "Verified"},
+    {"slug": "swe-bench-multimodal", "name": "SWE-bench Multimodal", "dimension": "multimodal", "score_type": SWE_BENCH, "kind": SWE_BENCH, "swe_board": "Multimodal"},
 ]
 
 BOARD_BY_SLUG = {b["slug"]: b for b in BOARDS}
-

@@ -3,6 +3,7 @@
 from .db import get_conn
 from .model_identity import canonical_model_slug
 from .scraper import _PARAMS_RE
+from .config import LIVEBENCH_URL, SWE_BENCH_URL
 
 
 def extract_params_b(name: str):
@@ -11,13 +12,18 @@ def extract_params_b(name: str):
 
 
 def upsert_board_meta(conn, board: dict) -> None:
+    if board.get("kind") == "livebench":
+        url = f"{LIVEBENCH_URL}/leaderboard"
+    elif board.get("kind") == "swe_bench":
+        url = SWE_BENCH_URL
+    else:
+        url = "https://modelsage.cn" + board["path"]
     conn.execute(
         """INSERT INTO boards(slug, name, dimension, score_type, url)
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(slug) DO UPDATE SET name=excluded.name, dimension=excluded.dimension,
                score_type=excluded.score_type, url=excluded.url""",
-        (board["slug"], board["name"], board["dimension"], board["score_type"],
-         "https://modelsage.cn" + board["path"]),
+        (board["slug"], board["name"], board["dimension"], board["score_type"], url),
     )
 
 

@@ -19,13 +19,23 @@ SOURCE = {
     "name": "ModelSage",
     "url": "https://modelsage.cn",
 }
-SOURCES = [SOURCE]
+SOURCES = [
+    SOURCE,
+    {"id": "livebench", "name": "LiveBench", "url": "https://livebench.ai/leaderboard"},
+    {"id": "swebench", "name": "SWE-bench", "url": "https://www.swebench.com"},
+]
 
 
 def build_snapshot() -> dict:
+    board_source = {
+        "aa_index": "modelsage",
+        "arena_elo": "modelsage",
+        "livebench": "livebench",
+        "swe_bench": "swebench",
+    }
     with get_conn() as conn:
         boards = [
-            dict(row)
+            {**dict(row), "source_id": board_source.get(row["score_type"], "modelsage")}
             for row in conn.execute(
                 """
                 SELECT slug, name, dimension, score_type, url, last_success_at,

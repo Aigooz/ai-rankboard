@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ai.rankboard.BuildConfig
+import com.ai.rankboard.data.SnapshotSourceDto
 import com.ai.rankboard.R
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.ui.common.openUrl
@@ -45,6 +46,11 @@ import com.ai.rankboard.ui.common.openUrl
 private const val GITHUB_URL = "https://github.com/Aigooz/ai-rankboard"
 private const val ISSUES_URL = "https://github.com/Aigooz/ai-rankboard/issues"
 private const val SOURCE_URL = "https://modelsage.cn/"
+private val FALLBACK_SOURCES = listOf(
+    SnapshotSourceDto("modelsage", "ModelSage", SOURCE_URL),
+    SnapshotSourceDto("livebench", "LiveBench", "https://livebench.ai/leaderboard"),
+    SnapshotSourceDto("swebench", "SWE-bench", "https://www.swebench.com"),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,21 +127,24 @@ fun AboutScreen(onBack: () -> Unit) {
             }
             item {
                 AboutGroup(title = "数据", icon = Icons.Filled.Dataset) {
+                    val sources = snapshot.sources.ifEmpty { FALLBACK_SOURCES }
                     Text(
-                        "当前来源：${snapshot.source?.name ?: "ModelSage"}\n" +
+                        "当前接入 ${sources.size} 个数据源\n" +
                             "快照生成：${snapshot.generatedAt.take(19).replace("T", " ")}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                    OutlinedButton(
-                        onClick = { openUrl(context, snapshot.source?.url ?: SOURCE_URL) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                        Text("打开数据来源", modifier = Modifier.padding(start = 6.dp))
+                    sources.forEach { source ->
+                        OutlinedButton(
+                            onClick = { openUrl(context, source.url.ifBlank { SOURCE_URL }) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                            Text("打开 ${source.name.ifBlank { source.id }}", modifier = Modifier.padding(start = 6.dp))
+                        }
                     }
                 }
             }

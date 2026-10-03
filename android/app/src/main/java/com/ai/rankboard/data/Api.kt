@@ -22,6 +22,7 @@ data class BoardDto(
     val slug: String,
     val name: String,
     val dimension: String,
+    @SerializedName("source_id") val sourceId: String = "modelsage",
     @SerializedName("score_type") val scoreType: String? = null,
     val url: String? = null,
     @SerializedName("last_success_at") val lastSuccessAt: String? = null,
