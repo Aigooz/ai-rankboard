@@ -28,14 +28,42 @@ def upsert_board_meta(conn, board: dict) -> None:
 
 
 def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
+    if not rows:
+        raise ValueError(f"board {board['slug']}: parsed 0 rows, refusing to wipe existing data")
+
+    # 单次解析的名次唯一：同榜同名次且同分说明是同一行的两代残留（或站点改名），
+    # 保留名字更长（信息更全）的一行。
+    by_rank: dict = {}
+    for row in rows:
+        current = by_rank.get(row["rank"])
+        if current is None or len(row["name"] or "") > len(current["name"] or ""):
+            by_rank[row["rank"]] = row
+    rows = sorted(by_rank.values(), key=lambda item: item["rank"])
+
+    seen: set[str] = set()
+    deduped = []
+    for row in rows:
+        model_slug = canonical_model_slug(row["name"], row["slug"])
+        if model_slug in seen:
+            continue
+        seen.add(model_slug)
+        deduped.append((model_slug, row))
+
     with get_conn() as conn:
-        for row in rows:
-            model_slug = canonical_model_slug(row["name"], row["slug"])
+        # 榜单内容以本次抓取为准：先清掉该榜旧成绩再写入，避免站点改了命名后
+        # 新旧两代 slug 并存出现"模型分身"。抓取失败不会走到这里，旧数据得以保留。
+        conn.execute("DELETE FROM scores WHERE board_slug=?", (board["slug"],))
+        for model_slug, row in deduped:
             conn.execute(
                 """INSERT INTO models(slug, display_name, vendor, params_b, license, context_window, source_url, release_date, first_seen_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(slug) DO UPDATE SET
-                       display_name=excluded.display_name,
+                       display_name=CASE
+                           WHEN excluded.display_name NOT GLOB '*[^a-z0-9._-]*'
+                                AND models.display_name GLOB '*[^a-z0-9._-]*'
+                           THEN models.display_name
+                           ELSE excluded.display_name
+                       END,
                        vendor=COALESCE(excluded.vendor, models.vendor),
                        params_b=COALESCE(models.params_b, excluded.params_b),
                        license=COALESCE(excluded.license, models.license),
@@ -57,11 +85,13 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
                 (board["slug"], model_slug, row["rank"], row["score"], row["score_ci"],
                  row["votes"], row["price_in"], row["price_out"], row["currency"], fetched_at),
             )
+        # 清理已经不在任何榜单里的孤儿模型。
+        conn.execute("DELETE FROM models WHERE slug NOT IN (SELECT DISTINCT model_slug FROM scores)")
         conn.execute(
             "UPDATE boards SET last_success_at=?, last_status='ok', last_error=NULL WHERE slug=?",
             (fetched_at, board["slug"]),
         )
-    return len(rows)
+    return len(deduped)
 
 
 def save_model_release_dates(dates: dict[str, str]) -> int:
