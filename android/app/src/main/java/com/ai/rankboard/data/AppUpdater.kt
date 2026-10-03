@@ -91,7 +91,7 @@ object AppUpdater {
 
         return withContext(Dispatchers.IO) {
             try {
-                val info = parseManifest(httpBytes(url)) ?: throw IllegalStateException("更新清单解析失败")
+                val info = fetchManifest(url) ?: throw IllegalStateException("更新清单解析失败")
                 if (info.versionCode <= BuildConfig.VERSION_CODE) {
                     AppUpdateResult(
                         AppUpdateStatus.UP_TO_DATE,
@@ -179,7 +179,7 @@ object AppUpdater {
 
         return withContext(Dispatchers.IO) {
             try {
-                val info = parseManifest(httpBytes(url))
+                val info = fetchManifest(url)
                     ?: throw IllegalStateException("更新清单解析失败")
                 if (info.versionCode <= BuildConfig.VERSION_CODE) {
                     return@withContext AppUpdateResult(
@@ -230,6 +230,30 @@ object AppUpdater {
         }.getOrNull()
     }
 
+    private fun manifestCandidates(url: String): List<String> {
+        val separator = if (url.contains('?')) "&" else "?"
+        val freshUrl = "$url${separator}t=${System.currentTimeMillis()}"
+        return buildList {
+            add(freshUrl)
+            if (url.contains("raw.githubusercontent.com", ignoreCase = true)) {
+                add("https://ghfast.top/$freshUrl")
+                add("https://gh-proxy.com/$freshUrl")
+            }
+        }.distinct()
+    }
+
+    private fun fetchManifest(url: String): AppUpdateInfo? {
+        var lastError: Exception? = null
+        for (candidate in manifestCandidates(url)) {
+            try {
+                return parseManifest(httpBytes(candidate))
+            } catch (exc: Exception) {
+                lastError = exc
+            }
+        }
+        throw lastError ?: IllegalStateException("更新清单解析失败")
+    }
+
     private fun httpBytes(url: String): ByteArray {
         val client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -238,6 +262,8 @@ object AppUpdater {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "AI-Rankboard-Updater/${BuildConfig.VERSION_NAME}")
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
