@@ -24,9 +24,9 @@ data class CompareUiState(
     val query: String = "",
     val pickerTab: PickerTab = PickerTab.Favorites,
     val boards: List<BoardDto> = emptyList(),
+    val selectedDimension: String = "overall",
     val selectedBoardSlug: String = "",
     val pickerOpen: Boolean = false,
-    val boardPickerOpen: Boolean = false,
     val loading: Boolean = false,
 )
 
@@ -45,6 +45,7 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
             _state.update {
                 it.copy(
                     boards = boards,
+                    selectedDimension = "overall",
                     selectedBoardSlug = boards.firstOrNull { board -> board.slug == "overall" }?.slug
                         ?: boards.firstOrNull()?.slug.orEmpty(),
                     selectedSlugs = initialSelection,
@@ -79,12 +80,29 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
     }
 
     fun selectBoard(slug: String) {
-        _state.update { it.copy(selectedBoardSlug = slug, boardPickerOpen = false) }
+        _state.update { state ->
+            val dimension = state.boards.firstOrNull { it.slug == slug }?.dimension
+            state.copy(
+                selectedBoardSlug = slug,
+                selectedDimension = dimension ?: state.selectedDimension,
+            )
+        }
+    }
+
+    fun selectDimension(dimension: String) {
+        if (_state.value.selectedDimension == dimension) return
+        _state.update { state ->
+            val scopedBoards = state.boards.filter { dimension == "all" || it.dimension == dimension }
+            val nextBoard = scopedBoards.firstOrNull { it.slug == state.selectedBoardSlug }
+                ?: scopedBoards.firstOrNull()
+            state.copy(
+                selectedDimension = dimension,
+                selectedBoardSlug = nextBoard?.slug.orEmpty(),
+            )
+        }
     }
 
     fun setPickerOpen(open: Boolean) = _state.update { it.copy(pickerOpen = open) }
-
-    fun setBoardPickerOpen(open: Boolean) = _state.update { it.copy(boardPickerOpen = open) }
 
     private suspend fun loadModels(slugs: List<String>) {
         val models = slugs.mapNotNull { slug -> repository.modelDetail(slug) }
