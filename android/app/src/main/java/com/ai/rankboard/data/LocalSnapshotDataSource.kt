@@ -54,7 +54,12 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             baseEntries
         }
         val keyword = query?.trim().orEmpty()
-        val entries = filteredByPeriod.filter { entry ->
+        val rankedByPeriod = if (periodDimension in Periods.supported) {
+            scoreRanked(filteredByPeriod)
+        } else {
+            filteredByPeriod
+        }
+        val entries = rankedByPeriod.filter { entry ->
             keyword.isBlank() ||
                 entry.displayName.contains(keyword, ignoreCase = true) ||
                 entry.vendor?.contains(keyword, ignoreCase = true) == true ||
@@ -83,11 +88,7 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
                     else -> true
                 }
             }
-        val sorted = when (sort) {
-            "score" -> scoreRanked(entries).sortedByDescending { it.score ?: Double.NEGATIVE_INFINITY }
-            "updated" -> scoreRanked(entries).sortedByDescending { it.fetchedAt }
-            else -> scoreRanked(entries)
-        }
+        val sorted = sortEntries(entries, sort)
         return EntriesResponse(
             board = board,
             entries = sorted.drop(offset).take(limit),
@@ -100,6 +101,15 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
     private fun scoreRanked(entries: List<EntryDto>): List<EntryDto> =
         entries.sortedWith(compareByDescending { it.score ?: Double.NEGATIVE_INFINITY })
             .mapIndexed { index, entry -> entry.copy(rank = index + 1) }
+
+    private fun sortEntries(entries: List<EntryDto>, sort: String): List<EntryDto> = when (sort) {
+        "score" -> entries.sortedByDescending { it.score ?: Double.NEGATIVE_INFINITY }
+        "updated" -> entries.sortedByDescending { it.fetchedAt }
+        else -> entries.sortedWith(
+            compareBy<EntryDto> { if (it.rank > 0) it.rank else Int.MAX_VALUE }
+                .thenByDescending { it.score ?: Double.NEGATIVE_INFINITY },
+        )
+    }
 
     fun modelDetail(slug: String): ModelDetailResponse? {
         val firstEntry = snapshot.entriesByBoard.values.flatten().firstOrNull { it.slug == slug }
