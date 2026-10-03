@@ -256,7 +256,7 @@ func formatName(_ name: String) -> (name: String, strength: String?) {
         return (name, nil)
     }
     let strength = name[range].replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
-    return (String(name[..<range]), strength)
+    return (String(name[..<range.lowerBound]), strength)
 }
 
 func formatNumber(_ value: Double) -> String {

@@ -52,8 +52,8 @@ final class SnapshotStore: ObservableObject {
     }
 
     private func loadDownloadedSnapshot() -> Bool {
-        guard let url = downloadedJSONURL,
-              let data = try? Data(contentsOf: url) else {
+        let url = downloadedJSONURL
+        guard let data = try? Data(contentsOf: url) else {
             return false
         }
         return decodeAndApply(data, downloaded: true)
