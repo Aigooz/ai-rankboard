@@ -36,6 +36,7 @@ data class EntryDto(
     @SerializedName("params_b") val paramsB: Double? = null,
     val license: String? = null,
     @SerializedName("context_window") val contextWindow: String? = null,
+    @SerializedName("release_date") val releaseDate: String? = null,
     val rank: Int = 0,
     val score: Double? = null,
     @SerializedName("score_ci") val scoreCi: Double? = null,
@@ -78,6 +79,7 @@ data class ModelDetailDto(
     val license: String? = null,
     @SerializedName("context_window") val contextWindow: String? = null,
     @SerializedName("source_url") val sourceUrl: String? = null,
+    @SerializedName("release_date") val releaseDate: String? = null,
 )
 
 data class ModelDetailResponse(val model: ModelDetailDto, val scores: List<ScoreDto> = emptyList())

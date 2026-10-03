@@ -81,9 +81,10 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             displayName = firstEntry.displayName,
             vendor = firstEntry.vendor,
             paramsB = firstEntry.paramsB,
-            license = firstEntry.license,
-            contextWindow = firstEntry.contextWindow,
-            sourceUrl = firstEntry.sourceUrl,
+                license = firstEntry.license,
+                contextWindow = firstEntry.contextWindow,
+                sourceUrl = firstEntry.sourceUrl,
+                releaseDate = firstEntry.releaseDate,
         )
         val scores = snapshot.boards.mapNotNull { board ->
             val entry = snapshot.entriesByBoard[board.slug]?.firstOrNull { it.slug == slug }

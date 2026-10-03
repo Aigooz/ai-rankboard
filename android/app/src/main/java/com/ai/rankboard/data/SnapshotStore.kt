@@ -85,7 +85,7 @@ class SnapshotStore(private val context: Context) {
                 }
 
                 val parsed = parse(jsonBytes) ?: throw IllegalStateException("snapshot parse failed")
-                if (parsed.schemaVersion !in 1..2 || parsed.boards.isEmpty()) {
+                if (parsed.schemaVersion !in 1..3 || parsed.boards.isEmpty()) {
                     throw IllegalStateException("unsupported snapshot schema ${parsed.schemaVersion}")
                 }
 

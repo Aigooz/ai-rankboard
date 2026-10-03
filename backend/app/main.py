@@ -78,7 +78,7 @@ def leaderboard_entries(
             raise HTTPException(404, "board not found")
         sql = f"""
             SELECT m.slug, m.display_name, m.vendor, m.params_b, m.license, m.context_window, m.source_url,
-                   s.rank, s.score, s.score_ci, s.votes, s.price_in, s.price_out, s.currency, s.fetched_at
+                   m.release_date, s.rank, s.score, s.score_ci, s.votes, s.price_in, s.price_out, s.currency, s.fetched_at
             FROM scores s JOIN models m ON m.slug = s.model_slug
             WHERE s.board_slug = ?
         """

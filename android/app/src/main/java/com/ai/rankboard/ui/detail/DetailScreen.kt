@@ -163,6 +163,12 @@ fun DetailScreen(
                                     value = "#$bestRank",
                                 )
                             }
+                            model.releaseDate?.takeIf { it.isNotBlank() }?.let { releaseDate ->
+                                StatChip(
+                                    label = "发布",
+                                    value = releaseDate.take(10),
+                                )
+                            }
                             val sourceUrl = model.sourceUrl
                             if (!sourceUrl.isNullOrBlank()) {
                                 TextButton(

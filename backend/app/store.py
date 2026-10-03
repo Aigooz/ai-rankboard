@@ -32,8 +32,8 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
         for row in rows:
             model_slug = canonical_model_slug(row["name"], row["slug"])
             conn.execute(
-                """INSERT INTO models(slug, display_name, vendor, params_b, license, context_window, source_url, first_seen_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """INSERT INTO models(slug, display_name, vendor, params_b, license, context_window, source_url, release_date, first_seen_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(slug) DO UPDATE SET
                        display_name=excluded.display_name,
                        vendor=COALESCE(excluded.vendor, models.vendor),
@@ -41,9 +41,11 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
                        license=COALESCE(excluded.license, models.license),
                        context_window=COALESCE(excluded.context_window, models.context_window),
                        source_url=COALESCE(excluded.source_url, models.source_url),
+                       release_date=COALESCE(models.release_date, excluded.release_date),
                        updated_at=excluded.updated_at""",
                 (model_slug, row["name"], row["vendor"], extract_params_b(row["name"]),
-                 row["license"], row["context_window"], row["source_url"], fetched_at, fetched_at),
+                 row["license"], row["context_window"], row["source_url"], row.get("release_date"),
+                 fetched_at, fetched_at),
             )
             conn.execute(
                 """INSERT INTO scores(board_slug, model_slug, rank, score, score_ci, votes, price_in, price_out, currency, fetched_at)
@@ -60,6 +62,18 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
             (fetched_at, board["slug"]),
         )
     return len(rows)
+
+
+def save_model_release_dates(dates: dict[str, str]) -> int:
+    if not dates:
+        return 0
+    with get_conn() as conn:
+        for source_url, release_date in dates.items():
+            conn.execute(
+                "UPDATE models SET release_date=? WHERE source_url=? AND (release_date IS NULL OR release_date='')",
+                (release_date, source_url),
+            )
+    return len(dates)
 
 
 def mark_board_error(board: dict, error: str) -> None:

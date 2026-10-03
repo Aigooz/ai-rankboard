@@ -9,7 +9,7 @@ import org.junit.Test
 class SnapshotParsingTest {
     private val json = """
     {
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "generatedAt": "2026-10-03T12:00:00+00:00",
       "source": {"id": "modelsage", "name": "ModelSage", "url": "https://modelsage.cn"},
       "boards": [
@@ -32,6 +32,7 @@ class SnapshotParsingTest {
             "params_b": null,
             "license": null,
             "context_window": null,
+            "release_date": "2025-08-07",
             "rank": 1,
             "score": 90.5,
             "score_ci": null,
@@ -51,21 +52,23 @@ class SnapshotParsingTest {
           "params_b": null,
           "license": null,
           "context_window": null,
-          "source_url": "https://modelsage.cn/model/gpt-4"
+          "source_url": "https://modelsage.cn/model/gpt-4",
+          "release_date": "2025-08-07"
         }
       }
     }
     """.trimIndent()
 
     @Test
-    fun parseSnapshotSchemaV2() {
+    fun parseSnapshotSchemaV3() {
         val snapshot = Gson().fromJson(json, Snapshot::class.java)
 
-        assertEquals(2, snapshot.schemaVersion)
+        assertEquals(3, snapshot.schemaVersion)
         assertEquals("ModelSage", snapshot.source?.name)
         assertEquals(1, snapshot.boards.size)
         assertEquals(1, snapshot.entriesByBoard["overall"]?.size)
         assertEquals("GPT-4", snapshot.models["gpt-4"]?.displayName)
+        assertEquals("2025-08-07", snapshot.entriesByBoard["overall"]?.first()?.releaseDate)
         assertEquals(90.5, snapshot.entriesByBoard["overall"]?.first()?.score!!, 0.001)
     }
 

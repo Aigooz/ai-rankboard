@@ -4,7 +4,7 @@ import re
 import unittest
 from pathlib import Path
 
-from app.scraper import parse_aa_board, parse_arena_board, parse_livebench_board, parse_swe_bench_board
+from app.scraper import parse_aa_board, parse_arena_board, parse_livebench_board, parse_release_date, parse_swe_bench_board
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -19,6 +19,17 @@ def load_livebench_fixtures():
 
 
 class ScraperRegressionTests(unittest.TestCase):
+    def test_release_date_from_json_ld(self) -> None:
+        html = """
+        <html><body>
+        <script type="application/ld+json">
+        {"@type":"Product","name":"GPT-X","releaseDate":"2025-08-07"}
+        </script>
+        </body></html>
+        """
+        self.assertEqual(parse_release_date(html), "2025-08-07")
+        self.assertIsNone(parse_release_date('<script type="application/ld+json">{}</script>'))
+
     def test_aa_board_fixture(self) -> None:
         html = (FIXTURES / "aa_overall.html").read_text(encoding="utf-8")
         rows = parse_aa_board(html)

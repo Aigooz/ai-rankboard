@@ -30,10 +30,10 @@ class SnapshotContractTests(unittest.TestCase):
                 ],
             )
             conn.executemany(
-                "INSERT INTO models (slug, display_name, vendor, params_b, license, context_window, source_url, first_seen_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO models (slug, display_name, vendor, params_b, license, context_window, source_url, release_date, first_seen_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 [
-                    ("gpt-x", "GPT-X", "openai", 1000.0, "proprietary", "128k", "https://example.com/gpt-x", now, now),
-                    ("open-y", "Open-Y", "meta", 70.0, "open", "128k", "https://example.com/open-y", now, now),
+                    ("gpt-x", "GPT-X", "openai", 1000.0, "proprietary", "128k", "https://example.com/gpt-x", "2025-08-07", now, now),
+                    ("open-y", "Open-Y", "meta", 70.0, "open", "128k", "https://example.com/open-y", "2025-01-01", now, now),
                 ],
             )
             conn.executemany(
@@ -53,7 +53,8 @@ class SnapshotContractTests(unittest.TestCase):
     def test_snapshot_schema_from_db(self) -> None:
         snapshot = build_snapshot()
 
-        self.assertEqual(snapshot["schemaVersion"], 2)
+        self.assertEqual(snapshot["schemaVersion"], 3)
+        self.assertEqual(snapshot["entriesByBoard"]["modelsage-arena"][0]["release_date"], "2025-08-07")
         self.assertTrue(re.match(r"^\d{4}-\d{2}-\d{2}T", snapshot["generatedAt"]))
         self.assertTrue(snapshot["boards"])
         self.assertTrue(snapshot["entriesByBoard"])
@@ -65,7 +66,7 @@ class SnapshotContractTests(unittest.TestCase):
     def test_bundled_snapshot_matches_schema(self) -> None:
         snapshot = json.loads(ASSET.read_text(encoding="utf-8"))
 
-        self.assertEqual(snapshot["schemaVersion"], 2)
+        self.assertEqual(snapshot["schemaVersion"], 3)
         self.assertTrue(snapshot["source"]["id"])
         self.assertTrue(snapshot["sources"])
         self.assertIn("modelsage", {item["id"] for item in snapshot["sources"]})

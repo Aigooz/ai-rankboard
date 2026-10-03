@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS models (
     license TEXT,
     context_window TEXT,
     source_url TEXT,
+    release_date TEXT,
     first_seen_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -72,4 +73,6 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
-
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(models)")}
+        if "release_date" not in columns:
+            conn.execute("ALTER TABLE models ADD COLUMN release_date TEXT")

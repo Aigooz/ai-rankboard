@@ -184,6 +184,44 @@ def parse_board(board: dict, html: str) -> list:
     return parse_arena_board(html)
 
 
+def parse_release_date(html: str) -> str | None:
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            payloads = json.loads(tag.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(payloads, list):
+            payloads = [payloads]
+        for payload in payloads:
+            if isinstance(payload, dict) and payload.get("releaseDate"):
+                value = str(payload["releaseDate"])
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                    return value
+    return None
+
+
+async def fetch_model_release_dates(urls: list[str]) -> dict[str, str]:
+    """Fetch release dates from ModelSage model detail pages."""
+    result: dict[str, str] = {}
+    semaphore = asyncio.Semaphore(8)
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        async def fetch_one(url: str) -> None:
+            async with semaphore:
+                try:
+                    html = await fetch_html(client, url)
+                    release_date = parse_release_date(html)
+                    if release_date:
+                        result[url] = release_date
+                except Exception as exc:  # noqa: BLE001
+                    # A missing date must not break the whole leaderboard refresh.
+                    print(f"release date fetch failed: {url}: {exc}")
+
+        await asyncio.gather(*(fetch_one(url) for url in urls))
+    return result
+
+
 _VENDOR_RULES = [
     ("claude", "Anthropic"),
     ("deepseek", "DeepSeek"),

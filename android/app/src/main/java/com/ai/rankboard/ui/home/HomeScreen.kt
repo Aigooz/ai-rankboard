@@ -430,7 +430,7 @@ private fun FilterSummaryBar(
             )
             if (snapshotDate.isNotBlank()) {
                 Text(
-                    snapshotDate,
+                    "数据更新 $snapshotDate",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -671,7 +671,7 @@ private fun ModelRow(
                     text = listOfNotNull(
                         entry.vendor,
                         entry.paramsB?.let { "${formatParams(it)}B" },
-                        entry.fetchedAt.take(10),
+                        entry.releaseDate?.take(10)?.let { "发布 $it" } ?: "发布时间未知",
                     ).filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

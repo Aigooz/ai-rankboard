@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .db import get_conn
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SOURCE = {
     "id": "modelsage",
     "name": "ModelSage",
@@ -55,12 +55,13 @@ def build_snapshot() -> dict:
                 "license": row["license"],
                 "context_window": row["context_window"],
                 "source_url": row["source_url"],
+                "release_date": row["release_date"],
                 "updated_at": row["updated_at"],
             }
             for row in conn.execute(
                 """
                 SELECT slug, display_name, vendor, params_b, license, context_window,
-                       source_url, updated_at
+                       source_url, release_date, updated_at
                 FROM models
                 ORDER BY slug
                 """
@@ -70,7 +71,7 @@ def build_snapshot() -> dict:
         entries = defaultdict(list)
         query = """
             SELECT s.*, m.display_name, m.slug, m.vendor, m.params_b,
-                   m.license, m.context_window
+                   m.license, m.context_window, m.release_date
             FROM scores s
             JOIN models m ON m.slug = s.model_slug
             ORDER BY s.board_slug, s.rank
@@ -85,6 +86,7 @@ def build_snapshot() -> dict:
                     "params_b": item["params_b"],
                     "license": item["license"],
                     "context_window": item["context_window"],
+                    "release_date": item["release_date"],
                     "rank": item["rank"],
                     "score": item["score"],
                     "score_ci": item["score_ci"],
