@@ -1,0 +1,51 @@
+name: iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec ios/project.yml --project "ios/AI Rankboard.xcodeproj"
+
+      - name: Build unsigned archive
+        run: |
+          xcodebuild \
+            -project "ios/AI Rankboard.xcodeproj" \
+            -scheme "AI Rankboard" \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath build/AI-Rankboard.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/Payload
+          cp -R "build/AI-Rankboard.xcarchive/Products/Applications/AI Rankboard.app" "build/Payload/"
+          cd build
+          zip -qry AI-Rankboard.ipa Payload
+          shasum -a 256 AI-Rankboard.ipa > AI-Rankboard.ipa.sha256
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-rankboard-ios-ipa
+          path: |
+            build/AI-Rankboard.ipa
+            build/AI-Rankboard.ipa.sha256
+          if-no-files-found: error
