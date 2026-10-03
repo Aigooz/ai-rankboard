@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ import com.ai.rankboard.ui.detail.DetailScreen
 import com.ai.rankboard.ui.favorites.FavoritesScreen
 import com.ai.rankboard.ui.home.HomeScreen
 import com.ai.rankboard.ui.relay.RelayScreen
+import com.ai.rankboard.ui.select.SelectScreen
 import com.ai.rankboard.ui.settings.SettingsScreen
 import com.ai.rankboard.ui.theme.RankboardTheme
 import com.ai.rankboard.ui.common.AppUpdateDialog
@@ -55,6 +57,7 @@ private data class TopLevelDestination(
 
 private val TOP_LEVEL_DESTINATIONS = listOf(
     TopLevelDestination("home", Icons.Filled.Home, "榜单"),
+    TopLevelDestination("select", Icons.Filled.Savings, "选型"),
     TopLevelDestination("compare", Icons.AutoMirrored.Filled.CompareArrows, "对比"),
     TopLevelDestination("relay", Icons.Filled.Hub, "中转"),
     TopLevelDestination("favorites", Icons.Outlined.StarBorder, "收藏"),
@@ -159,6 +162,12 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("compare") {
                             CompareScreen(
+                                onBack = { navController.popBackStack() },
+                            )
+                        }
+                        composable("select") {
+                            SelectScreen(
+                                onOpenModel = { slug -> navController.navigate("model/$slug") },
                                 onBack = { navController.popBackStack() },
                             )
                         }
