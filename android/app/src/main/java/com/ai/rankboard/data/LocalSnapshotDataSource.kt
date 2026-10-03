@@ -116,6 +116,6 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         }.sortedWith(
             compareBy<ModelDetailDto> { it.displayName.length }
                 .thenBy { it.displayName.lowercase() },
-        ).take(80)
+        ).take(300)
     }
 }

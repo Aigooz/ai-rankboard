@@ -27,8 +27,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +42,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -264,10 +269,13 @@ fun CompareScreen(
     if (state.pickerOpen) {
         ModelPickerSheet(
             query = state.query,
+            tab = state.pickerTab,
             candidates = state.candidates,
+            favoriteModels = state.favoriteModels,
             selectedSlugs = state.selectedSlugs,
             maxCount = CompareViewModel.MAX_MODELS,
             onQueryChange = vm::setQuery,
+            onTabChange = vm::setPickerTab,
             onToggle = vm::toggleSelection,
             onDismiss = { vm.setPickerOpen(false) },
         )
@@ -604,13 +612,22 @@ private fun PriceRow(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ModelPickerSheet(
     query: String,
+    tab: PickerTab,
     candidates: List<com.ai.rankboard.data.ModelDetailDto>,
+    favoriteModels: List<com.ai.rankboard.data.ModelDetailDto>,
     selectedSlugs: List<String>,
     maxCount: Int,
     onQueryChange: (String) -> Unit,
+    onTabChange: (PickerTab) -> Unit,
     onToggle: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val favoriteSlugs = favoriteModels.map { it.slug }.toSet()
+    val visibleModels = when (tab) {
+        PickerTab.Favorites -> candidates.filter { it.slug in favoriteSlugs }
+        PickerTab.Vendors -> candidates
+    }
+    val groups = remember(visibleModels) { ModelPickerGroups.group(visibleModels) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -622,10 +639,24 @@ private fun ModelPickerSheet(
                 Text(
                     "选择模型",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "${selectedSlugs.size}/$maxCount",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
                 TextButton(onClick = onDismiss) {
                     Text("完成")
+                }
+            }
+            TabRow(selectedTabIndex = tab.ordinal) {
+                PickerTab.entries.forEach { item ->
+                    Tab(
+                        selected = tab == item,
+                        onClick = { onTabChange(item) },
+                        text = { Text(item.label) },
+                    )
                 }
             }
             OutlinedTextField(
@@ -634,8 +665,48 @@ private fun ModelPickerSheet(
                 placeholder = { Text("搜索模型或厂商") },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
+                leadingIcon = {
+                    Icon(Icons.Filled.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "清空搜索",
+                            )
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (tab == PickerTab.Favorites && favoriteModels.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 120.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "还没有收藏模型，去榜单页点亮星标吧",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (groups.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 120.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "没有匹配的模型",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -643,55 +714,128 @@ private fun ModelPickerSheet(
                     .padding(bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                items(candidates, key = { it.slug }) { model ->
-                    val selected = model.slug in selectedSlugs
-                    val disabled = !selected && selectedSlugs.size >= maxCount
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = when {
-                            selected -> MaterialTheme.colorScheme.secondaryContainer
-                            disabled -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.35f)
-                            else -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !disabled) { onToggle(model.slug) },
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp),
-                        ) {
-                            VendorIcon(vendor = model.vendor, size = 20.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    model.displayName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    listOfNotNull(
-                                        model.vendor,
-                                        model.paramsB?.let { "${formatNum(it)}B" },
-                                    ).joinToString(" · "),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            if (selected) {
-                                Text(
-                                    "已选",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            }
-                        }
-                    }
+                items(
+                    count = groups.size,
+                    key = { index -> "vendor:${groups[index].vendor}" },
+                ) { index ->
+                    val group = groups[index]
+                    ModelGroupSection(
+                        group = group,
+                        selectedSlugs = selectedSlugs,
+                        favoriteSlugs = favoriteSlugs,
+                        maxCount = maxCount,
+                        onToggle = onToggle,
+                    )
                 }
+            }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModelGroupSection(
+    group: VendorGroup,
+    selectedSlugs: List<String>,
+    favoriteSlugs: Set<String>,
+    maxCount: Int,
+    onToggle: (String) -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            VendorIcon(vendor = group.vendor, size = 18.dp)
+            Text(
+                group.vendor,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Text(
+                "${group.models.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        group.models.forEach { model ->
+            ModelPickerRow(
+                model = model,
+                selected = model.slug in selectedSlugs,
+                favorite = model.slug in favoriteSlugs,
+                disabled = model.slug !in selectedSlugs && selectedSlugs.size >= maxCount,
+                onToggle = { onToggle(model.slug) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModelPickerRow(
+    model: com.ai.rankboard.data.ModelDetailDto,
+    selected: Boolean,
+    favorite: Boolean,
+    disabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = when {
+            selected -> MaterialTheme.colorScheme.secondaryContainer
+            disabled -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.35f)
+            else -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !disabled) { onToggle() },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            VendorIcon(vendor = model.vendor, size = 20.dp)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    model.displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOfNotNull(
+                        model.vendor,
+                        model.paramsB?.let { "${formatNum(it)}B" },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (favorite) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "已收藏",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            if (selected) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = "已选",
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
     }

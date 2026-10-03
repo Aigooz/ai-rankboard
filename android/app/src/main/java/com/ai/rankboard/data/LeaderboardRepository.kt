@@ -1,6 +1,7 @@
 package com.ai.rankboard.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import com.ai.rankboard.BuildConfig
 
 class LeaderboardRepository(
@@ -15,6 +16,14 @@ class LeaderboardRepository(
     fun boards(): List<BoardDto> = local.boards()
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
+
+    suspend fun favoriteModels(): List<ModelDetailDto> = favorites().first().map { favorite ->
+        local.modelDetail(favorite.modelSlug)?.model
+            ?: ModelDetailDto(
+                slug = favorite.modelSlug,
+                displayName = favorite.displayName,
+            )
+    }
 
     suspend fun boardsForDimension(dimension: String): List<BoardDto>? =
         boardsCache.getOrPut(dimension) {

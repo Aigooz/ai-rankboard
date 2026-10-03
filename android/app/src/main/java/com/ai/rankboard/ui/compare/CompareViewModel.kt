@@ -13,7 +13,6 @@ import com.ai.rankboard.data.ModelDetailResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -21,7 +20,9 @@ data class CompareUiState(
     val selectedSlugs: List<String> = emptyList(),
     val models: List<ModelDetailResponse> = emptyList(),
     val candidates: List<ModelDetailDto> = emptyList(),
+    val favoriteModels: List<ModelDetailDto> = emptyList(),
     val query: String = "",
+    val pickerTab: PickerTab = PickerTab.Favorites,
     val boards: List<BoardDto> = emptyList(),
     val selectedBoardSlug: String = "",
     val pickerOpen: Boolean = false,
@@ -30,13 +31,16 @@ data class CompareUiState(
 )
 
 class CompareViewModel(private val repository: LeaderboardRepository) : ViewModel() {
+    private var favoriteModels: List<ModelDetailDto> = emptyList()
+
     private val _state = MutableStateFlow(CompareUiState())
     val state: StateFlow<CompareUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
             val boards = repository.boards()
-            val favorites = repository.favorites().first().map { it.modelSlug }
+            favoriteModels = repository.favoriteModels()
+            val favorites = favoriteModels.map { it.slug }
             val initialSelection = favorites.take(MAX_MODELS)
             _state.update {
                 it.copy(
@@ -44,7 +48,9 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
                     selectedBoardSlug = boards.firstOrNull { board -> board.slug == "overall" }?.slug
                         ?: boards.firstOrNull()?.slug.orEmpty(),
                     selectedSlugs = initialSelection,
-                    candidates = repository.modelOptions(),
+                    favoriteModels = favoriteModels,
+                    pickerTab = if (favorites.isEmpty()) PickerTab.Vendors else PickerTab.Favorites,
+                    candidates = pickerCandidates(""),
                     loading = initialSelection.isNotEmpty(),
                 )
             }
@@ -53,7 +59,11 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
     }
 
     fun setQuery(value: String) {
-        _state.update { it.copy(query = value, candidates = repository.modelOptions(value)) }
+        _state.update { it.copy(query = value, candidates = pickerCandidates(value)) }
+    }
+
+    fun setPickerTab(tab: PickerTab) {
+        _state.update { it.copy(pickerTab = tab, candidates = pickerCandidates(it.query)) }
     }
 
     fun toggleSelection(slug: String) {
@@ -81,6 +91,12 @@ class CompareViewModel(private val repository: LeaderboardRepository) : ViewMode
         _state.update {
             if (it.selectedSlugs == slugs) it.copy(models = models, loading = false) else it
         }
+    }
+
+    private fun pickerCandidates(query: String): List<ModelDetailDto> {
+        val matchingFavorites = favoriteModels.filter { ModelPickerGroups.matches(it, query) }
+        return (matchingFavorites + repository.modelOptions(query))
+            .distinctBy { it.slug }
     }
 
     companion object {
