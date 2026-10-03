@@ -20,14 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.automirrored.filled.CompareArrows
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -73,16 +69,12 @@ private val SORT_OPTIONS = listOf(
 @Composable
 fun HomeScreen(
     onOpenModel: (String) -> Unit,
-    onOpenFavorites: () -> Unit,
-    onOpenCompare: () -> Unit,
-    onOpenSettings: () -> Unit,
     vm: HomeViewModel = viewModel(
         factory = HomeViewModel.factory(LocalContext.current.applicationContext as RankboardApp),
     ),
 ) {
     val state by vm.state.collectAsState()
     val favoriteSlugs by vm.favoriteSlugs.collectAsState(initial = emptyList())
-    var sortMenuOpen by remember { mutableStateOf(false) }
     var filterSheetOpen by remember { mutableStateOf(false) }
     val selectedBoard = state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
         ?: state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
@@ -92,30 +84,6 @@ fun HomeScreen(
             Column {
                 TopAppBar(
                     title = { Text("AI 排行榜") },
-                    actions = {
-                        Box {
-                            IconButton(onClick = { sortMenuOpen = true }) {
-                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序")
-                            }
-                            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
-                                SORT_OPTIONS.forEach { (key, label) ->
-                                    DropdownMenuItem(
-                                        text = { Text(label + if (state.sort == key) " ✓" else "") },
-                                        onClick = { vm.setSort(key); sortMenuOpen = false },
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = onOpenCompare) {
-                            Icon(Icons.AutoMirrored.Filled.CompareArrows, contentDescription = "模型对比")
-                        }
-                        IconButton(onClick = onOpenFavorites) {
-                            Icon(Icons.Outlined.StarBorder, contentDescription = "收藏")
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "设置")
-                        }
-                    },
                 )
                 OutlinedTextField(
                     value = state.query,
@@ -193,6 +161,12 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
+                            item {
+                                LeaderboardOverview(
+                                    state = state,
+                                    onOpenModel = onOpenModel,
+                                )
+                            }
                             items(state.entries, key = { it.slug }) { entry ->
                                 ModelRow(
                                     entry = entry,
@@ -236,6 +210,8 @@ fun HomeScreen(
         ModalBottomSheet(onDismissRequest = { filterSheetOpen = false }) {
             FilterSheet(
                 state = state,
+                sort = state.sort,
+                onSelectSort = vm::setSort,
                 onSelectBoard = {
                     vm.selectBoard(it)
                 },
@@ -258,6 +234,154 @@ fun HomeScreen(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun LeaderboardOverview(
+    state: HomeUiState,
+    onOpenModel: (String) -> Unit,
+) {
+    val topModels = state.entries.take(3)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    "榜单速览",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (state.offline) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                    ) {
+                        Text(
+                            "离线",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+            if (topModels.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    topModels.forEachIndexed { index, entry ->
+                        TopModelCard(
+                            entry = entry,
+                            rankColor = when (entry.rank) {
+                                1 -> MaterialTheme.colorScheme.tertiary
+                                2 -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.primary
+                            },
+                            onClick = { onOpenModel(entry.slug) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OverviewMetric(
+                    label = "模型",
+                    value = state.total.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+                OverviewMetric(
+                    label = "榜单",
+                    value = state.allBoardsForTab.size.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+                OverviewMetric(
+                    label = "更新",
+                    value = state.snapshotInfo?.generatedAt?.take(10).orEmpty().ifBlank { "-" },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopModelCard(
+    entry: EntryDto,
+    rankColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(9.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f),
+        modifier = modifier.clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 5.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                "#${entry.rank}",
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = rankColor,
+            )
+            VendorIcon(vendor = entry.vendor, size = 21.dp)
+            Text(
+                parseModelStrength(entry.displayName).first,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                minLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Text(
+                entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
+                style = MaterialTheme.typography.titleSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OverviewMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            value,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -309,6 +433,8 @@ private fun FilterSummaryBar(
 @Composable
 private fun FilterSheet(
     state: HomeUiState,
+    sort: String,
+    onSelectSort: (String) -> Unit,
     onSelectBoard: (String) -> Unit,
     onSelectSource: (String?) -> Unit,
     onSelectVendor: (String?) -> Unit,
@@ -330,6 +456,15 @@ private fun FilterSheet(
             )
             TextButton(onClick = onClear) {
                 Text("清除筛选")
+            }
+        }
+        FilterSection("排序") {
+            items(SORT_OPTIONS, key = { it.first }) { (key, label) ->
+                FilterChip(
+                    selected = sort == key,
+                    onClick = { onSelectSort(key) },
+                    label = { Text(label, maxLines = 1) },
+                )
             }
         }
         FilterSection("榜单") {
