@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
+import com.ai.rankboard.data.Periods
 import com.ai.rankboard.ui.common.VendorIcon
 import java.util.Locale
 
@@ -81,6 +82,11 @@ fun HomeScreen(
     var filterSheetOpen by remember { mutableStateOf(false) }
     val selectedBoard = state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
         ?: state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
+    val selectedPeriod = state.periodOptions.firstOrNull { it.id == state.period }
+    val summaryBoardName = when {
+        state.tab in Periods.supported -> selectedPeriod?.label ?: "时间榜"
+        else -> selectedBoard?.name ?: "选择榜单"
+    }
 
     Scaffold(
         topBar = {
@@ -127,7 +133,7 @@ fun HomeScreen(
                     }
                 }
                 FilterSummaryBar(
-                    boardName = selectedBoard?.name ?: "选择榜单",
+                    boardName = summaryBoardName,
                     activeCount = state.activeFilterCount(),
                     snapshotDate = state.snapshotInfo?.generatedAt?.take(10).orEmpty(),
                     onClick = { filterSheetOpen = true },
@@ -224,6 +230,9 @@ fun HomeScreen(
                 onSelectSort = vm::setSort,
                 onSelectBoard = {
                     vm.selectBoard(it)
+                },
+                onSelectPeriod = { periodId ->
+                    vm.setPeriod(periodId)
                 },
                 onSelectSource = { sourceId ->
                     vm.setSourceFilter(sourceId)
@@ -446,6 +455,7 @@ private fun FilterSheet(
     sort: String,
     onSelectSort: (String) -> Unit,
     onSelectBoard: (String) -> Unit,
+    onSelectPeriod: (String) -> Unit,
     onSelectSource: (String?) -> Unit,
     onSelectVendor: (String?) -> Unit,
     onSelectLicense: (String?) -> Unit,
@@ -477,16 +487,36 @@ private fun FilterSheet(
                 )
             }
         }
-        FilterSection("榜单") {
-            items(state.boardsForTab, key = { it.slug }) { board ->
-                FilterChip(
-                    selected = state.selectedBoard == board.slug,
-                    onClick = { onSelectBoard(board.slug) },
-                    label = { Text(board.name, maxLines = 1) },
-                )
+        if (state.tab in Periods.supported) {
+            FilterSection("时间区间") {
+                items(state.periodOptions, key = { it.id }) { option ->
+                    FilterChip(
+                        selected = state.period == option.id,
+                        onClick = { onSelectPeriod(option.id) },
+                        label = {
+                            Text(
+                                "${option.label} · ${option.count}",
+                                maxLines = 1,
+                            )
+                        },
+                    )
+                }
             }
         }
-        if (state.allBoardsForTab.map { it.sourceId }.distinct().size > 1) {
+        FilterSection("榜单") {
+            if (state.tab !in Periods.supported) {
+                items(state.boardsForTab, key = { it.slug }) { board ->
+                    FilterChip(
+                        selected = state.selectedBoard == board.slug,
+                        onClick = { onSelectBoard(board.slug) },
+                        label = { Text(board.name, maxLines = 1) },
+                    )
+                }
+            }
+        }
+        if (state.tab !in Periods.supported &&
+            state.allBoardsForTab.map { it.sourceId }.distinct().size > 1
+        ) {
             FilterSection("来源") {
                 item {
                     FilterChip(

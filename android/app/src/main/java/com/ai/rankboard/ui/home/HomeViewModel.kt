@@ -9,6 +9,8 @@ import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.BoardDto
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.LeaderboardRepository
+import com.ai.rankboard.data.PeriodOption
+import com.ai.rankboard.data.Periods
 import com.ai.rankboard.data.SnapshotInfo
 import com.ai.rankboard.data.SnapshotUpdateStatus
 import kotlinx.coroutines.Job
@@ -28,6 +30,9 @@ val HOME_TABS = listOf(
     HomeTab("coding", "代码榜"),
     HomeTab("writing", "写作榜"),
     HomeTab("multimodal", "多模态榜"),
+    HomeTab(Periods.MONTH, "月榜"),
+    HomeTab(Periods.QUARTER, "季榜"),
+    HomeTab(Periods.YEAR, "年榜"),
     HomeTab("agent", "智能体榜"),
     HomeTab("search", "搜索榜"),
     HomeTab("speed", "速度榜"),
@@ -41,6 +46,8 @@ data class HomeUiState(
     val boardsForTab: List<BoardDto> = emptyList(),
     val selectedBoard: String = "",
     val allBoardsForTab: List<BoardDto> = emptyList(),
+    val period: String? = null,
+    val periodOptions: List<PeriodOption> = emptyList(),
     val sourceFilter: String? = null,
     val sort: String = "rank",
     val query: String = "",
@@ -84,6 +91,8 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
                 sourceFilter = null,
                 boardsForTab = emptyList(),
                 selectedBoard = "",
+                period = null,
+                periodOptions = emptyList(),
                 entries = emptyList(),
                 total = 0,
                 offline = false,
@@ -158,6 +167,12 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
         refresh(showLoading = true)
     }
 
+    fun setPeriod(value: String) {
+        if (_state.value.period == value) return
+        _state.update { it.copy(period = value) }
+        refresh(showLoading = true)
+    }
+
     fun refresh(showLoading: Boolean = false) {
         loadJob?.cancel()
         val board = _state.value.selectedBoard
@@ -209,6 +224,35 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
 
     private fun loadBoardsForTab(dimension: String) {
         viewModelScope.launch {
+            if (dimension in Periods.supported) {
+                val options = runCatching { repository.periodOptions(dimension) }
+                    .getOrDefault(emptyList())
+                if (options.isEmpty()) {
+                    _state.update { it.copy(loading = false, entries = emptyList(), total = 0) }
+                    return@launch
+                }
+                val selectedPeriod = _state.value.period
+                    ?.takeIf { value -> options.any { it.id == value } }
+                    ?: options.first().id
+                val board = BoardDto(
+                    slug = "overall",
+                    name = "${Periods.label(dimension, selectedPeriod)}综合榜",
+                    dimension = dimension,
+                )
+                _state.update {
+                    it.copy(
+                        period = selectedPeriod,
+                        periodOptions = options,
+                        selectedBoard = board.slug,
+                        allBoardsForTab = listOf(board),
+                        boardsForTab = listOf(board),
+                        loading = false,
+                    )
+                }
+                loadVendorOptions(board.slug)
+                refresh(showLoading = true)
+                return@launch
+            }
             val allBoards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
             val filtered = allBoards.filter { board ->
                 _state.value.sourceFilter == null || board.sourceId == _state.value.sourceFilter
@@ -228,7 +272,14 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
 
     private fun loadVendorOptions(boardSlug: String) {
         viewModelScope.launch {
-            val options = runCatching { repository.vendorOptions(boardSlug) }.getOrDefault(emptyList())
+            val s = _state.value
+            val options = runCatching {
+                repository.vendorOptions(
+                    boardSlug = boardSlug,
+                    periodDimension = s.tab.takeIf { it in Periods.supported },
+                    period = s.period,
+                )
+            }.getOrDefault(emptyList())
             _state.update { it.copy(vendorOptions = options) }
         }
     }
@@ -247,6 +298,8 @@ class HomeViewModel(private val repository: LeaderboardRepository) : ViewModel()
             params = s.paramsFilter,
             limit = com.ai.rankboard.data.PAGE_SIZE,
             offset = offset,
+            periodDimension = s.tab.takeIf { it in Periods.supported },
+            period = s.period,
         )
         if (loadKey != key) return
         if (response != null) {

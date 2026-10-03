@@ -10,13 +10,29 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
     fun boardsForDimension(dimension: String): List<BoardDto> =
         snapshot.boards.filter { it.dimension == dimension }
 
-    fun vendorOptions(boardSlug: String): List<String> =
-        snapshot.entriesByBoard[boardSlug].orEmpty()
+    fun vendorOptions(
+        boardSlug: String,
+        periodDimension: String? = null,
+        period: String? = null,
+    ): List<String> {
+        val baseEntries = if (periodDimension in Periods.supported && !period.isNullOrBlank()) {
+            snapshot.entriesByBoard[boardSlug].orEmpty()
+                .filter { Periods.matches(periodDimension!!, period, it.releaseDate) }
+        } else {
+            snapshot.entriesByBoard[boardSlug].orEmpty()
+        }
+        return baseEntries
             .mapNotNull { it.vendor?.trim() }
             .filter { it.isNotBlank() }
             .distinctBy { it.lowercase() }
             .sortedWith(compareByDescending { it.length })
             .take(12)
+    }
+
+    fun periodOptions(dimension: String): List<PeriodOption> = Periods.options(
+        dimension,
+        snapshot.entriesByBoard["overall"].orEmpty().mapNotNull { it.releaseDate },
+    )
 
     fun page(
         boardSlug: String,
@@ -27,10 +43,18 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         params: String?,
         limit: Int,
         offset: Int,
+        periodDimension: String? = null,
+        period: String? = null,
     ): EntriesResponse? {
         val board = snapshot.boards.firstOrNull { it.slug == boardSlug } ?: return null
+        val baseEntries = snapshot.entriesByBoard[boardSlug].orEmpty()
+        val filteredByPeriod = if (periodDimension in Periods.supported && !period.isNullOrBlank()) {
+            baseEntries.filter { Periods.matches(periodDimension!!, period, it.releaseDate) }
+        } else {
+            baseEntries
+        }
         val keyword = query?.trim().orEmpty()
-        val entries = snapshot.entriesByBoard[boardSlug].orEmpty().filter { entry ->
+        val entries = filteredByPeriod.filter { entry ->
             keyword.isBlank() ||
                 entry.displayName.contains(keyword, ignoreCase = true) ||
                 entry.vendor?.contains(keyword, ignoreCase = true) == true ||
@@ -60,9 +84,9 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
                 }
             }
         val sorted = when (sort) {
-            "score" -> entries.sortedWith(compareByDescending { it.score ?: Double.NEGATIVE_INFINITY })
-            "updated" -> entries.sortedByDescending { it.fetchedAt }
-            else -> entries.sortedBy { it.rank }
+            "score" -> scoreRanked(entries).sortedByDescending { it.score ?: Double.NEGATIVE_INFINITY }
+            "updated" -> scoreRanked(entries).sortedByDescending { it.fetchedAt }
+            else -> scoreRanked(entries)
         }
         return EntriesResponse(
             board = board,
@@ -72,6 +96,10 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             offset = offset,
         )
     }
+
+    private fun scoreRanked(entries: List<EntryDto>): List<EntryDto> =
+        entries.sortedWith(compareByDescending { it.score ?: Double.NEGATIVE_INFINITY })
+            .mapIndexed { index, entry -> entry.copy(rank = index + 1) }
 
     fun modelDetail(slug: String): ModelDetailResponse? {
         val firstEntry = snapshot.entriesByBoard.values.flatten().firstOrNull { it.slug == slug }

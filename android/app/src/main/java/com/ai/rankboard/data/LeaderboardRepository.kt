@@ -17,6 +17,8 @@ class LeaderboardRepository(
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
 
+    fun periodOptions(dimension: String): List<PeriodOption> = local.periodOptions(dimension)
+
     suspend fun favoriteModels(): List<ModelDetailDto> = favorites().first().map { favorite ->
         local.modelDetail(favorite.modelSlug)?.model
             ?: ModelDetailDto(
@@ -39,6 +41,8 @@ class LeaderboardRepository(
         params: String?,
         limit: Int,
         offset: Int,
+        periodDimension: String? = null,
+        period: String? = null,
     ): EntriesResponse? = local.page(
         boardSlug = boardSlug,
             sort = sort,
@@ -48,9 +52,15 @@ class LeaderboardRepository(
             params = params?.takeIf { it.isNotBlank() },
             limit = limit,
             offset = offset,
+            periodDimension = periodDimension,
+            period = period,
         )
 
-    suspend fun vendorOptions(boardSlug: String): List<String> = local.vendorOptions(boardSlug)
+    suspend fun vendorOptions(
+        boardSlug: String,
+        periodDimension: String? = null,
+        period: String? = null,
+    ): List<String> = local.vendorOptions(boardSlug, periodDimension, period)
 
     suspend fun cachedEntries(boardSlug: String): List<CachedEntryEntity> = dao.cachedEntries(boardSlug)
 
