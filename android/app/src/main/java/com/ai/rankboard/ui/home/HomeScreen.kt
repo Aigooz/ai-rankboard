@@ -19,14 +19,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -86,7 +83,6 @@ fun HomeScreen(
     ),
 ) {
     val state by vm.state.collectAsState()
-    val favoriteSlugs by vm.favoriteSlugs.collectAsState(initial = emptyList())
     var filterSheetOpen by remember { mutableStateOf(false) }
     val selectedBoard = state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
         ?: state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
@@ -203,14 +199,10 @@ fun HomeScreen(
                         items(state.entries, key = { it.slug }) { entry ->
                             ModelRow(
                                 entry = entry,
-                                isFavorite = entry.slug in favoriteSlugs.toSet(),
                                 scoreMin = state.scoreMin,
                                 scoreMax = state.scoreMax,
                                 compact = compactList,
                                 onClick = { onOpenModel(entry.slug) },
-                                onToggleFavorite = {
-                                    vm.toggleFavorite(entry.slug, entry.displayName)
-                                },
                             )
                         }
                         item {
@@ -669,11 +661,9 @@ private fun HomeUiState.activeFilterCount(): Int =
 @Composable
 private fun ModelRow(
     entry: EntryDto,
-    isFavorite: Boolean,
     scoreMin: Double?,
     scoreMax: Double?,
     onClick: () -> Unit,
-    onToggleFavorite: () -> Unit,
     compact: Boolean = false,
 ) {
     AppCard(Modifier.fillMaxWidth()) {
@@ -719,18 +709,31 @@ private fun ModelRow(
                         }
                     }
                 }
-                Text(
-                    text = listOfNotNull(
-                        entry.vendor,
-                        entry.paramsB?.let { "${formatParams(it)}B" },
-                        entry.releaseDate?.take(10),
-                    ).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                     modifier = Modifier.padding(top = 2.dp),
-                )
+                ) {
+                    Text(
+                        text = listOfNotNull(
+                            entry.vendor,
+                            entry.paramsB?.let { "${formatParams(it)}B" },
+                        ).filter { it.isNotBlank() }.joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    entry.releaseDate?.take(10)?.takeIf { it.isNotBlank() }?.let { releaseDate ->
+                        Text(
+                            text = releaseDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.width(4.dp))
             Column(horizontalAlignment = Alignment.End) {
@@ -751,21 +754,6 @@ private fun ModelRow(
                     modifier = Modifier
                         .width(if (compact) 44.dp else 54.dp)
                         .padding(top = 3.dp),
-                )
-            }
-            IconButton(
-                onClick = onToggleFavorite,
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                    contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                    tint = if (isFavorite) {
-                        MaterialTheme.colorScheme.tertiary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.size(18.dp),
                 )
             }
         }
