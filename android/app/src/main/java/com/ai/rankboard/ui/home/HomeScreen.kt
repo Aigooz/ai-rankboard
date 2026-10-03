@@ -16,8 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
@@ -83,7 +83,7 @@ fun HomeScreen(
                     actions = {
                         Box {
                             IconButton(onClick = { sortMenuOpen = true }) {
-                                Icon(Icons.Filled.Sort, contentDescription = "排序")
+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序")
                             }
                             DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
                                 SORT_OPTIONS.forEach { (key, label) ->
