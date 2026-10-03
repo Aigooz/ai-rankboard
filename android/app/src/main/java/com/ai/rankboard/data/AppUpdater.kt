@@ -275,11 +275,16 @@ object AppUpdater {
 
     private suspend fun downloadApk(
         context: Context,
-        url: String,
+        rawUrl: String,
         fallbackSize: Long,
         onProgress: suspend (DownloadProgress) -> Unit,
     ) {
         val target = apkFile(context)
+        // CDN 会按完整 URL 缓存，APK 下载与清单一样带时间戳穿透，避免发版窗口内下到旧包。
+        val url = rawUrl.let { base ->
+            val separator = if (base.contains('?')) "&" else "?"
+            "$base${separator}t=${System.currentTimeMillis()}"
+        }
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "AI-Rankboard-Updater/${BuildConfig.VERSION_NAME}")
