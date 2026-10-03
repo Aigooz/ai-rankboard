@@ -25,6 +25,7 @@ BOARDS = [
     {"slug": "livebench-math", "name": "LiveBench 数学", "dimension": "math", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Mathematics", "release": "2026-06-25"},
     {"slug": "livebench-data-analysis", "name": "LiveBench 数据分析", "dimension": "analysis", "score_type": LIVEBENCH, "kind": LIVEBENCH, "category": "Data Analysis", "release": "2026-06-25"},
     {"slug": "swe-bench-verified", "name": "SWE-bench Verified", "dimension": "coding", "score_type": SWE_BENCH, "kind": SWE_BENCH, "swe_board": "Verified"},
+    {"slug": "swe-bench-multilingual", "name": "SWE-bench 多语言", "dimension": "coding", "score_type": SWE_BENCH, "kind": SWE_BENCH, "swe_board": "Multilingual"},
     {"slug": "swe-bench-multimodal", "name": "SWE-bench Multimodal", "dimension": "multimodal", "score_type": SWE_BENCH, "kind": SWE_BENCH, "swe_board": "Multimodal"},
 ]
 

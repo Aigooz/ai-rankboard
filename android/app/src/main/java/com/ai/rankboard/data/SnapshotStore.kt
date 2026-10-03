@@ -21,6 +21,7 @@ enum class SnapshotUpdateStatus { UPDATED, UP_TO_DATE, SKIPPED, ERROR }
 data class SnapshotUpdateResult(
     val status: SnapshotUpdateStatus,
     val message: String,
+    val addedModels: List<String> = emptyList(),
 )
 
 data class SnapshotInfo(
@@ -89,11 +90,21 @@ class SnapshotStore(private val context: Context) {
                     throw IllegalStateException("unsupported snapshot schema ${parsed.schemaVersion}")
                 }
 
+                // 与旧快照对比找出新增模型；旧快照为空（首装）时不提示，避免全部算作新增。
+                val previousSlugs = _snapshot.value.models.keys
+                val addedModels = if (previousSlugs.isEmpty()) {
+                    emptyList()
+                } else {
+                    parsed.models.keys
+                        .minus(previousSlugs)
+                        .sortedByDescending { slug -> parsed.models[slug]?.releaseDate.orEmpty() }
+                }
+
                 jsonFile.writeBytes(jsonBytes)
                 hashFile.writeText("$expectedHash  $SNAPSHOT_FILE_NAME\n", Charsets.US_ASCII)
                 verified = true
                 _snapshot.value = parsed
-                SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "榜单数据已更新")
+                SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "榜单数据已更新", addedModels)
             } catch (exc: Exception) {
                 SnapshotUpdateResult(SnapshotUpdateStatus.ERROR, exc.message ?: "快照更新失败")
             }

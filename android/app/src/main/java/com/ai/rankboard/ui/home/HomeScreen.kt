@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -51,6 +52,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.Periods
+import com.ai.rankboard.data.PRICE_TIERS
+import com.ai.rankboard.data.priceTierLabel
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.MetricTile
 import com.ai.rankboard.ui.common.RankBadge
@@ -250,6 +253,7 @@ fun HomeScreen(
                 onSelectVendor = vm::setVendorFilter,
                 onSelectLicense = vm::setLicenseFilter,
                 onSelectParams = vm::setParamsFilter,
+                onSelectPrice = vm::setPriceFilter,
                 onClear = vm::clearValueFilters,
             )
         }
@@ -306,6 +310,19 @@ private fun LeaderboardOverview(
                     }
                 }
             }
+            if (state.recentModels.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionHeader(title = "最近上新")
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(state.recentModels, key = { it.slug }) { entry ->
+                            RecentModelChip(
+                                entry = entry,
+                                onClick = { onOpenModel(entry.slug) },
+                            )
+                        }
+                    }
+                }
+            }
             if (state.tab !in Periods.supported) {
                 DataSourceStrip(
                     sources = state.allBoardsForTab
@@ -334,6 +351,42 @@ private fun LeaderboardOverview(
                     label = "更新",
                     value = state.snapshotInfo?.generatedAt?.take(10).orEmpty().ifBlank { "-" },
                     modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentModelChip(entry: EntryDto, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+        ) {
+            VendorIcon(vendor = entry.vendor, size = 20.dp)
+            Column {
+                Text(
+                    text = parseModelStrength(entry.displayName).first,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 132.dp),
+                )
+                Text(
+                    text = listOfNotNull(
+                        entry.releaseDate?.take(10),
+                        entry.score?.let { String.format(Locale.US, "%.1f", it) },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    maxLines = 1,
                 )
             }
         }
@@ -484,6 +537,7 @@ private fun FilterSheet(
     onSelectVendor: (String) -> Unit,
     onSelectLicense: (String) -> Unit,
     onSelectParams: (String) -> Unit,
+    onSelectPrice: (String) -> Unit,
     onClear: () -> Unit,
 ) {
     Column(
@@ -629,6 +683,24 @@ private fun FilterSheet(
                 )
             }
         }
+        if (state.entries.any { it.priceIn != null || it.priceOut != null }) {
+            FilterSection("价格 · 每百万 tokens 混合") {
+                item {
+                    FilterChip(
+                        selected = state.priceFilter.isEmpty(),
+                        onClick = { state.priceFilter.forEach(onSelectPrice) },
+                        label = { Text("全部") },
+                    )
+                }
+                items(PRICE_TIERS, key = { it }) { tier ->
+                    FilterChip(
+                        selected = tier in state.priceFilter,
+                        onClick = { onSelectPrice(tier) },
+                        label = { Text(priceTierLabel(tier), maxLines = 1) },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -656,7 +728,8 @@ private fun sourceLabel(sourceId: String): String = when (sourceId) {
 }
 
 private fun HomeUiState.activeFilterCount(): Int =
-    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size + paramsFilter.size
+    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size +
+        paramsFilter.size + priceFilter.size
 
 @Composable
 private fun ModelRow(

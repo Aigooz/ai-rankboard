@@ -9,6 +9,8 @@ import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.BoardDto
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.LeaderboardRepository
+import com.ai.rankboard.data.PriceTierPicks
+import com.ai.rankboard.data.cheapestByTier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +44,7 @@ data class SelectUiState(
     val costInput: CostInput = CostInput(),
     val estimates: List<CostEstimate> = emptyList(),
     val recommended: CostEstimate? = null,
+    val tierPicks: List<PriceTierPicks> = emptyList(),
     val latest: List<EntryDto> = emptyList(),
     val snapshotDate: String = "",
     val error: String = "",
@@ -116,6 +119,7 @@ class SelectViewModel(
                 it.copy(
                     loading = false,
                     entries = response.entries,
+                    tierPicks = cheapestByTier(response.entries),
                     latest = response.entries
                         .filter { !it.releaseDate.isNullOrBlank() }
                         .sortedByDescending { it.releaseDate }

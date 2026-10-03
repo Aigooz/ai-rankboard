@@ -14,7 +14,7 @@ import com.ai.rankboard.R
 
 class UpdateNotifier(private val context: Context) {
 
-    fun notifyUpdated(generatedAt: String? = null) {
+    fun notifyUpdated(generatedAt: String? = null, addedModelNames: List<String> = emptyList()) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
                 context,
@@ -43,15 +43,23 @@ class UpdateNotifier(private val context: Context) {
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val addedLine = when {
+            addedModelNames.isEmpty() -> null
+            else -> {
+                val preview = addedModelNames.take(3).joinToString("、")
+                val suffix = if (addedModelNames.size > 3) "等 ${addedModelNames.size} 个" else ""
+                "新增模型：$preview$suffix"
+            }
+        }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.snapshot_update_title))
-            .setContentText(context.getString(R.string.snapshot_update_message))
+            .setContentText(addedLine ?: context.getString(R.string.snapshot_update_message))
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText(
                         listOf(
-                            context.getString(R.string.snapshot_update_message),
+                            addedLine ?: context.getString(R.string.snapshot_update_message),
                             generatedAt?.takeIf { it.isNotBlank() },
                         ).filterNotNull().joinToString(" "),
                     ),

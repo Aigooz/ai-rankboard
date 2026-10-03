@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
+import com.ai.rankboard.data.PriceTierPicks
+import com.ai.rankboard.data.blendedPriceCny
 import com.ai.rankboard.ui.common.ScoreBar
 import com.ai.rankboard.ui.common.VendorIcon
 import com.ai.rankboard.ui.common.scoreColor
@@ -122,6 +124,18 @@ fun SelectScreen(
                     item {
                         RecommendedCard(
                             state = state,
+                            onOpenModel = onOpenModel,
+                        )
+                    }
+                    item {
+                        TierPicksCard(
+                            picks = state.tierPicks,
+                            onOpenModel = onOpenModel,
+                        )
+                    }
+                    item {
+                        PriceScatterCard(
+                            entries = state.entries,
                             onOpenModel = onOpenModel,
                         )
                     }
@@ -400,6 +414,113 @@ private fun RecommendedCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TierPicksCard(
+    picks: List<PriceTierPicks>,
+    onOpenModel: (String) -> Unit,
+) {
+    if (picks.isEmpty()) return
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Savings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    "同档最便宜",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 6.dp),
+                )
+                Text(
+                    "混合价 = 3×输入 + 输出",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            picks.forEach { tier ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "${tier.label}档 · ${tier.range}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    tier.models.forEachIndexed { index, entry ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenModel(entry.slug) }
+                                .padding(vertical = 2.dp),
+                        ) {
+                            Text(
+                                "${index + 1}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(12.dp),
+                            )
+                            VendorIcon(vendor = entry.vendor, size = 20.dp)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(1.dp),
+                            ) {
+                                Text(
+                                    entry.displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    listOfNotNull(
+                                        entry.vendor,
+                                        entry.score?.let { "能力 ${String.format(Locale.US, "%.1f", it)}" },
+                                    ).joinToString(" · "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Text(
+                                formatBlendedPrice(entry),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatBlendedPrice(entry: EntryDto): String {
+    val price = entry.blendedPriceCny() ?: return "-"
+    return when {
+        price <= 0.0 -> "免费"
+        price < 1.0 -> "¥%.2f/M".format(Locale.US, price)
+        price < 100.0 -> "¥%.1f/M".format(Locale.US, price)
+        else -> "¥%.0f/M".format(Locale.US, price)
     }
 }
 

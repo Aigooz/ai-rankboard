@@ -1,0 +1,93 @@
+package com.ai.rankboard.data
+
+/**
+ * 价格分档与"同档最便宜"的统一口径，参照 ModelSage 的比价方式：
+ * 混合价 = (3×输入价 + 输出价) / 4，美元按近似汇率折算为人民币。
+ */
+const val USD_TO_CNY_RATE = 7.2
+
+fun EntryDto.blendedPriceCny(): Double? {
+    val rate = if (currency.equals("USD", ignoreCase = true)) USD_TO_CNY_RATE else 1.0
+    val input = priceIn?.times(rate)
+    val output = priceOut?.times(rate)
+    return when {
+        input != null && output != null -> (input * 3.0 + output) / 4.0
+        input != null -> input
+        output != null -> output
+        else -> null
+    }
+}
+
+const val PRICE_FREE = "free"
+const val PRICE_LT1 = "lt1"
+const val PRICE_1TO5 = "1to5"
+const val PRICE_5TO10 = "5to10"
+const val PRICE_10PLUS = "10plus"
+
+val PRICE_TIERS = listOf(PRICE_FREE, PRICE_LT1, PRICE_1TO5, PRICE_5TO10, PRICE_10PLUS)
+
+fun priceTierLabel(tier: String): String = when (tier) {
+    PRICE_FREE -> "免费"
+    PRICE_LT1 -> "<¥1"
+    PRICE_1TO5 -> "¥1–5"
+    PRICE_5TO10 -> "¥5–10"
+    PRICE_10PLUS -> "≥¥10"
+    else -> tier
+}
+
+fun priceTierOf(price: Double): String = when {
+    price <= 0.0 -> PRICE_FREE
+    price < 1.0 -> PRICE_LT1
+    price < 5.0 -> PRICE_1TO5
+    price < 10.0 -> PRICE_5TO10
+    else -> PRICE_10PLUS
+}
+
+/** 命中任一所选价格档；未选择档位时不过滤。无价格数据的模型不落在任何档位。 */
+fun EntryDto.matchesPriceTiers(tiers: Set<String>): Boolean {
+    if (tiers.isEmpty()) return true
+    val price = blendedPriceCny() ?: return false
+    return tiers.any { priceTierOf(price) == it }
+}
+
+data class PriceTierPicks(
+    val label: String,
+    val range: String,
+    val models: List<EntryDto>,
+)
+
+private data class ScoreTier(val label: String, val min: Double?, val max: Double?)
+
+private val SCORE_TIERS = listOf(
+    ScoreTier("旗舰", 85.0, null),
+    ScoreTier("主力", 70.0, 85.0),
+    ScoreTier("入门", 50.0, 70.0),
+    ScoreTier("轻量", null, 50.0),
+)
+
+/** 按能力分档，各档给出混合价最低的几个模型；没有价格或分数的模型不参与。 */
+fun cheapestByTier(entries: List<EntryDto>, perTier: Int = 3): List<PriceTierPicks> =
+    SCORE_TIERS.mapNotNull { tier ->
+        val inTier = entries.filter { entry ->
+            val score = entry.score ?: return@filter false
+            entry.blendedPriceCny() != null &&
+                (tier.min == null || score >= tier.min) &&
+                (tier.max == null || score < tier.max)
+        }
+        if (inTier.isEmpty()) {
+            null
+        } else {
+            PriceTierPicks(
+                label = tier.label,
+                range = when {
+                    tier.min != null && tier.max != null ->
+                        "${tier.min.toInt()}–${tier.max.toInt()} 分"
+                    tier.min != null -> "≥${tier.min.toInt()} 分"
+                    else -> "<${tier.max!!.toInt()} 分"
+                },
+                models = inTier
+                    .sortedBy { it.blendedPriceCny() ?: Double.MAX_VALUE }
+                    .take(perTier),
+            )
+        }
+    }

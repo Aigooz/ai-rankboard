@@ -53,10 +53,12 @@ data class HomeUiState(
     val vendorFilter: Set<String> = emptySet(),
     val licenseFilter: Set<String> = emptySet(),
     val paramsFilter: Set<String> = emptySet(),
+    val priceFilter: Set<String> = emptySet(),
     val entries: List<EntryDto> = emptyList(),
     val total: Int = 0,
     val scoreMin: Double? = null,
     val scoreMax: Double? = null,
+    val recentModels: List<EntryDto> = emptyList(),
     val loading: Boolean = false,
     val refreshing: Boolean = false,
     val loadingMore: Boolean = false,
@@ -80,6 +82,10 @@ class HomeViewModel(
     init {
         _state.update { it.copy(snapshotInfo = repository.snapshotInfo()) }
         loadBoardsForTab(initialTab)
+        viewModelScope.launch {
+            val recent = runCatching { repository.recentlyReleasedModels() }.getOrDefault(emptyList())
+            _state.update { it.copy(recentModels = recent) }
+        }
     }
 
     fun selectTab(dimension: String) {
@@ -110,6 +116,7 @@ class HomeViewModel(
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
                 paramsFilter = emptySet(),
+                priceFilter = emptySet(),
             )
         }
         loadVendorOptions(slug)
@@ -128,6 +135,7 @@ class HomeViewModel(
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
                 paramsFilter = emptySet(),
+                priceFilter = emptySet(),
                 loading = true,
             )
         }
@@ -164,16 +172,23 @@ class HomeViewModel(
         refresh(showLoading = true)
     }
 
+    fun setPriceFilter(value: String) {
+        _state.update { it.copy(priceFilter = it.priceFilter.toggle(value)) }
+        refresh(showLoading = true)
+    }
+
     fun clearValueFilters() {
         val changed = _state.value.vendorFilter.isNotEmpty() ||
             _state.value.licenseFilter.isNotEmpty() ||
-            _state.value.paramsFilter.isNotEmpty()
+            _state.value.paramsFilter.isNotEmpty() ||
+            _state.value.priceFilter.isNotEmpty()
         if (!changed) return
         _state.update {
             it.copy(
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
                 paramsFilter = emptySet(),
+                priceFilter = emptySet(),
             )
         }
         refresh(showLoading = true)
@@ -320,6 +335,7 @@ class HomeViewModel(
             offset = offset,
             periodDimension = s.tab.takeIf { it in Periods.supported },
             period = s.period,
+            price = s.priceFilter,
         )
         if (loadKey != key) return
         if (response != null) {

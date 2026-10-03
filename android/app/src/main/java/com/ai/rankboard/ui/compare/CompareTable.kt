@@ -350,6 +350,7 @@ internal fun dimensionLabel(dimension: String): String = when (dimension) {
     "value" -> "性价比"
     "math" -> "数学"
     "analysis" -> "数据分析"
+    "reasoning" -> "推理"
     else -> dimension.replaceFirstChar { it.uppercase(Locale.US) }
 }
 

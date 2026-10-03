@@ -59,6 +59,7 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         offset: Int,
         periodDimension: String? = null,
         period: String? = null,
+        price: Set<String> = emptySet(),
     ): EntriesResponse? {
         val board = snapshot.boards.firstOrNull { it.slug == boardSlug } ?: return null
         val baseEntries = snapshot.entriesByBoard[boardSlug].orEmpty()
@@ -88,6 +89,9 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             }
             .filter { entry ->
                 params.isEmpty() || params.any { entry.matchesParams(it) }
+            }
+            .filter { entry ->
+                entry.matchesPriceTiers(price)
             }
         val sorted = sortEntries(entries, sort)
         return EntriesResponse(
@@ -169,6 +173,30 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             )
         }
         return ModelDetailResponse(model, scores)
+    }
+
+    /** 按发布日期取最近 N 天内上新的模型，附带综合榜成绩，供首页"最近上新"展示。 */
+    fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> {
+        val cutoff = java.time.LocalDate.now().minusDays(days.toLong())
+        return snapshot.models.values.mapNotNull { model ->
+            val date = model.releaseDate?.take(10)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val release = runCatching { java.time.LocalDate.parse(date) }.getOrNull() ?: return@mapNotNull null
+            if (release.isBefore(cutoff)) return@mapNotNull null
+            val overall = snapshot.entriesByBoard["overall"]?.firstOrNull { it.slug == model.slug }
+            EntryDto(
+                slug = model.slug,
+                displayName = model.displayName,
+                vendor = model.vendor,
+                releaseDate = model.releaseDate,
+                score = overall?.score,
+                rank = overall?.rank ?: 0,
+                priceIn = overall?.priceIn,
+                priceOut = overall?.priceOut,
+                currency = overall?.currency ?: "CNY",
+            )
+        }
+            .sortedByDescending { it.releaseDate }
+            .take(limit)
     }
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> {

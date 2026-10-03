@@ -17,6 +17,9 @@ class LeaderboardRepository(
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
 
+    fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> =
+        local.recentlyReleasedModels(days, limit)
+
     suspend fun relayRanking(url: String, apiKey: String): RelayRanking {
         val models = RelayModelClient().fetchModels(url, apiKey)
         return RelayModelRanking.rank(models, snapshotStore?.snapshot ?: Snapshot())
@@ -49,6 +52,7 @@ class LeaderboardRepository(
         offset: Int,
         periodDimension: String? = null,
         period: String? = null,
+        price: Set<String> = emptySet(),
     ): EntriesResponse? = local.page(
         boardSlug = boardSlug,
             sort = sort,
@@ -60,6 +64,7 @@ class LeaderboardRepository(
             offset = offset,
             periodDimension = periodDimension,
             period = period,
+            price = price,
         )
 
     suspend fun vendorOptions(
