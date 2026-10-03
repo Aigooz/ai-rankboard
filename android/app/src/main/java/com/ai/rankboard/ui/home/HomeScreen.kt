@@ -697,23 +697,24 @@ private fun ModelRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = parseModelStrength(entry.displayName).first,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f),
                     )
                     parseModelStrength(entry.displayName).second?.let { strength ->
                         Spacer(Modifier.width(5.dp))
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.82f),
+                            shape = RoundedCornerShape(5.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                         ) {
                             Text(
                                 text = strength,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                             )
                         }
                     }
@@ -777,6 +778,7 @@ private fun formatParams(value: Double): String =
 private fun parseModelStrength(displayName: String): Pair<String, String?> {
     val match = Regex("\\s*\\((xhigh|high|medium|low|max|non-reasoning|reasoning)( with fallback)?\\)$")
         .find(displayName) ?: return displayName to null
-    val strength = match.groupValues[1] + if (match.groupValues[2].isNotBlank()) " + fallback" else ""
+    val strength = match.groupValues[1].replaceFirstChar { it.uppercase() } +
+        if (match.groupValues[2].isNotBlank()) " FB" else ""
     return displayName.removeRange(match.range) to strength
 }
