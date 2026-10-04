@@ -8,12 +8,14 @@ import argparse
 import hashlib
 import json
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .db import get_conn
 
 SCHEMA_VERSION = 3
+# 受众以国内为主，时间戳直接使用东八区，便于 App 端直接展示日期。
+CST = timezone(timedelta(hours=8))
 SOURCE = {
     "id": "modelsage",
     "name": "ModelSage",
@@ -122,7 +124,7 @@ def build_snapshot() -> dict:
 
     snapshot = {
         "schemaVersion": SCHEMA_VERSION,
-        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generatedAt": datetime.now(CST).isoformat(timespec="seconds"),
         "source": SOURCE,
         "sources": SOURCES,
         "boards": boards,

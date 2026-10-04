@@ -45,7 +45,7 @@ cd android
 
 ## 远端快照更新
 
-后端导出 schema v2 快照：
+后端导出 schema v3 快照：
 
 ```bash
 cd backend
@@ -59,15 +59,9 @@ leaderboards.json
 leaderboards.json.sha256
 ```
 
-把这两个文件上传到任意静态 HTTP 服务（对象存储、Cloudflare Pages、GitHub Pages、Nginx 均可），然后在 `android/gradle.properties` 配置：
+仓库内置了数据自动更新通道：GitHub Actions（`.github/workflows/snapshot.yml`）每 6 小时抓取一次全部数据源，成功后把快照提交到本仓库 `snapshot/` 目录；App 的默认远端快照地址指向该文件（`android/gradle.properties` 的 `SNAPSHOT_URL`，可用 `settings.snapshotUrl` 覆盖）。WorkManager 按设定频率检查，下拉首页也会立即检查；更新需通过 SHA-256 校验且 `schemaVersion` 受支持。无网络、校验失败或解析失败时，继续使用内置快照或最后一次成功下载的快照。
 
-```properties
-SNAPSHOT_URL=https://your-domain.example.com/leaderboards.json
-```
-
-重新构建 APK 后，WorkManager 会每天检查一次；用户下拉首页也会立即检查。更新文件必须通过 SHA-256 校验，`schemaVersion` 必须被 App 支持。无网络、校验失败或解析失败时，继续使用内置快照或最后一次成功下载的快照。
-
-从 v0.4.0 起，后台 Worker 检测到新快照后会发送系统通知“AI 排行榜数据已更新”。首次启动时 App 会请求 Android 13+ 的通知权限；如果拒绝，后续可到系统设置里重新开启“通知”。点击通知会回到应用首页。
+从 v0.4.0 起，后台 Worker 检测到新快照后会发送系统通知“AI 排行榜数据已更新”；v0.17.0 起通知会附带新增模型。首次启动时 App 会请求 Android 13+ 的通知权限；如果拒绝，后续可到系统设置里重新开启“通知”。点击通知会回到应用首页。
 
 ## 应用内自更新
 

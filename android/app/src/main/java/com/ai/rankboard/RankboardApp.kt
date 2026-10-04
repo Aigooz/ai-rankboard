@@ -19,7 +19,9 @@ class RankboardApp : Application() {
             local = LocalSnapshotDataSource(snapshotStore),
             db = AppDatabase.build(this),
             snapshotStore = snapshotStore,
-            snapshotUrlProvider = { settingsStore.settings.value.snapshotUrl },
+            snapshotUrlProvider = {
+                settingsStore.settings.value.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL }
+            },
         )
     }
 
