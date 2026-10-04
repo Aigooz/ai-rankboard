@@ -1,6 +1,7 @@
 package com.ai.rankboard.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -49,6 +50,50 @@ class PriceTiersTest {
         assertEquals("flagship-cheap", picks[0].models.first().slug)
         assertEquals("main-1", picks[1].models.first().slug)
         assertEquals(2, picks[1].models.size)
+        assertEquals(1.25, picks[0].cheapestPrice!!, 1e-9)
+        assertEquals(37.5, picks[0].highestPrice!!, 1e-9)
+    }
+
+    @Test
+    fun `value picks prefer source score and fall back to score per price`() {
+        val source = bestValuePicks(
+            listOf(
+                entry("paid", score = 90.0, priceIn = 10.0, priceOut = 20.0),
+                entry("free", score = 80.0, priceIn = 0.0, priceOut = 0.0),
+                entry("unpriced", score = 99.0, priceIn = null, priceOut = null),
+            ),
+            isSourceBoard = true,
+        )
+
+        assertTrue(source.isSourceBoard)
+        assertEquals(listOf("paid", "free"), source.models.map { it.slug })
+
+        val fallback = bestValuePicks(
+            listOf(
+                entry("expensive", score = 90.0, priceIn = 40.0, priceOut = 40.0),
+                entry("cheap-strong", score = 85.0, priceIn = 1.0, priceOut = 1.0),
+                entry("cheap-weak", score = 30.0, priceIn = 0.2, priceOut = 0.2),
+            ),
+            isSourceBoard = false,
+        )
+
+        assertEquals(listOf("cheap-strong", "cheap-weak", "expensive"), fallback.models.map { it.slug })
+    }
+
+    @Test
+    fun `scenario recommendation gives strong low cost alternatives`() {
+        val result = scenarioRecommendation(
+            listOf(
+                entry("top", score = 90.0, priceIn = 40.0, priceOut = 40.0),
+                entry("near", score = 82.0, priceIn = 2.0, priceOut = 2.0),
+                entry("weak-cheap", score = 60.0, priceIn = 0.1, priceOut = 0.1),
+            ),
+            slug = "coding",
+        )!!
+
+        assertEquals("top", result.strengthPick.slug)
+        assertEquals(listOf("near"), result.valuePicks.map { it.slug })
+        assertEquals(20.0, result.savingRatio!!, 1e-9)
     }
 
     @Test

@@ -45,6 +45,9 @@ data class PriceTierPicks(
     val label: String,
     val range: String,
     val models: List<EntryDto>,
+    val modelCount: Int = models.size,
+    val cheapestPrice: Double? = models.firstNotNullOfOrNull { it.blendedPriceCny() },
+    val highestPrice: Double? = models.mapNotNull { it.blendedPriceCny() }.maxOrNull(),
 )
 
 private data class ScoreTier(val label: String, val min: Double?, val max: Double?)
@@ -68,6 +71,7 @@ fun cheapestByTier(entries: List<EntryDto>, perTier: Int = 3): List<PriceTierPic
         if (inTier.isEmpty()) {
             null
         } else {
+            val tierPrices = inTier.mapNotNull { it.blendedPriceCny() }
             PriceTierPicks(
                 label = tier.label,
                 range = when {
@@ -79,9 +83,100 @@ fun cheapestByTier(entries: List<EntryDto>, perTier: Int = 3): List<PriceTierPic
                 models = inTier
                     .sortedBy { it.blendedPriceCny() ?: Double.MAX_VALUE }
                     .take(perTier),
+                modelCount = inTier.size,
+                cheapestPrice = tierPrices.minOrNull(),
+                highestPrice = tierPrices.maxOrNull(),
             )
         }
     }
+
+/** 官方 value 榜可直接使用；其他榜单用“能力 / 混合价”作为兜底性价比。 */
+data class ValuePicksResult(
+    val isSourceBoard: Boolean,
+    val models: List<EntryDto>,
+)
+
+fun bestValuePicks(
+    entries: List<EntryDto>,
+    isSourceBoard: Boolean,
+    perPage: Int = 6,
+): ValuePicksResult {
+    val priced = entries.filter { it.blendedPriceCny() != null }
+    if (priced.isEmpty()) return ValuePicksResult(isSourceBoard, emptyList())
+
+    val sorted = if (isSourceBoard) {
+        priced.sortedWith(
+            compareByDescending<EntryDto> { it.score ?: Double.NEGATIVE_INFINITY }
+                .thenBy { it.blendedPriceCny() ?: Double.MAX_VALUE }
+                .thenBy { it.displayName },
+        )
+    } else {
+        priced.sortedWith(
+            compareByDescending<EntryDto> { valueIndexOf(it) }
+                .thenByDescending { it.score ?: Double.NEGATIVE_INFINITY }
+                .thenBy { it.blendedPriceCny() ?: Double.MAX_VALUE },
+        )
+    }
+    return ValuePicksResult(isSourceBoard, sorted.take(perPage))
+}
+
+private fun valueIndexOf(entry: EntryDto): Double {
+    val score = entry.score ?: return Double.NEGATIVE_INFINITY
+    val price = entry.blendedPriceCny() ?: return Double.NEGATIVE_INFINITY
+    return score / maxOf(price, 0.5)
+}
+
+data class ScenarioRecommendation(
+    val slug: String,
+    val total: Int,
+    val strengthPick: EntryDto,
+    val valuePicks: List<EntryDto>,
+) {
+    val savingRatio: Double?
+        get() {
+            val topPrice = strengthPick.blendedPriceCny() ?: return null
+            val alternativePrice = valuePicks.firstOrNull()
+                ?.blendedPriceCny()
+                ?: return null
+            return if (alternativePrice > 0.0) topPrice / alternativePrice else null
+        }
+}
+
+/** 场景榜中选最高能力模型，并从低成本、能力仍接近的模型中给出替代选项。 */
+fun scenarioRecommendation(entries: List<EntryDto>, slug: String, perPage: Int = 3): ScenarioRecommendation? {
+    val scored = entries.filter { it.score != null }
+    val strengthPick = scored.maxByOrNull { it.score ?: Double.NEGATIVE_INFINITY } ?: return null
+    val prices = scored.mapNotNull { it.blendedPriceCny() }
+    if (prices.isEmpty()) {
+        return ScenarioRecommendation(slug, scored.size, strengthPick, emptyList())
+    }
+
+    val scoreMin = scored.minOf { it.score ?: Double.NEGATIVE_INFINITY }
+    val scoreMax = maxOf(scoreMin + 0.01, scored.maxOf { it.score ?: Double.NEGATIVE_INFINITY })
+    // 保留 70% 相对能力，避免为了省钱推荐完全不适用的模型。
+    val qualityFloor = scoreMin + (scoreMax - scoreMin) * 0.70
+    val topPrice = strengthPick.blendedPriceCny() ?: Double.MAX_VALUE
+    val alternatives = scored.asSequence()
+        .filter { it.slug != strengthPick.slug }
+        .filter { (it.score ?: Double.NEGATIVE_INFINITY) >= qualityFloor }
+        .filter { (it.blendedPriceCny() ?: Double.MAX_VALUE) < topPrice }
+        .sortedWith(
+            compareBy<EntryDto> { it.blendedPriceCny() ?: Double.MAX_VALUE }
+                .thenByDescending { valueIndexOf(it) },
+        )
+        .toList()
+
+    val valuePicks = alternatives.ifEmpty {
+        scored.asSequence()
+            .filter { it.slug != strengthPick.slug && it.blendedPriceCny() != null }
+            .sortedWith(
+                compareByDescending<EntryDto> { valueIndexOf(it) }
+                    .thenBy { it.blendedPriceCny() ?: Double.MAX_VALUE },
+            )
+            .toList()
+    }
+    return ScenarioRecommendation(slug, scored.size, strengthPick, valuePicks.take(perPage))
+}
 
 private val OPEN_SOURCE_MARKERS = listOf(
     "open", "apache", "mit", "bsd", "gpl", "lgpl", "agpl", "mpl", "epl",
