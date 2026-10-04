@@ -10,6 +10,7 @@ import com.ai.rankboard.data.LeaderboardRepository
 import com.ai.rankboard.data.NewsDto
 import com.ai.rankboard.data.PriceDistributionRow
 import com.ai.rankboard.data.UsageRankingDto
+import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.priceDistribution
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,16 +54,8 @@ class TrendViewModel(
                     offset = 0,
                 )
             }.getOrNull()
-            val options = runCatching { repository.modelOptions("") }.getOrDefault(emptyList())
-
-            // 用量榜里的名字带档位后缀，与快照显示名未必一致，剥掉括号后做一次宽松匹配。
-            val byName = HashMap<String, String>(options.size)
-            options.forEach { model ->
-                byName.putIfAbsent(model.displayName, model.slug)
-                byName.putIfAbsent(baseNameKey(model.displayName), model.slug)
-            }
-
             val entries = overall?.entries.orEmpty()
+            val byName = nameToSlug(entries)
             _state.update {
                 it.copy(
                     loading = false,
@@ -81,8 +74,21 @@ class TrendViewModel(
         _state.value.nameToSlug[name] ?: _state.value.nameToSlug[baseNameKey(name)]
 
     companion object {
+        fun nameToSlug(entries: List<EntryDto>): Map<String, String> {
+            val byName = HashMap<String, String>(entries.size)
+            entries.forEach { entry ->
+                byName.putIfAbsent(entry.displayName, entry.slug)
+                byName.putIfAbsent(baseNameKey(entry.displayName), entry.slug)
+            }
+            return byName
+        }
+
         fun baseNameKey(name: String): String =
-            name.lowercase().substringBefore("(").replace(Regex("\\s+"), " ").trim()
+            name.lowercase()
+                .substringBefore("(")
+                .replace(Regex("[-_]"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
 
         fun factory(app: RankboardApp): ViewModelProvider.Factory = viewModelFactory {
             initializer { TrendViewModel(app.repository) }
