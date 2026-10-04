@@ -6,6 +6,18 @@
 
 - `backend/` Python FastAPI 后端：定时抓取 modelsage.cn 榜单页，解析入库 SQLite，暴露 REST API。
 - `android/` Kotlin + Jetpack Compose (Material 3) 安卓端：Retrofit 拉取 + Room 离线缓存/收藏。
+- `web/` 纯静态网页端：读取公开快照仓库，支持排行、趋势、选型与模型详情，由 GitHub Pages 自动发布。
+
+## 网页端
+
+网页端不需要构建，直接运行：
+
+```powershell
+cd web
+python -m http.server 8000
+```
+
+推荐使用 Node 静态服务器或其他能返回 `text/javascript` 的本地服务器；Windows 自带的 `python -m http.server` 可能在部分系统上把 `.js` 标成 `text/plain`，导致浏览器拒绝模块脚本。生产环境由 `.github/workflows/pages.yml` 发布到 GitHub Pages，数据直接来自 `Aigooz/ai-rankboard-updates`，榜单快照更新后网页无需重新发版。
 
 ## 后端启动
 
