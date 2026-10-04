@@ -67,14 +67,11 @@ import androidx.compose.ui.unit.dp
 import com.ai.rankboard.BuildConfig
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.AppUpdater
-import com.ai.rankboard.data.AppUpdateInfo
 import com.ai.rankboard.data.AppUpdateStatus
 import com.ai.rankboard.data.AppUpdateWorker
-import com.ai.rankboard.data.DownloadProgress
 import com.ai.rankboard.data.FavoriteEntity
 import com.ai.rankboard.data.SnapshotFrequency
 import com.ai.rankboard.data.ThemeMode
-import com.ai.rankboard.ui.common.AppUpdateDialog
 import com.ai.rankboard.ui.common.openUrl
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -119,9 +116,6 @@ fun SettingsScreen(
     var appUpdateUrl by remember { mutableStateOf(settings.appUpdateUrl) }
     var appUpdateChecking by remember { mutableStateOf(false) }
     var appUpdateMessage by remember { mutableStateOf("") }
-    var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var appUpdateInstalling by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
     var canInstall by remember { mutableStateOf(AppUpdater.canInstall(app)) }
     var confirmReset by remember { mutableStateOf(false) }
 
@@ -382,7 +376,7 @@ fun SettingsScreen(
                     TextRow(
                         title = "当前版本",
                         value = "v${BuildConfig.VERSION_NAME}",
-                        detail = "版本号 ${BuildConfig.VERSION_CODE} · 每日自动检查",
+                        detail = "版本号 ${BuildConfig.VERSION_CODE} · 自动检查更新",
                     )
                     OutlinedTextField(
                         value = appUpdateUrl,
@@ -421,13 +415,11 @@ fun SettingsScreen(
                                     scope.launch {
                                         appUpdateChecking = true
                                         appUpdateMessage = ""
-                                        val result = AppUpdater.checkUpdate(
-                                            app,
+                                        val result = app.appUpdateMonitor.checkNow(
+                                            settings.updateReminders,
                                             settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
                                         )
-                                        if (result.status == AppUpdateStatus.AVAILABLE) {
-                                            pendingUpdate = result.info
-                                        } else {
+                                        if (result != null && result.status != AppUpdateStatus.AVAILABLE) {
                                             appUpdateMessage = result.message
                                         }
                                         appUpdateChecking = false
@@ -564,37 +556,6 @@ fun SettingsScreen(
         )
     }
 
-    pendingUpdate?.let { info ->
-        AppUpdateDialog(
-            info = info,
-            installing = appUpdateInstalling,
-            progress = downloadProgress,
-            message = appUpdateMessage,
-            onDismiss = {
-                if (!appUpdateInstalling) {
-                    pendingUpdate = null
-                    appUpdateMessage = ""
-                }
-            },
-            onConfirm = {
-                scope.launch {
-                    appUpdateInstalling = true
-                    downloadProgress = DownloadProgress(0L, info.sizeBytes, 0L)
-                    appUpdateMessage = ""
-                    val result = AppUpdater.downloadAndInstall(app, info) { progress ->
-                        downloadProgress = progress
-                    }
-                    downloadProgress = null
-                    if (result.status == AppUpdateStatus.DOWNLOADED) {
-                        pendingUpdate = null
-                    } else {
-                        appUpdateMessage = result.message
-                    }
-                    appUpdateInstalling = false
-                }
-            },
-        )
-    }
 }
 
 @Composable

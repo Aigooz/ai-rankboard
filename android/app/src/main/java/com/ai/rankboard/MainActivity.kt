@@ -1,7 +1,12 @@
 package com.ai.rankboard
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.WindowInsets
@@ -44,7 +49,6 @@ import com.ai.rankboard.ui.settings.SettingsScreen
 import com.ai.rankboard.ui.theme.RankboardTheme
 import com.ai.rankboard.ui.trend.TrendScreen
 import com.ai.rankboard.ui.common.AppUpdateDialog
-import com.ai.rankboard.data.AppUpdateInfo
 import com.ai.rankboard.data.AppUpdateStatus
 import com.ai.rankboard.data.AppUpdater
 import com.ai.rankboard.data.DownloadProgress
@@ -80,21 +84,23 @@ class MainActivity : ComponentActivity() {
             val backStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination?.route
             val context = LocalContext.current
-            var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+            val pendingUpdate by app.appUpdateMonitor.pendingUpdate.collectAsState()
             var updateInstalling by remember { mutableStateOf(false) }
             var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
             var updateMessage by remember { mutableStateOf("") }
             val updateScope = rememberCoroutineScope()
+            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) {}
 
             LaunchedEffect(Unit) {
-                if (settings.updateReminders) {
-                    val result = AppUpdater.checkUpdate(
-                        context,
-                        settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
-                    )
-                    if (result.status == AppUpdateStatus.AVAILABLE) {
-                        pendingUpdate = result.info
-                    }
+                if (
+                    settings.updateReminders &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
 
@@ -194,7 +200,7 @@ class MainActivity : ComponentActivity() {
                         message = updateMessage,
                         onDismiss = {
                             if (!updateInstalling) {
-                                pendingUpdate = null
+                                app.appUpdateMonitor.dismiss(info)
                                 updateMessage = ""
                             }
                         },
@@ -208,7 +214,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     downloadProgress = null
                                     if (result.status == AppUpdateStatus.DOWNLOADED) {
-                                    pendingUpdate = null
+                                    app.appUpdateMonitor.clearPending()
                                 } else {
                                     updateMessage = result.message
                                 }

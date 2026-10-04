@@ -10,6 +10,8 @@ import androidx.core.content.pm.PackageInfoCompat
 import com.ai.rankboard.BuildConfig
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -60,6 +62,7 @@ data class DownloadProgress(
 object AppUpdater {
     private const val APK_FILE_NAME = "update.apk"
     const val APK_FILE_PATH = "app_update/update.apk"
+    private val downloadMutex = Mutex()
 
     fun canInstall(context: Context): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
@@ -190,15 +193,17 @@ object AppUpdater {
         info: AppUpdateInfo,
         onProgress: suspend (DownloadProgress) -> Unit = {},
     ) {
-        val apkFile = apkFile(context)
-        if (reuseVerifiedApk(context, apkFile, info)) return
+        downloadMutex.withLock {
+            val apkFile = apkFile(context)
+            if (reuseVerifiedApk(context, apkFile, info)) return
 
-        apkFile.delete()
-        downloadWithFallback(context, info, onProgress)
-        if (!sha256(apkFile).equals(info.sha256, ignoreCase = true)) {
-            throw IllegalStateException("APK SHA-256 校验失败")
+            apkFile.delete()
+            downloadWithFallback(context, info, onProgress)
+            if (!sha256(apkFile).equals(info.sha256, ignoreCase = true)) {
+                throw IllegalStateException("APK SHA-256 校验失败")
+            }
+            verifyArchive(context, apkFile, info.versionCode)
         }
-        verifyArchive(context, apkFile, info.versionCode)
     }
 
     /** 已存在校验和与版本都匹配的安装包时直接复用，避免重试反复整包重下。 */

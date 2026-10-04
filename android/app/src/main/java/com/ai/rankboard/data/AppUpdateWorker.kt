@@ -30,6 +30,7 @@ class AppUpdateWorker(
         val result = AppUpdater.prepareUpdate(context, url)
         return when (result.status) {
             AppUpdateStatus.DOWNLOADED -> {
+                app.appUpdateMonitor.setAvailable(result.info)
                 AppUpdateNotifier(context).notifyReady(result.info)
                 Result.success()
             }
@@ -41,6 +42,7 @@ class AppUpdateWorker(
 
     companion object {
         const val KEY_URL = "url"
+        private const val PERIODIC_INTERVAL_MINUTES = 15L
         private const val PERIODIC_WORK = "app-update-periodic"
         private const val STARTUP_WORK = "app-update-startup"
 
@@ -55,7 +57,7 @@ class AppUpdateWorker(
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
-            val periodic = PeriodicWorkRequestBuilder<AppUpdateWorker>(1, TimeUnit.DAYS)
+            val periodic = PeriodicWorkRequestBuilder<AppUpdateWorker>(PERIODIC_INTERVAL_MINUTES, TimeUnit.MINUTES)
                 .setInputData(inputData)
                 .setConstraints(constraints)
                 .build()

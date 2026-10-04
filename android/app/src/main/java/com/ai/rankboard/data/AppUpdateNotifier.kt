@@ -63,6 +63,7 @@ class AppUpdateNotifier(private val context: Context) {
                     ),
             )
             .setCategory(NotificationCompat.CATEGORY_SYSTEM)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
