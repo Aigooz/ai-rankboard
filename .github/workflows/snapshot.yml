@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: snapshot
@@ -27,12 +27,24 @@ jobs:
       - name: Refresh sources and export snapshot
         working-directory: backend
         run: python -m app.publish ../snapshot/leaderboards.json
-      - name: Commit if changed
+      # 主仓库是私有的，公开更新仓库 ai-rankboard-updates 需要凭据才能推送：
+      # 在本仓库 Settings → Secrets and variables → Actions 配置 SNAPSHOT_TOKEN
+      # （对 ai-rankboard-updates 有 contents:write 权限的 PAT）。
+      - name: Publish to public updates repo
+        env:
+          TOKEN: ${{ secrets.SNAPSHOT_TOKEN }}
         run: |
-          if [ -n "$(git status --porcelain snapshot/)" ]; then
-            git config user.name "snapshot-bot"
-            git config user.email "ai-rankboard@local"
-            git add snapshot/
+          if [ -z "$TOKEN" ]; then
+            echo "SNAPSHOT_TOKEN 未配置，跳过发布；可本地运行 backend/app/publish.py 后手动推送。"
+            exit 0
+          fi
+          git clone --depth 1 "https://x-access-token:$TOKEN@github.com/Aigooz/ai-rankboard-updates.git" publish
+          cp snapshot/leaderboards.json snapshot/leaderboards.json.sha256 publish/
+          cd publish
+          git config user.name "snapshot-bot"
+          git config user.email "ai-rankboard@local"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add leaderboards.json leaderboards.json.sha256
             git commit -m "chore: refresh leaderboard snapshot"
             git push
           else
