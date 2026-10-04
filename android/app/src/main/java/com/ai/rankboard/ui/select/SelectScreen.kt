@@ -29,9 +29,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -59,11 +56,6 @@ fun SelectScreen(
     ),
 ) {
     val state by vm.state.collectAsState()
-    var tableSort by remember { mutableStateOf(ModelTableSort.INTELLIGENCE) }
-    var tableOpenness by remember { mutableStateOf(0) }
-    val tableRows = remember(state.scatterModels, tableSort, tableOpenness) {
-        filterAndSortModels(state.scatterModels, tableSort, tableOpenness)
-    }
 
     Scaffold(
         topBar = {
@@ -129,24 +121,6 @@ fun SelectScreen(
                     item {
                         PriceScatterCard(
                             models = state.scatterModels,
-                            onOpenModel = onOpenModel,
-                        )
-                    }
-                    item(key = "table-title") {
-                        SectionTitle("全部模型")
-                    }
-                    item(key = "table-controls") {
-                        ModelTableControls(
-                            sort = tableSort,
-                            openness = tableOpenness,
-                            count = tableRows.size,
-                            onSort = { tableSort = it },
-                            onOpenness = { tableOpenness = it },
-                        )
-                    }
-                    items(tableRows, key = { "table-" + it.slug }) { model ->
-                        ModelTableRow(
-                            model = model,
                             onOpenModel = onOpenModel,
                         )
                     }

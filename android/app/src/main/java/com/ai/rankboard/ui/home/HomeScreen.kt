@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
@@ -87,13 +89,6 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsState()
     var filterSheetOpen by remember { mutableStateOf(false) }
-    val selectedBoard = state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
-        ?: state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
-    val selectedPeriod = state.periodOptions.firstOrNull { it.id == state.period }
-    val summaryBoardName = when {
-        state.tab in Periods.supported -> selectedPeriod?.label ?: "时间榜"
-        else -> selectedBoard?.name ?: "选择榜单"
-    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -135,12 +130,18 @@ fun HomeScreen(
                         }
                     }
                 }
+                QuickChipsRow(
+                    state = state,
+                    onPeriod = vm::setPeriod,
+                    onBoard = vm::selectBoard,
+                    onSort = vm::setSort,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
                 FilterSummaryBar(
-                    boardName = summaryBoardName,
                     activeCount = state.activeFilterCount(),
                     snapshotDate = state.snapshotInfo?.generatedAt?.take(10).orEmpty(),
                     onClick = { filterSheetOpen = true },
-                    modifier = Modifier.padding(top = 10.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
         },
@@ -245,11 +246,6 @@ fun HomeScreen(
         ModalBottomSheet(onDismissRequest = { filterSheetOpen = false }) {
             FilterSheet(
                 state = state,
-                sort = state.sort,
-                onSelectSort = vm::setSort,
-                onSelectBoard = vm::selectBoard,
-                onSelectPeriod = vm::setPeriod,
-                onSelectSource = vm::setSourceFilter,
                 onSelectVendor = vm::setVendorFilter,
                 onSelectLicense = vm::setLicenseFilter,
                 onSelectParams = vm::setParamsFilter,
@@ -257,6 +253,66 @@ fun HomeScreen(
                 onClear = vm::clearValueFilters,
             )
         }
+    }
+}
+
+/** 榜单/时间区间与排序的快捷芯片：高频操作不再需要打开筛选弹层。 */
+@Composable
+private fun QuickChipsRow(
+    state: HomeUiState,
+    onPeriod: (String) -> Unit,
+    onBoard: (String) -> Unit,
+    onSort: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier,
+    ) {
+        if (state.tab in Periods.supported) {
+            items(state.periodOptions, key = { "period-" + it.id }) { option ->
+                QuickChip(
+                    label = "${option.label} · ${option.count}",
+                    selected = state.period == option.id,
+                    onClick = { onPeriod(option.id) },
+                )
+            }
+        } else {
+            items(state.allBoardsForTab, key = { it.slug }) { board ->
+                QuickChip(
+                    label = board.name,
+                    selected = state.selectedBoard == board.slug,
+                    onClick = { onBoard(board.slug) },
+                )
+            }
+        }
+        items(SORT_OPTIONS, key = { "sort-" + it.first }) { (key, label) ->
+            QuickChip(
+                label = label,
+                selected = state.sort == key,
+                onClick = { onSort(key) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+        else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.48f),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }
 
@@ -479,7 +535,6 @@ private fun DataSourceStrip(
 
 @Composable
 private fun FilterSummaryBar(
-    boardName: String,
     activeCount: Int,
     snapshotDate: String,
     onClick: () -> Unit,
@@ -508,7 +563,7 @@ private fun FilterSummaryBar(
                 modifier = Modifier.size(17.dp),
             )
             Text(
-                text = if (activeCount == 0) boardName else "$boardName · $activeCount 项筛选",
+                text = if (activeCount == 0) "更多筛选 · 厂商 / 许可 / 参数 / 价格" else "已筛选 $activeCount 项",
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -529,11 +584,6 @@ private fun FilterSummaryBar(
 @Composable
 private fun FilterSheet(
     state: HomeUiState,
-    sort: String,
-    onSelectSort: (String) -> Unit,
-    onSelectBoard: (String) -> Unit,
-    onSelectPeriod: (String) -> Unit,
-    onSelectSource: (String?) -> Unit,
     onSelectVendor: (String) -> Unit,
     onSelectLicense: (String) -> Unit,
     onSelectParams: (String) -> Unit,
@@ -543,73 +593,18 @@ private fun FilterSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "筛选",
+                text = "更多筛选",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onClear) {
                 Text("清除筛选")
-            }
-        }
-        FilterSection("排序") {
-            items(SORT_OPTIONS, key = { it.first }) { (key, label) ->
-                FilterChip(
-                    selected = sort == key,
-                    onClick = { onSelectSort(key) },
-                    label = { Text(label, maxLines = 1) },
-                )
-            }
-        }
-        if (state.tab in Periods.supported) {
-            FilterSection("时间区间") {
-                items(state.periodOptions, key = { it.id }) { option ->
-                    FilterChip(
-                        selected = state.period == option.id,
-                        onClick = { onSelectPeriod(option.id) },
-                        label = { Text("${option.label} · ${option.count}", maxLines = 1) },
-                    )
-                }
-            }
-        }
-        FilterSection("榜单") {
-            if (state.tab !in Periods.supported) {
-                items(state.boardsForTab, key = { it.slug }) { board ->
-                    FilterChip(
-                        selected = state.selectedBoard == board.slug,
-                        onClick = { onSelectBoard(board.slug) },
-                        label = { Text(board.name, maxLines = 1) },
-                    )
-                }
-            }
-        }
-        if (state.tab !in Periods.supported &&
-            state.allBoardsForTab.map { it.sourceId }.distinct().size > 1
-        ) {
-            FilterSection("来源") {
-                item {
-                    FilterChip(
-                        selected = state.sourceFilter == null,
-                        onClick = { onSelectSource(null) },
-                        label = { Text("全部") },
-                    )
-                }
-                items(
-                    state.allBoardsForTab.map { it.sourceId }.distinct(),
-                    key = { it },
-                ) { sourceId ->
-                    FilterChip(
-                        selected = state.sourceFilter == sourceId,
-                        onClick = {
-                            onSelectSource(if (state.sourceFilter == sourceId) null else sourceId)
-                        },
-                        label = { Text(sourceLabel(sourceId), maxLines = 1) },
-                    )
-                }
             }
         }
         if (state.vendorOptions.isNotEmpty()) {
@@ -719,12 +714,6 @@ private fun FilterSection(
             content()
         }
     }
-}
-
-private fun sourceLabel(sourceId: String): String = when (sourceId) {
-    "livebench" -> "LiveBench"
-    "swebench" -> "SWE-bench"
-    else -> "ModelSage"
 }
 
 private fun HomeUiState.activeFilterCount(): Int =

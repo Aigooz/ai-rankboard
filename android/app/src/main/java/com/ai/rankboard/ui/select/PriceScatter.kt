@@ -66,9 +66,6 @@ data class ScatterModel(
     val vendor: String?,
     val priceCny: Double?,
     val scores: Map<String, Double>,
-    val contextWindow: String? = null,
-    val license: String? = null,
-    val releaseDate: String? = null,
 )
 
 internal data class ScatterPoint(
