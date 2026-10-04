@@ -1,12 +1,13 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from .boards import BOARDS
-from .config import FETCH_INTERVAL_HOURS
+from .boards import BOARDS, BOARD_BY_SLUG
+from .config import ADMIN_TOKEN, FETCH_INTERVAL_HOURS
 from .db import get_conn, init_db, now_iso
 from .service import refresh_all
 
@@ -18,11 +19,15 @@ scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    await refresh_all()
     scheduler.add_job(refresh_all, "interval", hours=FETCH_INTERVAL_HOURS, id="refresh_all")
     scheduler.start()
-    yield
-    scheduler.shutdown(wait=False)
+    # 首轮抓取放到后台：12 个榜单串行抓取可能要几分钟，不能阻塞服务启动。
+    first_refresh = asyncio.create_task(refresh_all())
+    try:
+        yield
+    finally:
+        first_refresh.cancel()
+        scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="AI Leaderboard Aggregator", version="0.1.0", lifespan=lifespan)
@@ -132,6 +137,14 @@ def model_detail(model_slug: str):
 
 
 @app.post("/v1/admin/refresh")
-async def admin_refresh(slugs: list[str] | None = None):
+async def admin_refresh(
+    slugs: list[str] | None = None,
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+):
+    if ADMIN_TOKEN and x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(401, "invalid admin token")
+    unknown = sorted(set(slugs or []) - BOARD_BY_SLUG.keys())
+    if unknown:
+        raise HTTPException(400, f"unknown boards: {', '.join(unknown)}")
     results = await refresh_all(slugs)
     return {"results": results}

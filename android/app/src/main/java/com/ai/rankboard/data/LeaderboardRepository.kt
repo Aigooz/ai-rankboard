@@ -77,23 +77,26 @@ class LeaderboardRepository(
 
     suspend fun saveEntries(boardSlug: String, entries: List<EntryDto>) {
         dao.clearBoard(boardSlug)
-        dao.upsertEntries(
-            entries.map {
-                CachedEntryEntity(
-                    boardSlug = boardSlug,
-                    modelSlug = it.slug,
-                    displayName = it.displayName,
-                    vendor = it.vendor,
-                    rank = it.rank,
-                    score = it.score,
-                    priceIn = it.priceIn,
-                    priceOut = it.priceOut,
-                    currency = it.currency,
-                    fetchedAt = it.fetchedAt,
-                )
-            },
-        )
+        dao.upsertEntries(entries.map { it.toCachedEntity(boardSlug) })
     }
+
+    /** 翻页时只追加，不清空已有缓存，离线数据随浏览逐渐变全。 */
+    suspend fun appendEntries(boardSlug: String, entries: List<EntryDto>) {
+        dao.upsertEntries(entries.map { it.toCachedEntity(boardSlug) })
+    }
+
+    private fun EntryDto.toCachedEntity(boardSlug: String) = CachedEntryEntity(
+        boardSlug = boardSlug,
+        modelSlug = slug,
+        displayName = displayName,
+        vendor = vendor,
+        rank = rank,
+        score = score,
+        priceIn = priceIn,
+        priceOut = priceOut,
+        currency = currency,
+        fetchedAt = fetchedAt,
+    )
 
     suspend fun modelDetail(slug: String): ModelDetailResponse? =
         local.modelDetail(slug)

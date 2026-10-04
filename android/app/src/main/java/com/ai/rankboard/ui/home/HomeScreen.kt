@@ -153,7 +153,7 @@ fun HomeScreen(
                 !state.loading && state.entries.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            if (state.offline) "无网络且无本地缓存，请检查后端连接" else "暂无数据",
+                            if (state.offline) "无网络且无本地缓存，请联网后下拉刷新" else "暂无数据",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

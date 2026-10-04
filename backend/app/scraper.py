@@ -116,6 +116,10 @@ def parse_aa_board(html: str) -> list:
         price_in = _first_float(_cell_text(cells[header["Input"]])) if "Input" in header else None
         price_out = _first_float(_cell_text(cells[header["Output"]])) if "Output" in header else None
         rank_val = _first_float(_cell_text(cells[header["Rank"]]))
+        if rank_val is None:
+            # rank 解析不出来时直接报错，让整榜走失败路径保留旧数据，
+            # 而不是落到 rank 0 被"同名次去重"吞掉。
+            raise ValueError(f"AA board: rank parse failed for {name!r}")
         rows.append({
             "slug": slug,
             "name": name,
@@ -160,6 +164,8 @@ def parse_arena_board(html: str) -> list:
         context = _cell_text(cells[header["上下文"]]) if "上下文" in header else None
         license_ = _cell_text(cells[header["License"]]) if "License" in header else None
         rank_val = _first_float(_cell_text(cells[header["Rank"]]))
+        if rank_val is None:
+            raise ValueError(f"Arena board: rank parse failed for {name!r}")
         href = model_a.get("href") if hasattr(model_a, "get") else None
         rows.append({
             "slug": slugify(name),
@@ -296,7 +302,7 @@ def _pretty_suffix(value: str) -> str:
 def parse_livebench_board(
     table_rows: list[dict],
     categories: dict[str, list[str]],
-    cost_rows: list[dict],
+    cost_rows: list[dict] | None,
     category: str,
 ) -> list:
     wanted = list(categories.keys()) if category == "*" else [category]
@@ -309,7 +315,7 @@ def parse_livebench_board(
             _first_float(row.get("input_price_per_million", "") or ""),
             _first_float(row.get("output_price_per_million", "") or ""),
         )
-        for row in cost_rows
+        for row in (cost_rows or [])
     }
     ranked = []
     for row in table_rows:
@@ -383,10 +389,17 @@ def parse_swe_bench_board(data: dict, board_name: str) -> list:
 
 async def fetch_livebench_board(board: dict) -> list:
     release = board.get("release", LIVEBENCH_RELEASE)
+    file_release = release.replace("-", "_")
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        table = await fetch_csv(client, f"{LIVEBENCH_URL}/table_{release}.csv")
-        categories = await fetch_json(client, f"{LIVEBENCH_URL}/categories_{release}.json")
-        costs = await fetch_csv(client, f"{LIVEBENCH_URL}/cost_{release}.csv")
+        table = await fetch_csv(client, f"{LIVEBENCH_URL}/table_{file_release}.csv")
+        categories = await fetch_json(client, f"{LIVEBENCH_URL}/categories_{file_release}.json")
+        try:
+            costs = await fetch_csv(client, f"{LIVEBENCH_URL}/cost_{file_release}.csv")
+        except httpx.HTTPStatusError as exc:
+            # 新版 LiveBench 已移除 cost_*.csv，榜单分数仍可用，价格允许为空。
+            if exc.response.status_code != 404:
+                raise
+            costs = []
     return parse_livebench_board(table, categories, costs, board.get("category", "*"))
 
 

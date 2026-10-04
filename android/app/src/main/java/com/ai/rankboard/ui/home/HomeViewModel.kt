@@ -332,7 +332,11 @@ class HomeViewModel(
                     offline = false,
                 )
             }
-            if (reset) runCatching { repository.saveEntries(boardSlug, response.entries) }
+            if (reset) {
+                runCatching { repository.saveEntries(boardSlug, response.entries) }
+            } else {
+                runCatching { repository.appendEntries(boardSlug, response.entries) }
+            }
         } else {
             if (reset) {
                 val cached = runCatching { repository.cachedEntries(boardSlug) }.getOrDefault(emptyList())

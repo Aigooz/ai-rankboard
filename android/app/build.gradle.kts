@@ -15,8 +15,8 @@ android {
         applicationId = "com.ai.rankboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 52
-        versionName = "0.20.2"
+        versionCode = 53
+        versionName = "0.20.3"
         buildConfigField(
             "String",
             "SNAPSHOT_URL",
@@ -66,6 +66,13 @@ android {
         buildConfig = true
         compose = true
     }
+}
+
+tasks.withType<Test>().configureEach {
+    // Windows 上项目路径含中文时，测试 worker 按平台默认编码解析类路径会
+    // 抛 ClassNotFoundException，强制 UTF-8 后可原地运行单元测试。
+    jvmArgs("-Dfile.encoding=UTF-8")
+    jvmArgs("-Dsun.jnu.encoding=UTF-8")
 }
 
 dependencies {

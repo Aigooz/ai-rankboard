@@ -92,6 +92,14 @@ class ScraperRegressionTests(unittest.TestCase):
         self.assertEqual(len(overall), len(coding))
         self.assertNotEqual(coding[0]["score"], overall[0]["score"])
 
+    def test_livebench_cost_file_is_optional(self) -> None:
+        table, categories, _ = load_livebench_fixtures()
+        rows = parse_livebench_board(table, categories, None, "*")
+
+        self.assertGreater(len(rows), 50)
+        self.assertIsNone(rows[0]["price_in"])
+        self.assertIsNone(rows[0]["price_out"])
+
     def test_swe_bench_verified(self) -> None:
         data = json.loads((FIXTURES / "swebench_leaderboards.json").read_text(encoding="utf-8"))
         rows = parse_swe_bench_board(data, "Verified")

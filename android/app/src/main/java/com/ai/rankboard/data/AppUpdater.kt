@@ -73,14 +73,6 @@ object AppUpdater {
         ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    suspend fun updateAndInstall(context: Context, url: String): AppUpdateResult {
-        val prepared = prepareUpdate(context, url)
-        if (prepared.status == AppUpdateStatus.DOWNLOADED) {
-            context.startActivity(installIntent(context, apkFile(context)))
-        }
-        return prepared
-    }
-
     suspend fun checkUpdate(context: Context, url: String): AppUpdateResult {
         if (url.isBlank()) {
             return AppUpdateResult(AppUpdateStatus.ERROR, "未配置应用更新地址")
@@ -135,29 +127,8 @@ object AppUpdater {
 
         return withContext(Dispatchers.IO) {
             try {
-                val apkFile = apkFile(context)
-                apkFile.delete()
-                downloadWithFallback(context, info, onProgress)
-                val bytes = apkFile.readBytes()
-                if (!sha256(bytes).equals(info.sha256, ignoreCase = true)) {
-                    throw IllegalStateException("APK SHA-256 校验失败")
-                }
-                apkFile.writeBytes(bytes)
-
-                val archiveInfo = context.packageManager.getPackageArchiveInfo(
-                    apkFile.absolutePath,
-                    0,
-                )
-                val archiveVersionCode = archiveInfo?.let { PackageInfoCompat.getLongVersionCode(it) } ?: 0L
-                if (
-                    archiveInfo == null ||
-                    archiveInfo.packageName != context.packageName ||
-                    archiveVersionCode <= BuildConfig.VERSION_CODE
-                ) {
-                    throw IllegalStateException("APK 包名或版本不匹配")
-                }
-
-                context.startActivity(installIntent(context, apkFile))
+                downloadAndVerify(context, info, onProgress)
+                context.startActivity(installIntent(context, apkFile(context)))
                 AppUpdateResult(
                     AppUpdateStatus.DOWNLOADED,
                     "已下载 v${info.versionName.ifBlank { info.versionCode.toString() }}，请确认安装",
@@ -197,10 +168,67 @@ object AppUpdater {
                     throw IllegalStateException("更新清单缺少 APK SHA-256")
                 }
 
-                downloadAndInstall(context, info)
+                downloadAndVerify(context, info)
+                AppUpdateResult(
+                    AppUpdateStatus.DOWNLOADED,
+                    "已下载 v${info.versionName.ifBlank { info.versionCode.toString() }}，可在通知中点击安装",
+                    info,
+                )
             } catch (exc: Exception) {
                 AppUpdateResult(AppUpdateStatus.ERROR, exc.message ?: "应用更新失败")
             }
+        }
+    }
+
+    /**
+     * 下载并完成完整性校验，但不调起安装界面。
+     * 后台 Worker 用它替代“下载后直接 startActivity”——Android 10+ 禁止
+     * 后台启动 Activity，直接调起会被系统拦截并导致无限重试。
+     */
+    private suspend fun downloadAndVerify(
+        context: Context,
+        info: AppUpdateInfo,
+        onProgress: suspend (DownloadProgress) -> Unit = {},
+    ) {
+        val apkFile = apkFile(context)
+        if (reuseVerifiedApk(context, apkFile, info)) return
+
+        apkFile.delete()
+        downloadWithFallback(context, info, onProgress)
+        if (!sha256(apkFile).equals(info.sha256, ignoreCase = true)) {
+            throw IllegalStateException("APK SHA-256 校验失败")
+        }
+        verifyArchive(context, apkFile, info.versionCode)
+    }
+
+    /** 已存在校验和与版本都匹配的安装包时直接复用，避免重试反复整包重下。 */
+    private fun reuseVerifiedApk(context: Context, apkFile: File, info: AppUpdateInfo): Boolean {
+        if (!apkFile.exists() || apkFile.length() <= 0L) return false
+        val hashMatches = runCatching { sha256(apkFile).equals(info.sha256, ignoreCase = true) }
+            .getOrDefault(false)
+        if (!hashMatches) {
+            apkFile.delete()
+            return false
+        }
+        val versionMatches = runCatching {
+            verifyArchive(context, apkFile, info.versionCode)
+            true
+        }.getOrDefault(false)
+        if (!versionMatches) {
+            apkFile.delete()
+        }
+        return versionMatches
+    }
+
+    private fun verifyArchive(context: Context, apkFile: File, expectedVersionCode: Int) {
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+        val archiveVersionCode = archiveInfo?.let { PackageInfoCompat.getLongVersionCode(it) } ?: 0L
+        if (
+            archiveInfo == null ||
+            archiveInfo.packageName != context.packageName ||
+            archiveVersionCode != expectedVersionCode.toLong()
+        ) {
+            throw IllegalStateException("APK 包名或版本不匹配")
         }
     }
 
@@ -390,8 +418,16 @@ object AppUpdater {
         return "%.2f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
     }
 
-    private fun sha256(bytes: ByteArray): String {
-        return MessageDigest.getInstance("SHA-256").digest(bytes)
-            .joinToString("") { "%02x".format(it) }
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read == -1) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }

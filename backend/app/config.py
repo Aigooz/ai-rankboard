@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 BASE_URL = "https://modelsage.cn"
 LIVEBENCH_URL = "https://livebench.ai"
@@ -16,6 +17,9 @@ USER_AGENT = (
 REQUEST_TIMEOUT = 30.0
 MAX_RETRIES = 2
 FETCH_INTERVAL_HOURS = 6
+
+# 可选：设置后 /v1/admin/refresh 必须携带 X-Admin-Token 头；不设置则保持公开（本地使用）。
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DB_PATH = DATA_DIR / "leaderboards.db"
