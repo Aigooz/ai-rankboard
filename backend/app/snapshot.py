@@ -98,7 +98,29 @@ def build_snapshot() -> dict:
                 }
             )
 
-    return {
+        usage_rows = conn.execute("SELECT * FROM usage_ranking ORDER BY position").fetchall()
+        usage = None
+        if usage_rows:
+            first = usage_rows[0]
+            usage = {
+                "week_label": first["week_label"],
+                "total_tokens": first["total_tokens"],
+                "platform_wow": first["platform_wow"],
+                "generated_at": first["fetched_at"],
+                "entries": [
+                    {
+                        "position": row["position"],
+                        "name": row["name"],
+                        "model_url": row["model_url"],
+                        "tokens": row["tokens"],
+                        "share": row["share"],
+                        "wow": row["wow"],
+                    }
+                    for row in usage_rows
+                ],
+            }
+
+    snapshot = {
         "schemaVersion": SCHEMA_VERSION,
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": SOURCE,
@@ -107,6 +129,9 @@ def build_snapshot() -> dict:
         "entriesByBoard": dict(entries),
         "models": models,
     }
+    if usage:
+        snapshot["usageRanking"] = usage
+    return snapshot
 
 
 def write_snapshot(path: Path) -> str:

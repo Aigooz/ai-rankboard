@@ -3,8 +3,8 @@ import logging
 
 from .boards import BOARDS, BOARD_BY_SLUG
 from .db import get_conn, init_db, now_iso
-from .scraper import fetch_board, fetch_model_release_dates
-from .store import mark_board_error, save_board_data, save_model_release_dates, upsert_board_meta
+from .scraper import fetch_board, fetch_model_release_dates, fetch_usage_trend
+from .store import mark_board_error, save_board_data, save_model_release_dates, save_usage_trend, upsert_board_meta
 
 log = logging.getLogger("service")
 
@@ -34,8 +34,19 @@ async def refresh_all(slugs=None) -> dict:
         except Exception as exc:  # noqa: BLE001
             results[board["slug"]] = {"status": "error", "error": str(exc)}
         await asyncio.sleep(1.5)
+    results["usage"] = {"status": "ok" if await refresh_usage() else "error"}
     results["release_dates"] = {"models": await refresh_missing_release_dates()}
     return results
+
+
+async def refresh_usage() -> bool:
+    try:
+        data = await fetch_usage_trend()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("usage trends refresh failed: %s", exc)
+        return False
+    save_usage_trend(data, now_iso())
+    return True
 
 
 async def refresh_missing_release_dates() -> int:

@@ -15,6 +15,8 @@ class LeaderboardRepository(
 
     fun boards(): List<BoardDto> = local.boards()
 
+    fun usageRanking(): UsageRankingDto? = local.usageRanking()
+
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
 
     fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> =

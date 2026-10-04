@@ -120,7 +120,7 @@ fun SelectScreen(
                     }
                     item {
                         PriceScatterCard(
-                            entries = state.entries,
+                            models = state.scatterModels,
                             onOpenModel = onOpenModel,
                         )
                     }

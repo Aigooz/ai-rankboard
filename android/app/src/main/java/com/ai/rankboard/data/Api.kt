@@ -16,6 +16,24 @@ data class Snapshot(
     val boards: List<BoardDto> = emptyList(),
     val entriesByBoard: Map<String, List<EntryDto>> = emptyMap(),
     val models: Map<String, ModelDetailDto> = emptyMap(),
+    val usageRanking: UsageRankingDto? = null,
+)
+
+data class UsageRankingDto(
+    @SerializedName("week_label") val weekLabel: String = "",
+    @SerializedName("total_tokens") val totalTokens: String = "",
+    @SerializedName("platform_wow") val platformWow: String = "",
+    @SerializedName("generated_at") val generatedAt: String = "",
+    val entries: List<UsageEntryDto> = emptyList(),
+)
+
+data class UsageEntryDto(
+    val position: Int = 0,
+    val name: String = "",
+    @SerializedName("model_url") val modelUrl: String? = null,
+    val tokens: String = "",
+    val share: Double = 0.0,
+    val wow: String? = null,
 )
 
 data class BoardDto(

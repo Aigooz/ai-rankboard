@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS scores (
 );
 CREATE INDEX IF NOT EXISTS idx_scores_board_rank ON scores(board_slug, rank);
 CREATE INDEX IF NOT EXISTS idx_scores_model ON scores(model_slug);
+CREATE TABLE IF NOT EXISTS usage_ranking (
+    position INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    model_url TEXT,
+    tokens TEXT,
+    share REAL,
+    wow TEXT,
+    week_label TEXT,
+    total_tokens TEXT,
+    platform_wow TEXT,
+    fetched_at TEXT NOT NULL
+);
 """
 
 

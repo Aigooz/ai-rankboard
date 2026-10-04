@@ -91,3 +91,29 @@ fun cheapestByTier(entries: List<EntryDto>, perTier: Int = 3): List<PriceTierPic
             )
         }
     }
+
+data class PriceDistributionRow(val label: String, val count: Int)
+
+/** 按混合价把模型分桶计数，用于趋势页的价格分布；无价格数据单独一档。 */
+fun priceDistribution(entries: List<EntryDto>): List<PriceDistributionRow> {
+    val buckets = linkedMapOf(
+        PRICE_FREE to 0,
+        PRICE_LT1 to 0,
+        PRICE_1TO5 to 0,
+        PRICE_5TO10 to 0,
+        PRICE_10PLUS to 0,
+    )
+    var unpriced = 0
+    entries.forEach { entry ->
+        val price = entry.blendedPriceCny()
+        if (price == null) {
+            unpriced += 1
+        } else {
+            val tier = priceTierOf(price)
+            buckets[tier] = (buckets[tier] ?: 0) + 1
+        }
+    }
+    val rows = buckets.map { (tier, count) -> PriceDistributionRow(priceTierLabel(tier), count) }
+        .filter { it.count > 0 }
+    return if (unpriced > 0) rows + PriceDistributionRow("未公开价格", unpriced) else rows
+}

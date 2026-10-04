@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Savings
@@ -41,6 +42,7 @@ import com.ai.rankboard.ui.relay.RelayScreen
 import com.ai.rankboard.ui.select.SelectScreen
 import com.ai.rankboard.ui.settings.SettingsScreen
 import com.ai.rankboard.ui.theme.RankboardTheme
+import com.ai.rankboard.ui.trend.TrendScreen
 import com.ai.rankboard.ui.common.AppUpdateDialog
 import com.ai.rankboard.data.AppUpdateInfo
 import com.ai.rankboard.data.AppUpdateStatus
@@ -58,6 +60,7 @@ private val TOP_LEVEL_DESTINATIONS = listOf(
     TopLevelDestination("home", Icons.Filled.Home, "榜单"),
     TopLevelDestination("select", Icons.Filled.Savings, "选型"),
     TopLevelDestination("compare", Icons.AutoMirrored.Filled.CompareArrows, "对比"),
+    TopLevelDestination("trends", Icons.AutoMirrored.Filled.TrendingUp, "趋势"),
     TopLevelDestination("relay", Icons.Filled.Hub, "中转"),
     TopLevelDestination("settings", Icons.Outlined.Settings, "设置"),
 )
@@ -173,6 +176,12 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("relay") {
                             RelayScreen()
+                        }
+                        composable("trends") {
+                            TrendScreen(
+                                onOpenModel = { slug -> navController.navigate("model/$slug") },
+                                onBack = { navController.popBackStack() },
+                            )
                         }
                     }
                 }

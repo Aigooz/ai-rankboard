@@ -404,3 +404,55 @@ async def fetch_board(board: dict) -> list:
     async with httpx.AsyncClient(follow_redirects=True) as client:
         html = await fetch_html(client, url)
     return parse_board(board, html)
+
+
+# 用量榜是 div 结构而非表格，行首为名次 span；数值单元格靠 title 文本锚定。
+_USAGE_ROW_RE = re.compile(
+    r"^\s*[^>]*?>(?P<position>\d+)</span>"
+    r".*?(?:<a[^>]*href=\"(?P<url>/model/[^\"]+)\"[^>]*>(?P<aname>[^<]+)</a>"
+    r"|<div[^>]*><span[^>]*>(?P<sname>[^<]+)</span></div>)"
+    r".*?bar-fill"
+    r".*?title=\"含输入[^\"]*\">(?P<tokens>[^<]+)</span>"
+    r".*?title=\"占本周[^\"]*\">(?P<share>[\d.]+)%</span>"
+    r".*?title=\"(?:调用量相对上周|上周未进前)[^\"]*\">(?P<wow>[^<]+)</span>",
+    re.S,
+)
+
+
+def parse_usage_trend(html: str) -> dict:
+    text = html.replace("<!-- -->", "")
+    week = re.search(r"网关真实用量榜\s*·\s*(.*?)</div>", text)
+    total = re.search(r"共消耗\s*([\d.]+\s*万亿)\s*token", text)
+    platform_wow = re.search(r"平台总量环比\s*([+\-−][\d.]+)\s*%", text)
+
+    entries = []
+    chunks = re.split(r'<span class="w-5 shrink-0 text-right', text)[1:]
+    for chunk in chunks:
+        match = _USAGE_ROW_RE.search(chunk)
+        if not match:
+            continue
+        name = (match.group("aname") or match.group("sname") or "").strip()
+        if not name:
+            continue
+        entries.append({
+            "position": int(match.group("position")),
+            "name": name,
+            "model_url": match.group("url"),
+            "tokens": match.group("tokens").strip(),
+            "share": float(match.group("share")),
+            "wow": match.group("wow").strip(),
+        })
+    if not entries:
+        raise ValueError("usage trends: no rows parsed")
+    return {
+        "week_label": week.group(1).strip() if week else "",
+        "total_tokens": total.group(1) if total else "",
+        "platform_wow": (platform_wow.group(1) + "%") if platform_wow else "",
+        "entries": entries,
+    }
+
+
+async def fetch_usage_trend() -> dict:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        html = await fetch_html(client, f"{BASE_URL}/trends")
+    return parse_usage_trend(html)

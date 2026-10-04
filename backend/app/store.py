@@ -106,6 +106,21 @@ def save_model_release_dates(dates: dict[str, str]) -> int:
     return len(dates)
 
 
+def save_usage_trend(data: dict, fetched_at: str) -> int:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM usage_ranking")
+        for entry in data["entries"]:
+            conn.execute(
+                """INSERT INTO usage_ranking(position, name, model_url, tokens, share, wow,
+                                             week_label, total_tokens, platform_wow, fetched_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (entry["position"], entry["name"], entry.get("model_url"), entry["tokens"],
+                 entry["share"], entry["wow"], data.get("week_label", ""),
+                 data.get("total_tokens", ""), data.get("platform_wow", ""), fetched_at),
+            )
+    return len(data["entries"])
+
+
 def mark_board_error(board: dict, error: str) -> None:
     with get_conn() as conn:
         conn.execute(

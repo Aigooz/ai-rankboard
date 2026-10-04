@@ -63,6 +63,22 @@ class PriceTiersTest {
         assertEquals(2, picks[1].models.size)
     }
 
+    @Test
+    fun `price distribution buckets models and keeps unpriced last`() {
+        val rows = priceDistribution(
+            listOf(
+                entry(priceIn = 0.0, priceOut = 0.0),
+                entry(priceIn = 0.5, priceOut = 0.5),
+                entry(priceIn = 20.0, priceOut = 20.0),
+                entry(priceIn = 20.0, priceOut = 25.0),
+                entry(priceIn = null, priceOut = null),
+            ),
+        )
+
+        assertEquals(listOf("免费", "<¥1", "≥¥10", "未公开价格"), rows.map { it.label })
+        assertEquals(listOf(1, 1, 2, 1), rows.map { it.count })
+    }
+
     private fun entry(
         slug: String = "m",
         score: Double? = null,
