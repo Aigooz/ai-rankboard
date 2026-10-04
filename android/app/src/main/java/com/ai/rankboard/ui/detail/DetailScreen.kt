@@ -47,9 +47,7 @@ import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.ScoreBar
 import com.ai.rankboard.ui.common.SectionHeader
-import com.ai.rankboard.ui.common.SourceBadge
 import com.ai.rankboard.ui.common.VendorIcon
-import com.ai.rankboard.ui.common.boardSourceId
 import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.common.scoreColor
 import java.util.Locale
@@ -120,6 +118,7 @@ fun DetailScreen(
             }
             return@Scaffold
         }
+        val representativePricing = remember(state.scores) { representativePricedScore(state.scores) }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -160,6 +159,7 @@ fun DetailScreen(
                             model.releaseDate?.takeIf { it.isNotBlank() }?.let {
                                 add("发布 ${it.take(10)}")
                             }
+                            representativePricing?.let { add(formatModelPrice(it)) }
                         }
                         if (specs.isNotEmpty()) {
                             Text(
@@ -220,7 +220,7 @@ fun DetailScreen(
                 SectionHeader(title = "各榜单成绩")
             }
             item {
-                val priced = state.scores.firstOrNull { it.priceIn != null || it.priceOut != null }
+                val priced = representativePricing
                 if (priced != null) {
                     AppCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
@@ -314,20 +314,9 @@ private fun ScoreCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val priceText = buildString {
-                        val symbol = if (score.currency == "USD") "$" else "¥"
-                        score.priceIn?.let { append(symbol + String.format(Locale.US, "%.2f", it)) }
-                        score.priceOut?.let {
-                            if (isNotEmpty()) append(" → ")
-                            append(symbol + String.format(Locale.US, "%.2f", it))
-                        }
-                        if (isNotEmpty()) append(" /1M")
-                    }
                     Text(
                         text = listOfNotNull(
                             "#${score.rank}",
-                            priceText.takeIf { it.isNotEmpty() },
-                            score.fetchedAt.take(10),
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -352,12 +341,25 @@ private fun ScoreCard(
                 maxScore = score.scoreMax,
                 modifier = Modifier.fillMaxWidth(),
             )
-            SourceBadge(
-                sourceId = boardSourceId(score.boardSlug),
-                selected = true,
-            )
         }
     }
+}
+
+private fun representativePricedScore(scores: List<com.ai.rankboard.data.ScoreDto>) =
+    scores
+        .filter { it.priceIn != null || it.priceOut != null }
+        .minWithOrNull(
+            compareBy(
+                { it.boardSlug != "overall" },
+                { it.rank },
+            ),
+        )
+
+private fun formatModelPrice(score: com.ai.rankboard.data.ScoreDto): String {
+    val symbol = if (score.currency == "USD") "$" else "¥"
+    val input = score.priceIn?.let { symbol + String.format(Locale.US, "%.2f", it) }
+    val output = score.priceOut?.let { symbol + String.format(Locale.US, "%.2f", it) }
+    return listOfNotNull(input, output).joinToString(" → ") + " /1M"
 }
 
 @Composable

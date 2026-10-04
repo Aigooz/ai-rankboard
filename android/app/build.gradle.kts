@@ -15,8 +15,8 @@ android {
         applicationId = "com.ai.rankboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 53
-        versionName = "0.20.3"
+        versionCode = 54
+        versionName = "0.20.4"
         buildConfigField(
             "String",
             "SNAPSHOT_URL",
