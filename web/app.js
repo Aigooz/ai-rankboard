@@ -24,6 +24,28 @@ const SCENARIOS = [
   { dimension: "search", label: "搜索" },
 ];
 
+const VENDOR_COLORS = [
+  { test: (value) => value.startsWith("openai"), color: "#101010", fallback: "OA" },
+  { test: (value) => value.startsWith("anthropic"), color: "#CC785C", fallback: "AN" },
+  { test: (value) => value.startsWith("google"), color: "#4285F4", fallback: "GG" },
+  { test: (value) => value.includes("阿里百炼") || value.startsWith("alibaba") || value.includes("qwen"), color: "#FF6A00", fallback: "AL" },
+  { test: (value) => value.startsWith("deepseek"), color: "#4D6BFE", fallback: "DS" },
+  { test: (value) => value === "xai" || value === "spacexai", color: "#171717", fallback: "XA" },
+  { test: (value) => value.startsWith("mistral"), color: "#FF7000", fallback: "MI" },
+  { test: (value) => value.includes("moonshot") || value.includes("kimi"), color: "#1B1B1F", fallback: "MK" },
+  { test: (value) => value.includes("zhipu") || value.includes("z.ai"), color: "#2A6AF5", fallback: "Z" },
+  { test: (value) => value === "meta" || value.startsWith("meta "), color: "#0866FF", fallback: "ME" },
+  { test: (value) => value.startsWith("minimax"), color: "#F23F5D", fallback: "MM" },
+  { test: (value) => value.startsWith("xiaomi") || value.includes("小米"), color: "#FF6900", fallback: "XM" },
+  { test: (value) => value.includes("tencent") || value.includes("腾讯"), color: "#0052D9", fallback: "TX" },
+  { test: (value) => value.startsWith("bytedance") || value.includes("火山引擎") || value.includes("豆包"), color: "#325AB4", fallback: "BD" },
+  { test: (value) => value.startsWith("nvidia"), color: "#76B900", fallback: "NV" },
+  { test: (value) => value.startsWith("amazon"), color: "#FF9900", fallback: "AM" },
+  { test: (value) => value.startsWith("microsoft"), color: "#0078D4", fallback: "MS" },
+  { test: (value) => value.startsWith("baidu") || value.includes("百度千帆"), color: "#2932E1", fallback: "BD" },
+  { test: (value) => value.startsWith("perplexity"), color: "#20B8CD", fallback: "PP" },
+];
+
 const state = {
   snapshot: null,
   error: null,
@@ -202,6 +224,48 @@ function renderDataMeta() {
   document.getElementById("data-meta").textContent = `快照更新：${generated} · 来源：ModelSage / LiveBench / SWE-bench`;
 }
 
+function vendorIcon(vendor) {
+  const raw = String(vendor || "").trim();
+  const key = raw.toLowerCase();
+  const spec = VENDOR_COLORS.find((item) => item.test(key)) || {};
+  const fallback = spec.fallback || fallbackVendorLabel(raw);
+  const color = spec.color || "#5B6472";
+  return `<span class="vendor-icon" style="--vendor-color:${color}" aria-hidden="true">${escapeHtml(fallback)}</span>`;
+}
+
+function fallbackVendorLabel(vendor) {
+  const letters = String(vendor || "").match(/[a-zA-Z]+/g) || [];
+  const label = letters.slice(0, 2).map((part) => part[0].toUpperCase()).join("");
+  if (label) return label;
+  return String(vendor || "").trim().slice(0, 1) || "AI";
+}
+
+function scoreColor(score, minScore = 0, maxScore = 100) {
+  if (score == null || Number.isNaN(score)) return "#5D6675";
+  if (minScore == null || maxScore == null || maxScore <= minScore) return "#5D6675";
+  return `rgb(${rgbForScoreRatio(scoreRatio(score, minScore, maxScore)).join(" ")})`;
+}
+
+function scoreRatio(score, minScore = 0, maxScore = 100) {
+  if (score == null || Number.isNaN(score) || minScore == null || maxScore == null || maxScore <= minScore) return 0;
+  return Math.min(Math.max((Number(score) - minScore) / (maxScore - minScore), 0), 1);
+}
+
+function rgbForScoreRatio(ratio) {
+  const low = [239, 68, 68];
+  const mid = [245, 158, 11];
+  const high = [34, 197, 94];
+  const mix = (from, to, amount) => from.map((value, index) => Math.round(value + (to[index] - value) * amount));
+  return ratio < .5 ? mix(low, mid, ratio * 2) : mix(mid, high, (ratio - .5) * 2);
+}
+
+function rankColor(rank) {
+  if (rank === 1) return "#D97706";
+  if (rank === 2) return "#64748B";
+  if (rank === 3) return "#B45309";
+  return null;
+}
+
 function renderError(error) {
   app.innerHTML = `
     <section class="panel error-state">
@@ -283,14 +347,23 @@ function leaderboardTemplate() {
 function tableRows(entries) {
   return entries.map((entry, index) => {
     const price = blendedPrice(entry);
+    const rank = entry.rank || index + 1;
+    const rankColorValue = rankColor(rank);
     return `
       <tr tabindex="0" data-slug="${escapeAttr(entry.slug)}">
-        <td class="rank-cell">#${entry.rank || index + 1}</td>
-        <td>
-          <span class="model-name">${escapeHtml(entry.displayName)}</span>
-          <span class="model-vendor">${escapeHtml(entry.vendor || "未知厂商")}</span>
+        <td class="rank-cell">
+          <span class="rank-badge" ${rankColorValue ? `style="--rank-color:${rankColorValue}"` : ""}>${rank}</span>
         </td>
-        <td><span class="score-pill">${entry.score == null ? "—" : entry.score.toFixed(1)}</span></td>
+        <td>
+          <div class="model-cell">
+            ${vendorIcon(entry.vendor)}
+            <span class="model-info">
+              <span class="model-name">${escapeHtml(entry.displayName)}</span>
+              <span class="model-vendor">${escapeHtml(entry.vendor || "未知厂商")}</span>
+            </span>
+          </div>
+        </td>
+        <td><span class="score-pill" style="--score-color:${scoreColor(entry.score)}">${entry.score == null ? "—" : entry.score.toFixed(1)}</span></td>
         <td class="num">${formatPrice(price)}</td>
         <td class="num">${escapeHtml(entry.contextWindow || "—")}</td>
         <td class="num">${formatDate(entry.releaseDate)}</td>
@@ -313,34 +386,46 @@ function trendsTemplate() {
       <div class="freshness">更新时间<strong>${formatDate(usage?.generatedAt || state.snapshot.generatedAt)}</strong></div>
     </div>
     <div class="trend-grid">
-      <section class="card">
-        <h2>网关用量榜</h2>
-        <p class="card-sub">${escapeHtml(usage?.weekLabel || "")} · 总调用量 ${escapeHtml(usage?.totalTokens || "—")} · 环比 ${escapeHtml(usage?.platformWow || "—")}</p>
-        <div>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>网关用量榜</h2>
+            <p class="panel-sub">${escapeHtml(usage?.weekLabel || "")} · 总调用量 ${escapeHtml(usage?.totalTokens || "—")} · 环比 ${escapeHtml(usage?.platformWow || "—")}</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="usage-list">
           ${(usage?.entries || []).map((entry) => {
             const slug = modelSlugForName(entry.name);
             const changeClass = (entry.wow || "").startsWith("+") ? "up" : (entry.wow || "").startsWith("-") ? "down" : "";
             return `
               <button class="usage-item" type="button" data-slug="${escapeAttr(slug || "")}" data-clickable="${slug ? "true" : "false"}">
                 <span class="usage-position">${entry.position}</span>
-                <span class="usage-name">${escapeHtml(entry.name)}</span>
+                <span class="model-cell">${vendorIcon(entry.name)}<span class="usage-name">${escapeHtml(entry.name)}</span></span>
                 <span class="usage-tokens">${escapeHtml(entry.tokens)}<span class="usage-change ${changeClass}">${escapeHtml(entry.wow || "")}</span></span>
                 <span class="usage-bar" aria-hidden="true"><span style="width:${Math.max((entry.share / maxShare) * 100, 2)}%"></span></span>
               </button>
             `;
           }).join("")}
+          </div>
         </div>
       </section>
-      <section class="card">
-        <h2>行业资讯</h2>
-        <p class="card-sub">来自 ModelSage 的评测与分析</p>
-        <div>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>行业资讯</h2>
+            <p class="panel-sub">来自 ModelSage 的评测与分析</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="news-list">
           ${(news?.articles || []).slice(0, 10).map((article) => `
             <a class="news-item" href="https://modelsage.cn${escapeAttr(article.url)}" target="_blank" rel="noreferrer">
               <h3>${escapeHtml(article.title)}</h3>
               <span>${formatDate(article.publishedAt)}</span>
             </a>
           `).join("")}
+          </div>
         </div>
       </section>
     </div>
@@ -350,15 +435,38 @@ function trendsTemplate() {
 function selectTemplate() {
   const overallEntries = state.snapshot.entriesByBoard.overall || [];
   const priced = overallEntries.filter((entry) => entry.score != null && blendedPrice(entry) > 0);
+  const valuePicks = [...priced]
+    .sort((a, b) => (b.score / Math.max(blendedPrice(b), .5)) - (a.score / Math.max(blendedPrice(a), .5)))
+    .slice(0, 6);
   const tiers = tierPicks(priced);
   const scenarioPicks = SCENARIOS.map((scenario) => {
-    const boards = boardsForDimension(scenario.dimension);
-    const board = boards.find((item) => !item.slug.startsWith("arena-")) || boards[0];
-    const entries = (state.snapshot.entriesByBoard[board?.slug] || [])
-      .filter((entry) => entry.score != null)
-      .slice(0, 2);
-    return { ...scenario, entries };
+    const unique = new Map();
+    boardsForDimension(scenario.dimension).forEach((board) => {
+      (state.snapshot.entriesByBoard[board.slug] || []).forEach((entry) => {
+        if (entry.score == null) return;
+        const existing = unique.get(entry.slug);
+        if (!existing || entry.score > existing.score) {
+          unique.set(entry.slug, { ...entry, boardName: board.name });
+        }
+      });
+    });
+    const ranked = [...unique.values()].sort((a, b) => b.score - a.score);
+    const best = ranked[0];
+    const alternative = best ? ranked.slice(1).find((entry) => {
+      const bestPrice = blendedPrice(best);
+      const candidatePrice = blendedPrice(entry);
+      return entry.score >= best.score * .8 && candidatePrice != null && (bestPrice == null || candidatePrice < bestPrice);
+    }) : null;
+    return {
+      ...scenario,
+      total: unique.size,
+      entries: best ? [best, alternative].filter(Boolean) : [],
+    };
   }).filter((scenario) => scenario.entries.length);
+  const latest = overallEntries
+    .filter((entry) => entry.releaseDate)
+    .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
+    .slice(0, 8);
 
   return `
     <div class="view-header">
@@ -369,40 +477,100 @@ function selectTemplate() {
       <div class="freshness">样本规模<strong>${formatNumber(overallEntries.length)} 个模型</strong></div>
     </div>
     <div class="select-grid">
-      <section class="card">
-        <h2>场景推荐</h2>
-        <p class="card-sub">每个场景展示综合分最高的两个模型</p>
-        <div class="recommend-list">
-          ${scenarioPicks.map((scenario) => `
-            <div class="recommend-item">
-              <div class="recommend-label">${scenario.label}</div>
-              <div>
-                ${scenario.entries.map((entry, index) => `
-                  <div class="recommend-model">
-                    <button class="chip" type="button" data-slug="${escapeAttr(entry.slug)}" style="margin-right:6px">${escapeHtml(entry.displayName)}</button>
-                    ${index === 0 ? `<span class="score-pill">${entry.score.toFixed(1)}</span>` : ""}
-                    <span class="recommend-detail">${escapeHtml(entry.vendor || "未知厂商")} · ${formatPrice(blendedPrice(entry))}</span>
-                  </div>
-                `).join("")}
-              </div>
-            </div>
-          `).join("")}
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>性价比首选</h2>
+            <p class="panel-sub">能力分越高、混合价越低，排名越靠前</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="selection-list">
+            ${valuePicks.map((entry, index) => `
+              <button class="selection-row" type="button" data-slug="${escapeAttr(entry.slug)}">
+                <span class="selection-leading">${index + 1}</span>
+                ${vendorIcon(entry.vendor)}
+                <span class="selection-info">
+                  <span class="selection-model">${escapeHtml(entry.displayName)}</span>
+                  <span class="selection-meta">${escapeHtml(entry.vendor || "未知厂商")} · 能力 ${entry.score.toFixed(1)} · 综合 #${entry.rank || "—"}</span>
+                </span>
+                <span class="selection-right">
+                  <span class="selection-price">${formatPrice(blendedPrice(entry))}</span>
+                  <span class="selection-badge">每元 ${(entry.score / Math.max(blendedPrice(entry), .5)).toFixed(1)}</span>
+                </span>
+              </button>
+            `).join("")}
+          </div>
         </div>
       </section>
-      <section class="card">
-        <h2>价格档位</h2>
-        <p class="card-sub">混合价按输入 ×3 + 输出 ÷4 计算</p>
-        <div class="tier-grid">
-          ${tiers.map((tier) => `
-            <div class="tier-item">
-              <div class="tier-label">${tier.label}</div>
-              <div class="tier-model">${tier.model ? escapeHtml(tier.model.displayName) : "暂无"}</div>
-              <span class="tier-detail">${tier.model ? `分数 ${tier.model.score.toFixed(1)} · ${formatPrice(blendedPrice(tier.model))}` : ""}</span>
-            </div>
-          `).join("")}
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>同档更优</h2>
+            <p class="panel-sub">混合价按输入 ×3 + 输出 ÷4 计算</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="tier-grid">
+            ${tiers.map((tier) => `
+              <div class="tier-item">
+                <div class="tier-label">${tier.label}</div>
+                <div class="tier-model">${tier.model ? `<button class="model-chip" type="button" data-slug="${escapeAttr(tier.model.slug)}">${escapeHtml(tier.model.displayName)}</button>` : "暂无"}</div>
+                <span class="tier-detail">${tier.model ? `能力 ${tier.model.score.toFixed(1)} · ${formatPrice(blendedPrice(tier.model))}` : ""}</span>
+              </div>
+            `).join("")}
+          </div>
         </div>
       </section>
     </div>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2>按需求选模型</h2>
+          <p class="panel-sub">每个场景优先展示能力首选；价格更低且能力接近时，补充省钱替代</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="recommend-grid">
+          ${scenarioPicks.map((scenario) => `
+            <article class="recommend-card">
+              <div class="recommend-label"><span>${scenario.label}</span><span>${scenario.total} 个模型</span></div>
+              ${scenario.entries.map((entry, index) => `
+                <div class="recommend-model">
+                  <button class="model-chip" type="button" data-slug="${escapeAttr(entry.slug)}">${escapeHtml(entry.displayName)}</button>
+                  <span class="score-pill" style="--score-color:${scoreColor(entry.score)}">${entry.score.toFixed(1)}</span>
+                </div>
+                <span class="recommend-detail">${escapeHtml(entry.vendor || "未知厂商")} · ${formatPrice(blendedPrice(entry))} · ${index === 0 ? "能力首选" : "省钱替代"}</span>
+              `).join("")}
+            </article>
+          `).join("")}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2>最新模型</h2>
+          <p class="panel-sub">按发布时间排序，适合关注新模型上线节奏</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="latest-list">
+          ${latest.map((entry) => `
+            <button class="latest-row" type="button" data-slug="${escapeAttr(entry.slug)}">
+              ${vendorIcon(entry.vendor)}
+              <span class="selection-info">
+                <span class="selection-model">${escapeHtml(entry.displayName)}</span>
+                <span class="latest-meta">${escapeHtml(entry.vendor || "未知厂商")} · ${formatDate(entry.releaseDate)} · 综合 #${entry.rank || "—"}</span>
+              </span>
+              <span class="latest-score">${entry.score == null ? "-" : entry.score.toFixed(1)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -489,6 +657,7 @@ function closeModal() {
 
 function detailTemplate({ model, scores }) {
   const overall = scores.find((score) => score.boardSlug === "overall");
+  const bestRank = scores.length ? Math.min(...scores.map((score) => score.rank || 999)) : null;
   return `
     <div class="detail-grid">
       <div class="detail-stat"><span>综合名次</span><strong>${overall ? `#${overall.rank}` : "—"}</strong></div>
@@ -496,18 +665,30 @@ function detailTemplate({ model, scores }) {
       <div class="detail-stat"><span>混合价</span><strong>${formatPrice(blendedPrice(model))}</strong></div>
       <div class="detail-stat"><span>发布日期</span><strong>${formatDate(model.releaseDate)}</strong></div>
     </div>
+    <div class="detail-chips">
+      <span class="detail-chip">上榜 <strong>${scores.length}</strong></span>
+      <span class="detail-chip">最佳 <strong>${bestRank && bestRank < 999 ? `#${bestRank}` : "—"}</strong></span>
+      <span class="detail-chip">${escapeHtml(model.license || "许可未知")}</span>
+      <span class="detail-chip">上下文 <strong>${escapeHtml(model.contextWindow || "—")}</strong></span>
+      <span class="detail-chip">参数 <strong>${model.paramsB == null ? "—" : `${model.paramsB}B`}</strong></span>
+    </div>
     <p class="detail-source">
-      ${escapeHtml(model.vendor || "未知厂商")} · ${escapeHtml(model.license || "许可未知")} · 上下文 ${escapeHtml(model.contextWindow || "—")} · 参数 ${model.paramsB == null ? "—" : `${model.paramsB}B`}
+      ${escapeHtml(model.vendor || "未知厂商")}
       ${model.sourceUrl ? ` · <a href="${escapeAttr(model.sourceUrl)}" target="_blank" rel="noreferrer">官方来源</a>` : ""}
     </p>
-    <h2 style="margin:0 0 10px;font-size:16px">各榜成绩</h2>
-    ${scores.length ? scores.map((score) => `
-      <div class="score-row">
-        <div class="score-row-name">${escapeHtml(score.boardName)}</div>
-        <div class="score-row-rank">#${score.rank}</div>
-        <div class="score-row-score">${score.score == null ? "—" : score.score.toFixed(1)}</div>
+    <h2 class="section-title">各榜成绩</h2>
+    ${scores.length ? `
+      <div class="score-list">
+        ${scores.map((score) => `
+          <div class="score-row" style="--score-color:${scoreColor(score.score, score.scoreMin, score.scoreMax)};--score-ratio:${scoreRatio(score.score, score.scoreMin, score.scoreMax) * 100}%">
+            <div class="score-row-name">${escapeHtml(score.boardName)}</div>
+            <div class="score-row-rank">#${score.rank}</div>
+            <div class="score-row-score">${score.score == null ? "—" : score.score.toFixed(1)}</div>
+            <div class="score-bar"><span></span></div>
+          </div>
+        `).join("")}
       </div>
-    `).join("") : `<div class="muted">暂无跨榜成绩。</div>`}
+    ` : `<div class="muted">暂无跨榜成绩。</div>`}
   `;
 }
 
@@ -557,11 +738,14 @@ function modelDetail(slug) {
     const entry = boardEntries.find((item) => item.slug === slug);
     if (!entry) return [];
     const board = state.snapshot.boards.find((item) => item.slug === boardSlug);
+    const boardScores = boardEntries.map((item) => item.score).filter((score) => score != null && !Number.isNaN(score));
     return [{
       boardSlug,
       boardName: board?.name || boardSlug,
       rank: entry.rank,
       score: entry.score,
+      scoreMin: boardScores.length ? Math.min(...boardScores) : null,
+      scoreMax: boardScores.length ? Math.max(...boardScores) : null,
     }];
   });
   return { model, scores };

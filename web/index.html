@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI 排行榜</title>
   <meta name="description" content="跨源聚合 AI 模型榜单，支持能力、价格、趋势和场景选型对比。">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <meta property="og:title" content="AI 排行榜">
   <meta property="og:description" content="跨源聚合 AI 模型榜单，支持能力、价格、趋势和场景选型对比。">
   <link rel="stylesheet" href="./styles.css">
@@ -23,9 +23,18 @@
         </span>
       </a>
       <nav class="app-nav" aria-label="主导航">
-        <a href="#/" data-view="leaderboard">排行榜</a>
-        <a href="#/trends" data-view="trends">趋势</a>
-        <a href="#/select" data-view="select">选型</a>
+        <a href="#/" data-view="leaderboard" title="排行榜">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-6"/><path d="M22 20v-9"/></svg>
+          <span>排行榜</span>
+        </a>
+        <a href="#/trends" data-view="trends" title="趋势">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+          <span>趋势</span>
+        </a>
+        <a href="#/select" data-view="select" title="选型">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 6 5 5 4-4 9 9"/><path d="M3 18h7"/></svg>
+          <span>选型</span>
+        </a>
       </nav>
       <div class="header-actions">
         <a class="icon-button" href="https://github.com/Aigooz/ai-rankboard" target="_blank" rel="noreferrer" aria-label="GitHub 仓库">
