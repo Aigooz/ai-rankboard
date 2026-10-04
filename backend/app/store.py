@@ -121,6 +121,19 @@ def save_usage_trend(data: dict, fetched_at: str) -> int:
     return len(data["entries"])
 
 
+def save_news_articles(articles: list[dict], fetched_at: str) -> int:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM news_articles")
+        for article in articles:
+            conn.execute(
+                """INSERT INTO news_articles(position, title, url, published_at, fetched_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (article["position"], article["title"], article["url"],
+                 article.get("published_at"), fetched_at),
+            )
+    return len(articles)
+
+
 def mark_board_error(board: dict, error: str) -> None:
     with get_conn() as conn:
         conn.execute(

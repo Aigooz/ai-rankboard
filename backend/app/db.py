@@ -56,6 +56,13 @@ CREATE TABLE IF NOT EXISTS usage_ranking (
     platform_wow TEXT,
     fetched_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS news_articles (
+    position INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    published_at TEXT,
+    fetched_at TEXT NOT NULL
+);
 """
 
 

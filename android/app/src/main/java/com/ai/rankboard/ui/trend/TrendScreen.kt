@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -41,11 +43,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
+import com.ai.rankboard.data.NewsArticleDto
 import com.ai.rankboard.data.PriceDistributionRow
 import com.ai.rankboard.data.UsageEntryDto
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.VendorIcon
+import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.compare.parseModelStrength
+
+private const val ARTICLES_BASE_URL = "https://artificialanalysis.ai"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +65,7 @@ fun TrendScreen(
     ),
 ) {
     val state by vm.state.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -151,6 +158,31 @@ fun TrendScreen(
                                 vm.slugFor(usage.entries[index].name)?.let(onOpenModel)
                             },
                         )
+                    }
+                    val articles = state.news?.articles.orEmpty()
+                    if (articles.isNotEmpty()) {
+                        item(key = "news-title") {
+                            Text(
+                                "行业资讯 · Artificial Analysis",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
+                        }
+                        items(articles.size, key = { "news-$it" }) { index ->
+                            NewsRow(
+                                article = articles[index],
+                                onClick = { openUrl(context, ARTICLES_BASE_URL + articles[index].url) },
+                            )
+                        }
+                        item(key = "news-note") {
+                            Text(
+                                "英文内容来自 Artificial Analysis，点击跳转原文。",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                     }
                     if (state.distribution.isNotEmpty()) {
                         item(key = "dist-title") {
@@ -270,6 +302,45 @@ private fun UsageRow(
                 color = wowColor,
                 modifier = Modifier.width(52.dp),
                 textAlign = TextAlign.End,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NewsRow(article: NewsArticleDto, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(9.dp),
+        tonalElevation = 1.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = article.title,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOfNotNull("Artificial Analysis", article.publishedAt).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp),
             )
         }
     }

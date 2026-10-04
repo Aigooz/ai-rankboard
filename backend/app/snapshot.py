@@ -122,6 +122,21 @@ def build_snapshot() -> dict:
                 ],
             }
 
+        news_rows = conn.execute("SELECT * FROM news_articles ORDER BY position").fetchall()
+        news = None
+        if news_rows:
+            news = {
+                "generated_at": news_rows[0]["fetched_at"],
+                "articles": [
+                    {
+                        "title": row["title"],
+                        "url": row["url"],
+                        "published_at": row["published_at"],
+                    }
+                    for row in news_rows
+                ],
+            }
+
     snapshot = {
         "schemaVersion": SCHEMA_VERSION,
         "generatedAt": datetime.now(CST).isoformat(timespec="seconds"),
@@ -133,6 +148,8 @@ def build_snapshot() -> dict:
     }
     if usage:
         snapshot["usageRanking"] = usage
+    if news:
+        snapshot["news"] = news
     return snapshot
 
 

@@ -17,6 +17,7 @@ import json
 from bs4 import BeautifulSoup
 
 from .config import (
+    AA_ARTICLES_URL,
     BASE_URL,
     LIVEBENCH_RELEASE,
     LIVEBENCH_URL,
@@ -456,3 +457,59 @@ async def fetch_usage_trend() -> dict:
     async with httpx.AsyncClient(follow_redirects=True) as client:
         html = await fetch_html(client, f"{BASE_URL}/trends")
     return parse_usage_trend(html)
+
+
+# 文章卡片：链接 + 标题 + 日期，日期形如 "September 30, 2026"。
+_ARTICLE_RE = re.compile(
+    r'<a class="relative flex flex-col gap-4 group" href="(?P<url>/articles/[^"]+)">'
+    r".*?<h3[^>]*>(?P<title>[^<]+)</h3>"
+    r"(?:<p class=\"text-xs text-muted-foreground\">(?P<date>[^<]+)</p>)?",
+    re.S,
+)
+
+_MONTHS = {
+    "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
+    "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12,
+}
+
+
+def _parse_article_date(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    match = re.search(r"([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})", raw)
+    if not match:
+        return None
+    month = _MONTHS.get(match.group(1))
+    if not month:
+        return None
+    return f"{match.group(3)}-{month:02d}-{int(match.group(2)):02d}"
+
+
+def parse_aa_articles(html: str) -> list[dict]:
+    import html as html_lib
+
+    entries = []
+    seen: set[str] = set()
+    for match in _ARTICLE_RE.finditer(html):
+        url = match.group("url").split("?")[0]
+        if url in seen:
+            continue
+        title = html_lib.unescape(match.group("title")).strip()
+        if not title:
+            continue
+        seen.add(url)
+        entries.append({
+            "position": len(entries) + 1,
+            "title": title,
+            "url": url,
+            "published_at": _parse_article_date(match.group("date")),
+        })
+    if not entries:
+        raise ValueError("AA articles: no rows parsed")
+    return entries
+
+
+async def fetch_aa_articles() -> list[dict]:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        html = await fetch_html(client, AA_ARTICLES_URL)
+    return parse_aa_articles(html)

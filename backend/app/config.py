@@ -8,6 +8,7 @@ SWE_BENCH_DATA_URL = (
     "master/data/leaderboards.json"
 )
 SWE_BENCH_URL = "https://www.swebench.com"
+AA_ARTICLES_URL = "https://artificialanalysis.ai/articles"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"

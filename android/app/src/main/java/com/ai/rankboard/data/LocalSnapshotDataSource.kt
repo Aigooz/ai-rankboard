@@ -20,6 +20,8 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
 
     fun usageRanking(): UsageRankingDto? = snapshot.usageRanking
 
+    fun news(): NewsDto? = snapshot.news
+
     fun info(): SnapshotInfo = store.info()
 
     fun boardsForDimension(dimension: String): List<BoardDto> =

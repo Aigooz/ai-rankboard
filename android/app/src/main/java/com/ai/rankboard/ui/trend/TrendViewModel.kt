@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.LeaderboardRepository
+import com.ai.rankboard.data.NewsDto
 import com.ai.rankboard.data.PriceDistributionRow
 import com.ai.rankboard.data.UsageRankingDto
 import com.ai.rankboard.data.priceDistribution
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 data class TrendUiState(
     val loading: Boolean = true,
     val usage: UsageRankingDto? = null,
+    val news: NewsDto? = null,
     val distribution: List<PriceDistributionRow> = emptyList(),
     val distributionTotal: Int = 0,
     val nameToSlug: Map<String, String> = emptyMap(),
@@ -39,6 +41,7 @@ class TrendViewModel(
     private fun load() {
         viewModelScope.launch {
             val usage = runCatching { repository.usageRanking() }.getOrNull()
+            val news = runCatching { repository.news() }.getOrNull()
             val overall = runCatching {
                 repository.page(
                     boardSlug = "overall",
@@ -65,6 +68,7 @@ class TrendViewModel(
                 it.copy(
                     loading = false,
                     usage = usage,
+                    news = news,
                     distribution = priceDistribution(entries),
                     distributionTotal = entries.size,
                     nameToSlug = byName,

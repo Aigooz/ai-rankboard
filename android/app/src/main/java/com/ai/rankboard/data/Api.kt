@@ -17,6 +17,7 @@ data class Snapshot(
     val entriesByBoard: Map<String, List<EntryDto>> = emptyMap(),
     val models: Map<String, ModelDetailDto> = emptyMap(),
     val usageRanking: UsageRankingDto? = null,
+    val news: NewsDto? = null,
 )
 
 data class UsageRankingDto(
@@ -34,6 +35,17 @@ data class UsageEntryDto(
     val tokens: String = "",
     val share: Double = 0.0,
     val wow: String? = null,
+)
+
+data class NewsDto(
+    @SerializedName("generated_at") val generatedAt: String = "",
+    val articles: List<NewsArticleDto> = emptyList(),
+)
+
+data class NewsArticleDto(
+    val title: String = "",
+    val url: String = "",
+    @SerializedName("published_at") val publishedAt: String? = null,
 )
 
 data class BoardDto(
