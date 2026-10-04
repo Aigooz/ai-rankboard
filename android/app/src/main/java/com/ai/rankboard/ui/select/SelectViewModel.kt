@@ -100,6 +100,9 @@ class SelectViewModel(
                 if (model.priceCny == null) {
                     model.priceCny = entry.blendedPriceCny()
                 }
+                model.contextWindow = model.contextWindow ?: entry.contextWindow?.takeIf { it.isNotBlank() }
+                model.license = model.license ?: entry.license?.takeIf { it.isNotBlank() }
+                model.releaseDate = model.releaseDate ?: entry.releaseDate?.takeIf { it.isNotBlank() }
             }
         }
         absorb(primaryEntries, SCATTER_METRICS.firstOrNull { it.first == primarySlug }?.first)
@@ -121,7 +124,18 @@ class SelectViewModel(
         }
         return aggregate.values
             .filter { it.scores.isNotEmpty() }
-            .map { ScatterModel(it.slug, it.displayName, it.vendor, it.priceCny, it.scores.toMap()) }
+            .map {
+                ScatterModel(
+                    slug = it.slug,
+                    displayName = it.displayName,
+                    vendor = it.vendor,
+                    priceCny = it.priceCny,
+                    scores = it.scores.toMap(),
+                    contextWindow = it.contextWindow,
+                    license = it.license,
+                    releaseDate = it.releaseDate,
+                )
+            }
     }
 
     private data class MutableScatterModel(
@@ -129,6 +143,9 @@ class SelectViewModel(
         val displayName: String,
         val vendor: String?,
         var priceCny: Double? = null,
+        var contextWindow: String? = null,
+        var license: String? = null,
+        var releaseDate: String? = null,
         val scores: MutableMap<String, Double> = mutableMapOf(),
     )
 

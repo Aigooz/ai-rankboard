@@ -92,6 +92,17 @@ fun cheapestByTier(entries: List<EntryDto>, perTier: Int = 3): List<PriceTierPic
         }
     }
 
+private val OPEN_SOURCE_MARKERS = listOf(
+    "open", "apache", "mit", "bsd", "gpl", "lgpl", "agpl", "mpl", "epl",
+    "cc-by", "llama", "qwen", "gemma", "falcon", "community", "research",
+)
+
+/** 按许可文本粗判是否开源，榜单存储与 UI 筛选共用同一口径。 */
+fun isLikelyOpenSourceLicense(license: String?): Boolean {
+    val text = license?.lowercase() ?: return false
+    return OPEN_SOURCE_MARKERS.any { text.contains(it) }
+}
+
 data class PriceDistributionRow(val label: String, val count: Int)
 
 /** 按混合价把模型分桶计数，用于趋势页的价格分布；无价格数据单独一档。 */

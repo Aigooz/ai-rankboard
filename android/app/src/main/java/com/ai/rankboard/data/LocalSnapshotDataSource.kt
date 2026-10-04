@@ -114,14 +114,9 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             .mapIndexed { index, entry -> entry.copy(rank = index + 1) }
 
     private fun EntryDto.matchesLicense(value: String): Boolean = when (value) {
-        "open" -> isLikelyOpenSource()
-        "proprietary" -> license.isNullOrBlank() || !isLikelyOpenSource()
+        "open" -> isLikelyOpenSourceLicense(license)
+        "proprietary" -> license.isNullOrBlank() || !isLikelyOpenSourceLicense(license)
         else -> true
-    }
-
-    private fun EntryDto.isLikelyOpenSource(): Boolean {
-        val licenseText = license?.lowercase() ?: return false
-        return OPEN_SOURCE_MARKERS.any { licenseText.contains(it) }
     }
 
     private fun EntryDto.matchesParams(value: String): Boolean = when (value) {
@@ -216,8 +211,3 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         ).take(300)
     }
 }
-
-private val OPEN_SOURCE_MARKERS = listOf(
-    "open", "apache", "mit", "bsd", "gpl", "lgpl", "agpl", "mpl", "epl",
-    "cc-by", "llama", "qwen", "gemma", "falcon", "community", "research",
-)
