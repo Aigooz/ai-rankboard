@@ -24,8 +24,6 @@ const val PRICE_1TO5 = "1to5"
 const val PRICE_5TO10 = "5to10"
 const val PRICE_10PLUS = "10plus"
 
-val PRICE_TIERS = listOf(PRICE_FREE, PRICE_LT1, PRICE_1TO5, PRICE_5TO10, PRICE_10PLUS)
-
 fun priceTierLabel(tier: String): String = when (tier) {
     PRICE_FREE -> "免费"
     PRICE_LT1 -> "<¥1"
@@ -41,13 +39,6 @@ fun priceTierOf(price: Double): String = when {
     price < 5.0 -> PRICE_1TO5
     price < 10.0 -> PRICE_5TO10
     else -> PRICE_10PLUS
-}
-
-/** 命中任一所选价格档；未选择档位时不过滤。无价格数据的模型不落在任何档位。 */
-fun EntryDto.matchesPriceTiers(tiers: Set<String>): Boolean {
-    if (tiers.isEmpty()) return true
-    val price = blendedPriceCny() ?: return false
-    return tiers.any { priceTierOf(price) == it }
 }
 
 data class PriceTierPicks(

@@ -58,12 +58,10 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         query: String?,
         vendor: Set<String>,
         license: Set<String>,
-        params: Set<String>,
         limit: Int,
         offset: Int,
         periodDimension: String? = null,
         period: String? = null,
-        price: Set<String> = emptySet(),
     ): EntriesResponse? {
         val board = snapshot.boards.firstOrNull { it.slug == boardSlug } ?: return null
         val baseEntries = snapshot.entriesByBoard[boardSlug].orEmpty()
@@ -91,12 +89,6 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             .filter { entry ->
                 license.isEmpty() || license.any { entry.matchesLicense(it) }
             }
-            .filter { entry ->
-                params.isEmpty() || params.any { entry.matchesParams(it) }
-            }
-            .filter { entry ->
-                entry.matchesPriceTiers(price)
-            }
         val sorted = sortEntries(entries, sort)
         return EntriesResponse(
             board = board,
@@ -116,13 +108,6 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
     private fun EntryDto.matchesLicense(value: String): Boolean = when (value) {
         "open" -> isLikelyOpenSourceLicense(license)
         "proprietary" -> license.isNullOrBlank() || !isLikelyOpenSourceLicense(license)
-        else -> true
-    }
-
-    private fun EntryDto.matchesParams(value: String): Boolean = when (value) {
-        "small" -> paramsB != null && paramsB <= 10.0
-        "medium" -> paramsB != null && paramsB > 10.0 && paramsB <= 100.0
-        "large" -> paramsB != null && paramsB > 100.0
         else -> true
     }
 

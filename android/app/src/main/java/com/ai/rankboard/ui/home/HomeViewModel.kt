@@ -52,8 +52,6 @@ data class HomeUiState(
     val vendorOptions: List<String> = emptyList(),
     val vendorFilter: Set<String> = emptySet(),
     val licenseFilter: Set<String> = emptySet(),
-    val paramsFilter: Set<String> = emptySet(),
-    val priceFilter: Set<String> = emptySet(),
     val entries: List<EntryDto> = emptyList(),
     val total: Int = 0,
     val scoreMin: Double? = null,
@@ -115,8 +113,6 @@ class HomeViewModel(
                 selectedBoard = slug,
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
-                paramsFilter = emptySet(),
-                priceFilter = emptySet(),
             )
         }
         loadVendorOptions(slug)
@@ -134,8 +130,6 @@ class HomeViewModel(
                 total = 0,
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
-                paramsFilter = emptySet(),
-                priceFilter = emptySet(),
                 loading = true,
             )
         }
@@ -167,28 +161,14 @@ class HomeViewModel(
         refresh(showLoading = true)
     }
 
-    fun setParamsFilter(value: String) {
-        _state.update { it.copy(paramsFilter = it.paramsFilter.toggle(value)) }
-        refresh(showLoading = true)
-    }
-
-    fun setPriceFilter(value: String) {
-        _state.update { it.copy(priceFilter = it.priceFilter.toggle(value)) }
-        refresh(showLoading = true)
-    }
-
     fun clearValueFilters() {
         val changed = _state.value.vendorFilter.isNotEmpty() ||
-            _state.value.licenseFilter.isNotEmpty() ||
-            _state.value.paramsFilter.isNotEmpty() ||
-            _state.value.priceFilter.isNotEmpty()
+            _state.value.licenseFilter.isNotEmpty()
         if (!changed) return
         _state.update {
             it.copy(
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
-                paramsFilter = emptySet(),
-                priceFilter = emptySet(),
             )
         }
         refresh(showLoading = true)
@@ -330,12 +310,10 @@ class HomeViewModel(
             query = s.query,
             vendor = s.vendorFilter,
             license = s.licenseFilter,
-            params = s.paramsFilter,
             limit = com.ai.rankboard.data.PAGE_SIZE,
             offset = offset,
             periodDimension = s.tab.takeIf { it in Periods.supported },
             period = s.period,
-            price = s.priceFilter,
         )
         if (loadKey != key) return
         if (response != null) {

@@ -54,8 +54,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.Periods
-import com.ai.rankboard.data.PRICE_TIERS
-import com.ai.rankboard.data.priceTierLabel
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.MetricTile
 import com.ai.rankboard.ui.common.RankBadge
@@ -130,18 +128,11 @@ fun HomeScreen(
                         }
                     }
                 }
-                QuickChipsRow(
-                    state = state,
-                    onPeriod = vm::setPeriod,
-                    onBoard = vm::selectBoard,
-                    onSort = vm::setSort,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
                 FilterSummaryBar(
                     activeCount = state.activeFilterCount(),
                     snapshotDate = state.snapshotInfo?.generatedAt?.take(10).orEmpty(),
                     onClick = { filterSheetOpen = true },
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = 10.dp),
                 )
             }
         },
@@ -246,10 +237,12 @@ fun HomeScreen(
         ModalBottomSheet(onDismissRequest = { filterSheetOpen = false }) {
             FilterSheet(
                 state = state,
+                sort = state.sort,
+                onSelectSort = vm::setSort,
+                onSelectBoard = vm::selectBoard,
+                onSelectPeriod = vm::setPeriod,
                 onSelectVendor = vm::setVendorFilter,
                 onSelectLicense = vm::setLicenseFilter,
-                onSelectParams = vm::setParamsFilter,
-                onSelectPrice = vm::setPriceFilter,
                 onClear = vm::clearValueFilters,
             )
         }
@@ -563,7 +556,7 @@ private fun FilterSummaryBar(
                 modifier = Modifier.size(17.dp),
             )
             Text(
-                text = if (activeCount == 0) "更多筛选 · 厂商 / 许可 / 参数 / 价格" else "已筛选 $activeCount 项",
+                text = if (activeCount == 0) "更多筛选" else "已筛选 $activeCount 项",
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -584,31 +577,73 @@ private fun FilterSummaryBar(
 @Composable
 private fun FilterSheet(
     state: HomeUiState,
+    sort: String,
+    onSelectSort: (String) -> Unit,
+    onSelectBoard: (String) -> Unit,
+    onSelectPeriod: (String) -> Unit,
     onSelectVendor: (String) -> Unit,
     onSelectLicense: (String) -> Unit,
-    onSelectParams: (String) -> Unit,
-    onSelectPrice: (String) -> Unit,
     onClear: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
+            .padding(bottom = 12.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "更多筛选",
+                text = "筛选",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
+            val activeCount = state.activeFilterCount()
+            if (activeCount > 0) {
+                Text(
+                    text = "已选 $activeCount 项",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            }
             TextButton(onClick = onClear) {
                 Text("清除筛选")
             }
         }
+        FilterSection("排序") {
+            items(SORT_OPTIONS, key = { it.first }) { (key, label) ->
+                FilterChip(
+                    selected = sort == key,
+                    onClick = { onSelectSort(key) },
+                    label = { Text(label, maxLines = 1) },
+                )
+            }
+        }
+        if (state.tab in Periods.supported) {
+            FilterSection("时间区间") {
+                items(state.periodOptions, key = { it.id }) { option ->
+                    FilterChip(
+                        selected = state.period == option.id,
+                        onClick = { onSelectPeriod(option.id) },
+                        label = { Text("${option.label} · ${option.count}", maxLines = 1) },
+                    )
+                }
+            }
+        } else {
+            FilterSection("榜单") {
+                items(state.allBoardsForTab, key = { it.slug }) { board ->
+                    FilterChip(
+                        selected = state.selectedBoard == board.slug,
+                        onClick = { onSelectBoard(board.slug) },
+                        label = { Text(board.name, maxLines = 1) },
+                    )
+                }
+            }
+        }
         if (state.vendorOptions.isNotEmpty()) {
-            FilterSection("厂商") {
+            FilterSection("厂商", selectedCount = state.vendorFilter.size) {
                 item {
                     FilterChip(
                         selected = state.vendorFilter.isEmpty(),
@@ -625,7 +660,7 @@ private fun FilterSheet(
                 }
             }
         }
-        FilterSection("许可") {
+        FilterSection("许可", selectedCount = state.licenseFilter.size) {
             item {
                 FilterChip(
                     selected = state.licenseFilter.isEmpty(),
@@ -648,67 +683,22 @@ private fun FilterSheet(
                 )
             }
         }
-        FilterSection("参数") {
-            item {
-                FilterChip(
-                    selected = state.paramsFilter.isEmpty(),
-                    onClick = { state.paramsFilter.forEach(onSelectParams) },
-                    label = { Text("全部") },
-                )
-            }
-            item {
-                FilterChip(
-                    selected = "small" in state.paramsFilter,
-                    onClick = { onSelectParams("small") },
-                    label = { Text("≤10B") },
-                )
-            }
-            item {
-                FilterChip(
-                    selected = "medium" in state.paramsFilter,
-                    onClick = { onSelectParams("medium") },
-                    label = { Text("10-100B") },
-                )
-            }
-            item {
-                FilterChip(
-                    selected = "large" in state.paramsFilter,
-                    onClick = { onSelectParams("large") },
-                    label = { Text(">100B") },
-                )
-            }
-        }
-        if (state.entries.any { it.priceIn != null || it.priceOut != null }) {
-            FilterSection("价格 · 每百万 tokens 混合") {
-                item {
-                    FilterChip(
-                        selected = state.priceFilter.isEmpty(),
-                        onClick = { state.priceFilter.forEach(onSelectPrice) },
-                        label = { Text("全部") },
-                    )
-                }
-                items(PRICE_TIERS, key = { it }) { tier ->
-                    FilterChip(
-                        selected = tier in state.priceFilter,
-                        onClick = { onSelectPrice(tier) },
-                        label = { Text(priceTierLabel(tier), maxLines = 1) },
-                    )
-                }
-            }
-        }
     }
 }
 
 @Composable
 private fun FilterSection(
     title: String,
+    selectedCount: Int = 0,
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            text = title,
+            text = if (selectedCount > 0) "$title · 已选 $selectedCount" else title,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (selectedCount > 0) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selectedCount > 0) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             content()
@@ -717,8 +707,7 @@ private fun FilterSection(
 }
 
 private fun HomeUiState.activeFilterCount(): Int =
-    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size +
-        paramsFilter.size + priceFilter.size
+    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size
 
 @Composable
 private fun ModelRow(

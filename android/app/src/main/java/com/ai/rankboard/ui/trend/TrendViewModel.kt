@@ -49,7 +49,6 @@ class TrendViewModel(
                     query = null,
                     vendor = emptySet(),
                     license = emptySet(),
-                    params = emptySet(),
                     limit = 1000,
                     offset = 0,
                 )

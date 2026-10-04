@@ -51,24 +51,20 @@ class LeaderboardRepository(
         query: String?,
         vendor: Set<String>,
         license: Set<String>,
-        params: Set<String>,
         limit: Int,
         offset: Int,
         periodDimension: String? = null,
         period: String? = null,
-        price: Set<String> = emptySet(),
     ): EntriesResponse? = local.page(
         boardSlug = boardSlug,
             sort = sort,
             query = query?.takeIf { it.isNotBlank() },
             vendor = vendor,
             license = license,
-            params = params,
             limit = limit,
             offset = offset,
             periodDimension = periodDimension,
             period = period,
-            price = price,
         )
 
     suspend fun vendorOptions(

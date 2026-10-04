@@ -2,7 +2,6 @@ package com.ai.rankboard.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PriceTiersTest {
@@ -29,17 +28,6 @@ class PriceTiersTest {
         assertEquals(PRICE_1TO5, priceTierOf(1.0))
         assertEquals(PRICE_5TO10, priceTierOf(5.0))
         assertEquals(PRICE_10PLUS, priceTierOf(99.0))
-    }
-
-    @Test
-    fun `price filter ignores models without price data`() {
-        val priced = entry(priceIn = 2.0, priceOut = 2.0)
-        val unpriced = entry(priceIn = null, priceOut = null)
-
-        assertTrue(priced.matchesPriceTiers(setOf(PRICE_1TO5)))
-        assertTrue(!priced.matchesPriceTiers(setOf(PRICE_FREE)))
-        assertTrue(!unpriced.matchesPriceTiers(setOf(PRICE_FREE)))
-        assertTrue(unpriced.matchesPriceTiers(emptySet()))
     }
 
     @Test
