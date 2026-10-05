@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --bg: #F5F6F8;
+  --bg: #F3F5FA;
   --surface: #FFFFFF;
   --surface-container: #F4F6F9;
   --surface-high: #F0F2F6;
@@ -22,15 +22,21 @@
   --on-tertiary-container: #4A2000;
   --success: #16A34A;
   --error: #DC2626;
+  --accent-1: #6366F1;
+  --accent-2: #0EA5E9;
+  --accent-3: #F97316;
+  --accent-4: #EC4899;
+  --data-gradient: linear-gradient(90deg, #F87171, #FBBF24 50%, #34D399);
   --header: rgba(249, 250, 251, .88);
   --shadow: 0 18px 50px rgba(15, 23, 42, .08);
   --shadow-soft: 0 6px 18px rgba(15, 23, 42, .05);
+  --panel-gradient: linear-gradient(145deg, rgba(255, 255, 255, .96) 0%, rgba(248, 250, 252, .9) 52%, rgba(255, 247, 237, .88) 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #070A10;
+  --bg: #070A10;
     --surface: #0C1017;
     --surface-container: #151B26;
     --surface-high: #1A212E;
@@ -50,11 +56,17 @@
     --tertiary: #FBBF24;
     --tertiary-container: #543405;
     --on-tertiary-container: #FFECCB;
-    --success: #4ADE80;
-    --error: #F87171;
+  --success: #4ADE80;
+  --error: #F87171;
+  --accent-1: #818CF8;
+  --accent-2: #38BDF8;
+  --accent-3: #FB923C;
+  --accent-4: #F472B6;
+  --data-gradient: linear-gradient(90deg, #F87171, #FBBF24 50%, #34D399);
     --header: rgba(12, 16, 23, .9);
     --shadow: 0 20px 60px rgba(0, 0, 0, .32);
-    --shadow-soft: 0 8px 22px rgba(0, 0, 0, .18);
+  --shadow-soft: 0 8px 22px rgba(0, 0, 0, .18);
+  --panel-gradient: linear-gradient(145deg, rgba(18, 24, 36, .96) 0%, rgba(12, 16, 23, .92) 52%, rgba(22, 16, 24, .9) 100%);
   }
 }
 
@@ -67,7 +79,9 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, .08) 0%, rgba(14, 165, 233, .04) 38%, rgba(249, 115, 22, .06) 100%),
+    var(--bg);
   color: var(--text);
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   font-size: 15px;
@@ -135,7 +149,7 @@ select:focus-visible,
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2) 55%, var(--accent-3));
   color: var(--on-primary);
   box-shadow: var(--shadow-soft);
 }
@@ -193,7 +207,7 @@ select:focus-visible,
 }
 
 .app-nav a.active {
-  background: var(--primary);
+  background: linear-gradient(120deg, var(--accent-1), var(--accent-2) 60%, var(--accent-3));
   color: var(--on-primary);
 }
 
@@ -235,7 +249,7 @@ select:focus-visible,
   height: 40px;
   padding: 0 16px;
   border-radius: 999px;
-  background: var(--primary);
+  background: linear-gradient(120deg, var(--accent-1), var(--accent-2) 58%, var(--accent-3));
   border-color: transparent;
   color: var(--on-primary);
   font-size: 14px;
@@ -256,6 +270,59 @@ select:focus-visible,
 
 .page {
   padding: 26px 0 64px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 17px 15px;
+  border: 1px solid color-mix(in srgb, var(--outline) 68%, transparent);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--metric-color), color-mix(in srgb, var(--metric-color) 18%, transparent));
+}
+
+.metric-card span,
+.metric-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.metric-card strong {
+  display: block;
+  margin: 6px 0 4px;
+  color: var(--text);
+  font-size: 23px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card small {
+  font-weight: 500;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .loading-state {
@@ -418,9 +485,19 @@ select:focus-visible,
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--outline) 70%, transparent);
   border-radius: 22px;
-  background: var(--surface);
+  background: var(--panel-gradient);
   box-shadow: var(--shadow-soft);
 }
+
+.chart-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2) 52%, var(--accent-3));
+}
+
+.panel { position: relative; }
 
 .table-scroll {
   overflow: auto;
@@ -536,7 +613,7 @@ select:focus-visible,
   min-width: 54px;
   padding: 6px 8px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--score-color, var(--primary)) 13%, transparent);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--score-color, var(--primary)) 18%, transparent), color-mix(in srgb, var(--score-color, var(--primary)) 6%, transparent));
   color: var(--score-color, var(--primary));
   font-size: 14px;
   font-weight: 750;
@@ -677,7 +754,117 @@ select:focus-visible,
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 78%, transparent);
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2) 62%, var(--accent-3));
+}
+
+.distribution-list {
+  display: grid;
+  gap: 10px;
+}
+
+.distribution-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 10px;
+}
+
+.distribution-row > span:first-child,
+.distribution-name {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-row strong {
+  color: var(--text);
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.distribution-bar {
+  display: block;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-highest) 72%, transparent);
+}
+
+.distribution-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2) 55%, var(--accent-3));
+  animation: growBar .5s ease both;
+}
+
+@keyframes growBar {
+  from { transform: scaleX(0); transform-origin: left; opacity: .2; }
+  to { transform: scaleX(1); transform-origin: left; opacity: 1; }
+}
+
+.chart-empty {
+  display: grid;
+  min-height: 160px;
+  place-items: center;
+  color: var(--muted);
+}
+
+.scatter-wrap,
+.radar-wrap {
+  display: grid;
+  width: 100%;
+}
+
+.scatter-wrap svg,
+.radar-wrap svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.scatter-label,
+.radar-label {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.radar-value {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.scatter-hit {
+  cursor: pointer;
+}
+
+.scatter-hit:hover {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.radar-panel {
+  margin-bottom: 18px;
+}
+
+.radar-summary {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.radar-summary strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--accent-1);
+  font-size: 16px;
 }
 
 .news-item {
@@ -1029,7 +1216,9 @@ select:focus-visible,
   width: var(--score-ratio, 0%);
   height: 100%;
   border-radius: 999px;
-  background: var(--score-color, var(--primary));
+  background: var(--data-gradient);
+  background-size: calc(100% / max(var(--score-ratio-number, 1), .001));
+  transition: width .35s ease;
 }
 
 .error-state {
@@ -1114,6 +1303,18 @@ select:focus-visible,
     min-width: 0;
   }
 
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .distribution-row {
+    grid-template-columns: 60px minmax(0, 1fr) 32px;
+  }
+
   .table-scroll {
     max-height: none;
   }
@@ -1161,6 +1362,8 @@ select:focus-visible,
   .view-header h1 { font-size: 22px; }
   .download-button { width: 40px; padding: 0; }
   .tier-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: 1fr; }
+  .metric-card strong { font-size: 21px; }
   .score-row {
     grid-template-columns: minmax(0, 1fr) 62px 52px;
   }

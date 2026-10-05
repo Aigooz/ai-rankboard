@@ -56,6 +56,7 @@ const state = {
   sort: "rank",
   vendor: "",
   license: "",
+  scatterMetric: "overall",
 };
 
 const app = document.getElementById("app");
@@ -283,6 +284,7 @@ function leaderboardTemplate() {
   }
   const entries = filteredEntries();
   const generated = formatDate(state.snapshot.generatedAt);
+  const overview = leaderboardOverview();
 
   return `
     <div class="view-header">
@@ -291,6 +293,39 @@ function leaderboardTemplate() {
         <p>按能力、价格和发布状态对比 ${formatNumber(entries.length)} 个模型</p>
       </div>
       <div class="freshness">最新快照<strong>${generated}</strong></div>
+    </div>
+    <div class="metric-grid">
+      ${overview.cards.map((item) => `
+        <article class="metric-card" style="--metric-color:${item.color}">
+          <span>${item.label}</span>
+          <strong>${item.value}</strong>
+          <small>${item.detail}</small>
+        </article>
+      `).join("")}
+    </div>
+    <div class="insight-grid">
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>价格分布</h2>
+            <p class="panel-sub">按综合榜混合价分层</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${priceDistribution(overview.priced)}
+        </div>
+      </section>
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>厂商集中度</h2>
+            <p class="panel-sub">上榜模型数量前 8 名</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${vendorDistribution(overview.vendorCounts)}
+        </div>
+      </section>
     </div>
     <div class="dimension-tabs" role="tablist" aria-label="榜单维度">
       ${DIMENSIONS.map((dimension) => `
@@ -340,6 +375,91 @@ function leaderboardTemplate() {
         </table>
       </div>
       ${entries.length ? "" : `<div class="empty-state">没有符合条件的模型。</div>`}
+    </div>
+  `;
+}
+
+function leaderboardOverview() {
+  const entries = state.snapshot.entriesByBoard.overall || [];
+  const scored = entries.filter((entry) => entry.score != null);
+  const priced = entries.filter((entry) => entry.score != null && blendedPrice(entry) > 0);
+  const prices = priced.map((entry) => blendedPrice(entry)).sort((a, b) => a - b);
+  const averageScore = scored.length ? scored.reduce((total, entry) => total + entry.score, 0) / scored.length : 0;
+  const medianPrice = percentile(prices, .5);
+  const latestDate = state.snapshot.generatedAt ? new Date(state.snapshot.generatedAt) : new Date();
+  const cutoff = new Date(latestDate);
+  cutoff.setDate(cutoff.getDate() - 30);
+  const newCount = entries.filter((entry) => {
+    const date = new Date(entry.releaseDate || "");
+    return !Number.isNaN(date.getTime()) && date >= cutoff;
+  }).length;
+  const vendorCounts = Object.entries(
+    entries.reduce((counts, entry) => {
+      const vendor = entry.vendor || "未知厂商";
+      counts[vendor] = (counts[vendor] || 0) + 1;
+      return counts;
+    }, {}),
+  ).sort((a, b) => b[1] - a[1]);
+
+  return {
+    priced,
+    vendorCounts,
+    cards: [
+      { label: "模型样本", value: formatNumber(entries.length), detail: `9 个榜单维度`, color: "#0EA5E9" },
+      { label: "平均能力", value: averageScore.toFixed(1), detail: `${formatNumber(scored.length)} 个已评分`, color: "#22C55E" },
+      { label: "混合价中位数", value: formatPrice(medianPrice), detail: "输入 ×3 + 输出 ÷4", color: "#F59E0B" },
+      { label: "30 天上新", value: formatNumber(newCount), detail: "以快照日期为基准", color: "#EC4899" },
+    ],
+  };
+}
+
+function percentile(sortedValues, ratio) {
+  if (!sortedValues.length) return null;
+  const position = (sortedValues.length - 1) * ratio;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sortedValues[lower];
+  return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (position - lower);
+}
+
+function priceDistribution(entries) {
+  const bands = [
+    { label: "免费", test: (price) => price === 0 },
+    { label: "≤¥1", test: (price) => price > 0 && price <= 1 },
+    { label: "¥1-5", test: (price) => price > 1 && price <= 5 },
+    { label: "¥5-20", test: (price) => price > 5 && price <= 20 },
+    { label: ">¥20", test: (price) => price > 20 },
+  ];
+  const priced = entries.filter((entry) => blendedPrice(entry) != null);
+  const max = Math.max(...bands.map((band) => priced.filter((entry) => band.test(blendedPrice(entry))).length), 1);
+  return `
+    <div class="distribution-list">
+      ${bands.map((band, index) => {
+        const count = priced.filter((entry) => band.test(blendedPrice(entry))).length;
+        return `
+          <div class="distribution-row">
+            <span>${band.label}</span>
+            <span class="distribution-bar"><i style="width:${Math.max((count / max) * 100, count ? 2 : 0)}%;--bar-delay:${index * 65}ms"></i></span>
+            <strong>${count}</strong>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function vendorDistribution(counts) {
+  const items = counts.slice(0, 8);
+  const max = Math.max(...items.map(([, count]) => count), 1);
+  return `
+    <div class="distribution-list">
+      ${items.map(([vendor, count], index) => `
+        <div class="distribution-row">
+          <span class="distribution-name" title="${escapeAttr(vendor)}">${escapeHtml(vendor)}</span>
+          <span class="distribution-bar"><i style="width:${Math.max((count / max) * 100, 4)}%;--bar-delay:${index * 55}ms"></i></span>
+          <strong>${count}</strong>
+        </div>
+      `).join("")}
     </div>
   `;
 }
@@ -476,6 +596,23 @@ function selectTemplate() {
       </div>
       <div class="freshness">样本规模<strong>${formatNumber(overallEntries.length)} 个模型</strong></div>
     </div>
+    <section class="panel chart-panel">
+      <div class="panel-head">
+        <div>
+          <h2>能力-价格全景</h2>
+          <p class="panel-sub">气泡越大响应越快 · 左上角性价比越高</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="dimension-tabs scatter-tabs">
+          ${["overall", "coding", "agent", "writing", "math", "speed"].map((slug) => {
+            const dimension = DIMENSIONS.find((item) => item.slug === slug);
+            return `<button class="chip ${slug === state.scatterMetric ? "active" : ""}" type="button" data-scatter-metric="${slug}">${dimension?.name || slug}</button>`;
+          }).join("")}
+        </div>
+        ${scatterChart(state.scatterMetric, overallEntries)}
+      </div>
+    </section>
     <div class="select-grid">
       <section class="panel">
         <div class="panel-head">
@@ -618,6 +755,124 @@ function bindSelect() {
       openModal(node.dataset.slug);
     });
   });
+  document.querySelectorAll("[data-scatter-metric]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.scatterMetric = node.dataset.scatterMetric;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-scatter-chart]").forEach((svg) => {
+    svg.addEventListener("click", (event) => {
+      const rect = svg.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width * 920;
+      const y = (event.clientY - rect.top) / rect.height * 330;
+      const nearest = [...svg.querySelectorAll(".scatter-hit")]
+        .map((hit) => ({
+          hit,
+          distance: Math.hypot(hit.cx.baseVal.value - x, hit.cy.baseVal.value - y),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      const slug = nearest?.hit.dataset.slug;
+      if (nearest && nearest.distance <= 28 && slug) {
+        location.hash = `#/model/${encodeURIComponent(slug)}`;
+        openModal(slug);
+      }
+    });
+  });
+}
+
+function scatterChart(metric, baseEntries) {
+  const boards = boardsForDimension(metric);
+  const scoreBySlug = new Map();
+  boards.forEach((board) => {
+    (state.snapshot.entriesByBoard[board.slug] || []).forEach((entry) => {
+      if (entry.score == null || Number.isNaN(entry.score)) return;
+      scoreBySlug.set(entry.slug, entry.score);
+    });
+  });
+  const points = baseEntries
+    .filter((entry) => entry.priceIn != null || entry.priceOut != null)
+    .map((entry) => {
+      const price = blendedPrice(entry);
+      const score = scoreBySlug.get(entry.slug);
+      return price != null && price > 0 && score != null ? { ...entry, price, score } : null;
+    })
+    .filter(Boolean);
+  if (points.length < 2) return `<div class="chart-empty">当前维度样本不足。</div>`;
+
+  const speedScores = new Map();
+  boardsForDimension("speed").forEach((board) => {
+    (state.snapshot.entriesByBoard[board.slug] || []).forEach((entry) => {
+      if (entry.score != null) speedScores.set(entry.slug, entry.score);
+    });
+  });
+  const speedValues = points.map((point) => speedScores.get(point.slug)).filter((value) => value != null);
+  const speedMin = Math.min(...(speedValues.length ? speedValues : [0]));
+  const speedMax = Math.max(...(speedValues.length ? speedValues : [1]));
+  const minLog = Math.log10(Math.min(...points.map((point) => point.price)));
+  const maxLog = Math.log10(Math.max(...points.map((point) => point.price)));
+  const plotLeft = 58;
+  const plotTop = 22;
+  const plotWidth = 842;
+  const plotHeight = 268;
+  const normalizeX = (price) => (Math.log10(price) - minLog) / Math.max(maxLog - minLog, .01);
+  const scoreMin = Math.floor(Math.min(...points.map((point) => point.score)) / 10) * 10;
+  const scoreMax = Math.max(Math.ceil(Math.max(...points.map((point) => point.score)) / 10) * 10, scoreMin + 10);
+  const normalizeY = (score) => 1 - (score - scoreMin) / (scoreMax - scoreMin);
+  const xFor = (price) => plotLeft + normalizeX(price) * plotWidth;
+  const yFor = (score) => plotTop + normalizeY(score) * plotHeight;
+  const gridValues = [-2, -1, 0, 1, 2, 3, 4].filter((decade) => decade >= minLog - .01 && decade <= maxLog + .01);
+  const labels = { [-2]: "¥0.01", [-1]: "¥0.1", 0: "¥1", 1: "¥10", 2: "¥100", 3: "¥1000", 4: "¥1万" };
+  const scoreLines = [scoreMin, (scoreMin + scoreMax) / 2, scoreMax];
+
+  return `
+    <div class="scatter-wrap">
+      <svg viewBox="0 0 920 330" role="img" aria-label="能力价格散点图" data-scatter-chart>
+        <defs>
+          <linearGradient id="scatter-bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#6366F1" stop-opacity=".09"/>
+            <stop offset="52%" stop-color="#0EA5E9" stop-opacity=".05"/>
+            <stop offset="100%" stop-color="#F97316" stop-opacity=".08"/>
+          </linearGradient>
+          <linearGradient id="scatter-axis" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#6366F1" stop-opacity=".65"/>
+            <stop offset="100%" stop-color="#0EA5E9" stop-opacity=".65"/>
+          </linearGradient>
+        </defs>
+        <rect x="${plotLeft}" y="${plotTop}" width="${plotWidth}" height="${plotHeight}" rx="18" fill="url(#scatter-bg)"/>
+        ${scoreLines.map((score) => `
+          <line x1="${plotLeft}" y1="${yFor(score)}" x2="${plotLeft + plotWidth}" y2="${yFor(score)}" stroke="currentColor" stroke-opacity=".08"/>
+          <text x="${plotLeft - 10}" y="${yFor(score) + 4}" text-anchor="end" class="scatter-label">${score.toFixed(0)}</text>
+        `).join("")}
+        ${gridValues.map((decade) => {
+          const ratio = Math.min(Math.max((decade - minLog) / Math.max(maxLog - minLog, .01), 0), 1);
+          return `
+            <line x1="${plotLeft + ratio * plotWidth}" y1="${plotTop}" x2="${plotLeft + ratio * plotWidth}" y2="${plotTop + plotHeight}" stroke="currentColor" stroke-opacity=".07"/>
+            <text x="${plotLeft + ratio * plotWidth}" y="${plotTop + plotHeight + 20}" text-anchor="middle" class="scatter-label">${labels[decade]}</text>
+          `;
+        }).join("")}
+        <line x1="${plotLeft}" y1="${plotTop + plotHeight}" x2="${plotLeft + plotWidth}" y2="${plotTop + plotHeight}" stroke="url(#scatter-axis)" stroke-width="1.6"/>
+        ${points.map((point) => {
+          const x = plotLeft + normalizeX(point.price) * plotWidth;
+          const y = plotTop + normalizeY(point.score) * plotHeight;
+          const speed = speedScores.get(point.slug);
+          const speedRatio = speedValues.length && speed != null ? Math.min(Math.max((speed - speedMin) / Math.max(speedMax - speedMin, .01), 0), 1) : .35;
+          const radius = 4 + speedRatio * 6;
+          const color = scoreColor(point.score);
+          const label = `${point.displayName} · ${metricLabel(metric)} ${point.score.toFixed(1)} · ${formatPrice(point.price)}`;
+          return `
+            <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(radius * 1.8).toFixed(1)}" fill="${color}" opacity=".12"/>
+            <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${radius.toFixed(1)}" fill="${color}" fill-opacity=".86"/>
+            <circle class="scatter-hit" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="rgba(0,0,0,0)" pointer-events="all" data-slug="${escapeAttr(point.slug)}"><title>${escapeHtml(label)}</title></circle>
+          `;
+        }).join("")}
+      </svg>
+    </div>
+  `;
+}
+
+function metricLabel(slug) {
+  return DIMENSIONS.find((dimension) => dimension.slug === slug)?.name || "能力";
 }
 
 function bindModelRows(allowEmptySlug = false) {
@@ -658,6 +913,8 @@ function closeModal() {
 function detailTemplate({ model, scores }) {
   const overall = scores.find((score) => score.boardSlug === "overall");
   const bestRank = scores.length ? Math.min(...scores.map((score) => score.rank || 999)) : null;
+  const radarScores = selectRadarScores(scores);
+  const radar = radarScores.length >= 3 ? radarChart(radarScores) : "";
   return `
     <div class="detail-grid">
       <div class="detail-stat"><span>综合名次</span><strong>${overall ? `#${overall.rank}` : "—"}</strong></div>
@@ -676,11 +933,12 @@ function detailTemplate({ model, scores }) {
       ${escapeHtml(model.vendor || "未知厂商")}
       ${model.sourceUrl ? ` · <a href="${escapeAttr(model.sourceUrl)}" target="_blank" rel="noreferrer">官方来源</a>` : ""}
     </p>
+    ${radar}
     <h2 class="section-title">各榜成绩</h2>
     ${scores.length ? `
       <div class="score-list">
         ${scores.map((score) => `
-          <div class="score-row" style="--score-color:${scoreColor(score.score, score.scoreMin, score.scoreMax)};--score-ratio:${scoreRatio(score.score, score.scoreMin, score.scoreMax) * 100}%">
+          <div class="score-row" style="--score-color:${scoreColor(score.score, score.scoreMin, score.scoreMax)};--score-ratio:${scoreRatio(score.score, score.scoreMin, score.scoreMax) * 100}%;--score-ratio-number:${scoreRatio(score.score, score.scoreMin, score.scoreMax)}">
             <div class="score-row-name">${escapeHtml(score.boardName)}</div>
             <div class="score-row-rank">#${score.rank}</div>
             <div class="score-row-score">${score.score == null ? "—" : score.score.toFixed(1)}</div>
@@ -690,6 +948,122 @@ function detailTemplate({ model, scores }) {
       </div>
     ` : `<div class="muted">暂无跨榜成绩。</div>`}
   `;
+}
+
+function selectRadarScores(scores) {
+  const priority = ["overall", "coding", "writing", "multimodal", "agent", "math", "search", "speed", "value"];
+  const groups = scores
+    .filter((score) => score.score != null)
+    .reduce((groups, score) => {
+      const dimension = score.dimension || score.boardSlug;
+      const existing = groups.get(dimension);
+      if (!existing || radarRatio(score) > radarRatio(existing)) groups.set(dimension, score);
+      return groups;
+    }, new Map());
+  return Array.from(groups.values())
+    .sort((a, b) => {
+      const left = priority.indexOf(a.dimension || a.boardSlug);
+      const right = priority.indexOf(b.dimension || b.boardSlug);
+      if (left !== right) return (left < 0 ? 999 : left) - (right < 0 ? 999 : right);
+      return radarRatio(b) - radarRatio(a);
+    })
+    .slice(0, 6);
+}
+
+function radarRatio(score) {
+  return scoreRatio(score.score, score.scoreMin, score.scoreMax);
+}
+
+function radarChart(scores) {
+  const width = 620;
+  const height = 430;
+  const centerX = width / 2;
+  const centerY = height / 2 + 4;
+  const radius = 142;
+  const angleStep = (Math.PI * 2) / scores.length;
+  const startAngle = -Math.PI / 2;
+  const pointFor = (index, ratio) => {
+    const angle = startAngle + index * angleStep;
+    return {
+      x: centerX + Math.cos(angle) * radius * ratio,
+      y: centerY + Math.sin(angle) * radius * ratio,
+    };
+  };
+  const polygon = (ratio) => scores.map((_, index) => {
+    const point = pointFor(index, ratio);
+    return `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+  }).join(" ") + " Z";
+  const dataPoints = scores.map((score, index) => pointFor(index, Math.max(radarRatio(score), .12)));
+  const dataPath = dataPoints.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ") + " Z";
+  const average = Math.round(scores.reduce((total, score) => total + radarRatio(score), 0) / scores.length * 100);
+
+  return `
+    <section class="panel radar-panel">
+      <div class="panel-head">
+        <div>
+          <h2>能力雷达</h2>
+          <p class="panel-sub">榜单内归一化百分位</p>
+        </div>
+        <div class="radar-summary">
+          <strong>${scores.length} 维</strong>
+          <span>均值 ${average}%</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="radar-wrap">
+          <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="模型能力雷达图">
+            <defs>
+              <linearGradient id="radar-fill" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#6366F1" stop-opacity=".42"/>
+                <stop offset="55%" stop-color="#0EA5E9" stop-opacity=".22"/>
+                <stop offset="100%" stop-color="#F97316" stop-opacity=".10"/>
+              </linearGradient>
+              <linearGradient id="radar-stroke" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#6366F1"/>
+                <stop offset="50%" stop-color="#0EA5E9"/>
+                <stop offset="100%" stop-color="#F97316"/>
+              </linearGradient>
+            </defs>
+            ${[.25, .5, .75, 1].map((ratio) => `
+              <path d="${polygon(ratio)}" fill="${ratio === 1 ? "transparent" : "currentColor"}" fill-opacity="${ratio === 1 ? 0 : .03}" stroke="currentColor" stroke-opacity="${ratio === 1 ? .14 : .08}"/>
+            `).join("")}
+            ${scores.map((_, index) => {
+              const point = pointFor(index, 1);
+              return `<line x1="${centerX}" y1="${centerY}" x2="${point.x}" y2="${point.y}" stroke="currentColor" stroke-opacity=".07"/>`;
+            }).join("")}
+            <path d="${dataPath}" fill="url(#radar-fill)" stroke="url(#radar-stroke)" stroke-width="2.4" stroke-linejoin="round"/>
+            ${dataPoints.map((point) => `
+              <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="5.4" fill="#fff"/>
+              <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.4" fill="url(#radar-stroke)"/>
+            `).join("")}
+            ${scores.map((score, index) => {
+              const angle = startAngle + index * angleStep;
+              const anchor = {
+                x: centerX + Math.cos(angle) * (radius + 42),
+                y: centerY + Math.sin(angle) * (radius + 34),
+              };
+              const label = axisLabel(score);
+              const value = `${Math.round(radarRatio(score) * 100)}% ${score.rank ? `#${score.rank}` : ""}`;
+              const anchorX = Math.cos(angle) < -.25 ? "end" : Math.cos(angle) > .25 ? "start" : "middle";
+              return `
+                <text x="${anchor.x}" y="${anchor.y - 4}" text-anchor="${anchorX}" class="radar-label">${escapeHtml(label)}</text>
+                <text x="${anchor.x}" y="${anchor.y + 18}" text-anchor="${anchorX}" class="radar-value">${escapeHtml(value)}</text>
+              `;
+            }).join("")}
+          </svg>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function axisLabel(score) {
+  const labels = {
+    overall: "综合", coding: "代码", writing: "写作", multimodal: "多模态",
+    agent: "Agent", search: "搜索", speed: "速度", value: "性价比", math: "数学",
+  };
+  const dimension = score.dimension || score.boardSlug;
+  return labels[dimension] || score.boardName?.split(" ")[0] || dimension;
 }
 
 function filteredEntries() {
@@ -728,6 +1102,11 @@ function boardsForDimension(dimension) {
   return state.snapshot.boards.filter((board) => board.dimension === dimension);
 }
 
+function findModel(slug) {
+  return Object.values(state.snapshot.entriesByBoard)
+    .some((entries) => entries.some((entry) => entry.slug === slug));
+}
+
 function modelDetail(slug) {
   const entries = Object.values(state.snapshot.entriesByBoard).flat();
   const firstEntry = entries.find((entry) => entry.slug === slug);
@@ -741,6 +1120,7 @@ function modelDetail(slug) {
     const boardScores = boardEntries.map((item) => item.score).filter((score) => score != null && !Number.isNaN(score));
     return [{
       boardSlug,
+      dimension: board?.dimension || boardSlug,
       boardName: board?.name || boardSlug,
       rank: entry.rank,
       score: entry.score,
