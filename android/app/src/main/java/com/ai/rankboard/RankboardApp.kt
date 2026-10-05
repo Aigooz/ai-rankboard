@@ -38,11 +38,20 @@ class RankboardApp : Application() {
     override fun onCreate() {
         super.onCreate()
         val settings = settingsStore.settings.value
-        if (settings.updateReminders) {
-            snapshotStore.scheduleDailyUpdate(
+        snapshotStore.scheduleDailyUpdate(
+            settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
+            settings.snapshotFrequency.days,
+        )
+
+        // WorkManager 会被系统合并或延后；打开 App 时补一次到期检查，保证数据尽早更新。
+        settingsScope.launch(Dispatchers.IO) {
+            snapshotStore.refreshIfDue(
                 settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
                 settings.snapshotFrequency.days,
             )
+        }
+
+        if (settings.updateReminders) {
             AppUpdateWorker.schedule(
                 this,
                 true,

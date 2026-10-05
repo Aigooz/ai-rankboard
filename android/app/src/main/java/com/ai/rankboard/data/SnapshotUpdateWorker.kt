@@ -22,10 +22,12 @@ class SnapshotUpdateWorker(
         val result = store.refresh(url)
         return when (result.status) {
             SnapshotUpdateStatus.UPDATED -> {
-                val addedNames = result.addedModels.mapNotNull { slug ->
-                    store.snapshot.models[slug]?.displayName
+                if (app.settingsStore.settings.value.updateReminders) {
+                    val addedNames = result.addedModels.mapNotNull { slug ->
+                        store.snapshot.models[slug]?.displayName
+                    }
+                    UpdateNotifier(context).notifyUpdated(store.snapshot.generatedAt, addedNames)
                 }
-                UpdateNotifier(context).notifyUpdated(store.snapshot.generatedAt, addedNames)
                 Result.success()
             }
             SnapshotUpdateStatus.ERROR -> Result.retry()

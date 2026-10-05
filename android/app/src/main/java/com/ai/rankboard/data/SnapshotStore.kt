@@ -13,6 +13,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -177,12 +182,30 @@ class SnapshotStore(private val context: Context) {
         val safeDays = intervalDays.coerceIn(1, 7)
         val request = PeriodicWorkRequestBuilder<SnapshotUpdateWorker>(safeDays.toLong(), TimeUnit.DAYS)
             .setInputData(androidx.work.Data.Builder().putString(SnapshotUpdateWorker.KEY_URL, url).build())
+            .setConstraints(
+                androidx.work.Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                    .build(),
+            )
+            .setBackoffCriteria(
+                androidx.work.BackoffPolicy.EXPONENTIAL,
+                15,
+                TimeUnit.MINUTES,
+            )
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             DAILY_UPDATE_WORK,
             ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
+    }
+
+    suspend fun refreshIfDue(url: String, intervalDays: Int = 1): SnapshotUpdateResult {
+        val generatedAt = _snapshot.value.generatedAt
+        if (isSnapshotFresh(generatedAt, intervalDays)) {
+            return SnapshotUpdateResult(SnapshotUpdateStatus.SKIPPED, "榜单快照未到检查周期")
+        }
+        return refresh(url)
     }
 
     fun setDailyUpdateEnabled(enabled: Boolean, url: String, intervalDays: Int = 1) {
@@ -199,5 +222,27 @@ class SnapshotStore(private val context: Context) {
         const val ASSET_SNAPSHOT_FILE = "leaderboards.json"
         const val ASSET_SNAPSHOT_HASH = "leaderboards.json.sha256"
         const val DAILY_UPDATE_WORK = "snapshot-daily-update"
+
+        fun isSnapshotFresh(
+            generatedAt: String?,
+            intervalDays: Int,
+            now: Instant = Instant.now(),
+        ): Boolean {
+            val generated = parseInstant(generatedAt) ?: return false
+            return Duration.between(generated, now).toHours() < intervalDays * 24
+        }
+
+        private fun parseInstant(value: String?): Instant? {
+            val text = value?.trim().orEmpty()
+            if (text.isBlank()) return null
+            return runCatching { Instant.parse(text) }
+                .recoverCatching {
+                    runCatching { OffsetDateTime.parse(text).toInstant() }
+                        .getOrElse {
+                            LocalDateTime.parse(text).toInstant(ZoneOffset.UTC)
+                        }
+                }
+                .getOrNull()
+        }
     }
 }

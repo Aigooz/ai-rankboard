@@ -198,9 +198,9 @@ fun SettingsScreen(
         }
     }
 
-    fun scheduleSnapshotUpdates(enabled: Boolean) {
+    fun scheduleSnapshotUpdates() {
         app.snapshotStore.setDailyUpdateEnabled(
-            enabled,
+            true,
             settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
             settings.snapshotFrequency.days,
         )
@@ -299,8 +299,8 @@ fun SettingsScreen(
                         value = remoteUrl,
                         onValueChange = { remoteUrl = it },
                         label = { Text("远端快照地址") },
-                        placeholder = { Text("https://example.com/leaderboards.json") },
-                        supportingText = { Text("系统会请求同一地址加 .sha256 校验数据完整性") },
+                        placeholder = { Text("留空使用默认远端快照") },
+                        supportingText = { Text("默认地址已内置；自定义后系统会请求同一地址加 .sha256 校验") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -316,7 +316,7 @@ fun SettingsScreen(
                             onClick = {
                                 val savedUrl = remoteUrl.trim()
                                 app.settingsStore.setSnapshotUrl(savedUrl)
-                                scheduleSnapshotUpdates(settings.updateReminders)
+                                scheduleSnapshotUpdates()
                                 snapshotMessage = if (savedUrl.isBlank()) "已清除远端地址" else "已保存远端地址"
                             },
                             enabled = remoteUrl.trim() != settings.snapshotUrl,
@@ -347,7 +347,7 @@ fun SettingsScreen(
                         selected = settings.snapshotFrequency,
                         onSelect = { frequency ->
                             app.settingsStore.setSnapshotFrequency(frequency)
-                            scheduleSnapshotUpdates(settings.updateReminders)
+                            scheduleSnapshotUpdates()
                         },
                     )
                     SwitchRow(
@@ -356,7 +356,7 @@ fun SettingsScreen(
                         checked = settings.updateReminders,
                         onCheckedChange = { enabled ->
                             app.settingsStore.setUpdateReminders(enabled)
-                            scheduleSnapshotUpdates(enabled)
+                            scheduleSnapshotUpdates()
                             AppUpdateWorker.schedule(
                                 app,
                                 enabled,
