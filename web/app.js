@@ -326,6 +326,17 @@ function leaderboardTemplate() {
           ${vendorDistribution(overview.vendorCounts)}
         </div>
       </section>
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>能力分布</h2>
+            <p class="panel-sub">综合榜分数按 20 分一段分层</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${scoreDistribution(overview.scored)}
+        </div>
+      </section>
     </div>
     <div class="dimension-tabs" role="tablist" aria-label="榜单维度">
       ${DIMENSIONS.map((dimension) => `
@@ -402,6 +413,7 @@ function leaderboardOverview() {
   ).sort((a, b) => b[1] - a[1]);
 
   return {
+    scored,
     priced,
     vendorCounts,
     cards: [
@@ -465,6 +477,7 @@ function vendorDistribution(counts) {
 }
 
 function tableRows(entries) {
+  const scoredCount = entries.filter((entry) => entry.score != null).length;
   return entries.map((entry, index) => {
     const price = blendedPrice(entry);
     const rank = entry.rank || index + 1;
@@ -483,13 +496,67 @@ function tableRows(entries) {
             </span>
           </div>
         </td>
-        <td><span class="score-pill" style="--score-color:${scoreColor(entry.score)}">${entry.score == null ? "—" : entry.score.toFixed(1)}</span></td>
+        <td class="score-cell">${scoreCell(entry, scoredCount)}</td>
         <td class="num">${formatPrice(price)}</td>
         <td class="num">${escapeHtml(entry.contextWindow || "—")}</td>
         <td class="num">${formatDate(entry.releaseDate)}</td>
       </tr>
     `;
   }).join("");
+}
+
+function scoreCell(entry, scoredCount) {
+  if (entry.score == null) {
+    return `
+      <span class="score-pill" style="--score-color:#5D6675">—</span>
+      <span class="score-meter" style="--score-ratio:0%"><i></i></span>
+    `;
+  }
+  const ratio = scoreRatio(entry.score, 0, 100) * 100;
+  const percentile = topPercentile(entry.rank, scoredCount);
+  return `
+    <span class="score-pill" style="--score-color:${scoreColor(entry.score)}">${entry.score.toFixed(1)}</span>
+    <span class="score-meter" style="--score-color:${scoreColor(entry.score)};--score-ratio:${ratio.toFixed(1)}%"><i></i></span>
+    ${percentile ? `<small>${percentile}</small>` : ""}
+  `;
+}
+
+function scoreMeter(score, minScore = 0, maxScore = 100, className = "") {
+  if (score == null) {
+    return `<span class="score-meter${className ? ` ${className}` : ""}" style="--score-ratio:0%"><i></i></span>`;
+  }
+  const ratio = scoreRatio(score, minScore, maxScore) * 100;
+  return `<span class="score-meter${className ? ` ${className}` : ""}" style="--score-color:${scoreColor(score, minScore, maxScore)};--score-ratio:${ratio.toFixed(1)}%"><i></i></span>`;
+}
+
+function topPercentile(rank, total) {
+  if (!rank || !total) return "";
+  const ratio = Math.min(Math.max(((rank - .5) / total) * 100, .1), 100);
+  return `前 ${ratio.toFixed(1)}%`;
+}
+
+function scoreDistribution(entries) {
+  const scored = entries.filter((entry) => entry.score != null);
+  const bands = [
+    { label: "0-20", value: 10 },
+    { label: "20-40", value: 30 },
+    { label: "40-60", value: 50 },
+    { label: "60-80", value: 70 },
+    { label: "80-100", value: 90 },
+  ];
+  const counts = bands.map((band) => scored.filter((entry) => entry.score >= band.value - 10 && entry.score < band.value + 10).length);
+  const max = Math.max(...counts, 1);
+  return `
+    <div class="distribution-list">
+      ${bands.map((band, index) => `
+        <div class="distribution-row">
+          <span>${band.label}</span>
+          <span class="distribution-bar"><i style="width:${Math.max((counts[index] / max) * 100, counts[index] ? 3 : 0)}%;--bar-delay:${index * 55}ms;--bar-color:${scoreColor(band.value)}"></i></span>
+          <strong>${counts[index]}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function trendsTemplate() {
@@ -630,6 +697,7 @@ function selectTemplate() {
                 <span class="selection-info">
                   <span class="selection-model">${escapeHtml(entry.displayName)}</span>
                   <span class="selection-meta">${escapeHtml(entry.vendor || "未知厂商")} · 能力 ${entry.score.toFixed(1)} · 综合 #${entry.rank || "—"}</span>
+                  ${scoreMeter(entry.score)}
                 </span>
                 <span class="selection-right">
                   <span class="selection-price">${formatPrice(blendedPrice(entry))}</span>
@@ -654,6 +722,7 @@ function selectTemplate() {
                 <div class="tier-label">${tier.label}</div>
                 <div class="tier-model">${tier.model ? `<button class="model-chip" type="button" data-slug="${escapeAttr(tier.model.slug)}">${escapeHtml(tier.model.displayName)}</button>` : "暂无"}</div>
                 <span class="tier-detail">${tier.model ? `能力 ${tier.model.score.toFixed(1)} · ${formatPrice(blendedPrice(tier.model))}` : ""}</span>
+                ${tier.model ? scoreMeter(tier.model.score) : ""}
               </div>
             `).join("")}
           </div>
@@ -679,6 +748,7 @@ function selectTemplate() {
                   <span class="score-pill" style="--score-color:${scoreColor(entry.score)}">${entry.score.toFixed(1)}</span>
                 </div>
                 <span class="recommend-detail">${escapeHtml(entry.vendor || "未知厂商")} · ${formatPrice(blendedPrice(entry))} · ${index === 0 ? "能力首选" : "省钱替代"}</span>
+                ${scoreMeter(entry.score)}
               `).join("")}
             </article>
           `).join("")}
@@ -702,7 +772,10 @@ function selectTemplate() {
                 <span class="selection-model">${escapeHtml(entry.displayName)}</span>
                 <span class="latest-meta">${escapeHtml(entry.vendor || "未知厂商")} · ${formatDate(entry.releaseDate)} · 综合 #${entry.rank || "—"}</span>
               </span>
-              <span class="latest-score">${entry.score == null ? "-" : entry.score.toFixed(1)}</span>
+              <span class="latest-score">
+                <strong>${entry.score == null ? "-" : entry.score.toFixed(1)}</strong>
+                ${scoreMeter(entry.score)}
+              </span>
             </button>
           `).join("")}
         </div>
@@ -913,12 +986,21 @@ function closeModal() {
 function detailTemplate({ model, scores }) {
   const overall = scores.find((score) => score.boardSlug === "overall");
   const bestRank = scores.length ? Math.min(...scores.map((score) => score.rank || 999)) : null;
+  const overallScoredCount = overall
+    ? (state.snapshot.entriesByBoard[overall.boardSlug] || []).filter((entry) => entry.score != null).length
+    : 0;
+  const boardScoreCounts = Object.fromEntries(
+    Object.entries(state.snapshot.entriesByBoard).map(([slug, entries]) => [
+      slug,
+      entries.filter((entry) => entry.score != null).length,
+    ]),
+  );
   const radarScores = selectRadarScores(scores);
   const radar = radarScores.length >= 3 ? radarChart(radarScores) : "";
   return `
     <div class="detail-grid">
-      <div class="detail-stat"><span>综合名次</span><strong>${overall ? `#${overall.rank}` : "—"}</strong></div>
-      <div class="detail-stat"><span>综合分数</span><strong>${overall?.score == null ? "—" : overall.score.toFixed(1)}</strong></div>
+      <div class="detail-stat"><span>综合名次</span><strong>${overall ? `#${overall.rank}` : "—"}</strong><small>${topPercentile(overall?.rank, overallScoredCount) || "—"}</small></div>
+      <div class="detail-stat"><span>综合分数</span><strong>${overall?.score == null ? "—" : overall.score.toFixed(1)}</strong>${scoreMeter(overall?.score)}</div>
       <div class="detail-stat"><span>混合价</span><strong>${formatPrice(blendedPrice(model))}</strong></div>
       <div class="detail-stat"><span>发布日期</span><strong>${formatDate(model.releaseDate)}</strong></div>
     </div>
@@ -940,7 +1022,7 @@ function detailTemplate({ model, scores }) {
         ${scores.map((score) => `
           <div class="score-row" style="--score-color:${scoreColor(score.score, score.scoreMin, score.scoreMax)};--score-ratio:${scoreRatio(score.score, score.scoreMin, score.scoreMax) * 100}%;--score-ratio-number:${scoreRatio(score.score, score.scoreMin, score.scoreMax)}">
             <div class="score-row-name">${escapeHtml(score.boardName)}</div>
-            <div class="score-row-rank">#${score.rank}</div>
+            <div class="score-row-rank"><strong>#${score.rank}</strong><span>${topPercentile(score.rank, boardScoreCounts[score.boardSlug])}</span></div>
             <div class="score-row-score">${score.score == null ? "—" : score.score.toFixed(1)}</div>
             <div class="score-bar"><span></span></div>
           </div>

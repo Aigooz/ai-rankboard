@@ -320,8 +320,8 @@ select:focus-visible,
 
 .insight-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
   margin-bottom: 16px;
 }
 
@@ -620,6 +620,48 @@ select:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
+.score-cell {
+  min-width: 124px;
+}
+
+.score-cell .score-pill {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 50px;
+  padding: 4px 8px;
+}
+
+.score-cell .score-meter {
+  margin-top: 6px;
+}
+
+.score-cell small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.score-meter {
+  display: block;
+  width: 100%;
+  min-width: 64px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-highest) 72%, transparent);
+}
+
+.score-meter i {
+  display: block;
+  width: var(--score-ratio, 0%);
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--score-color, var(--primary)) 58%, white 6%), var(--score-color, var(--primary)));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--score-color, var(--primary)) 34%, transparent);
+}
+
 .muted { color: var(--muted); }
 
 .empty-state {
@@ -798,7 +840,7 @@ select:focus-visible,
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent-1), var(--accent-2) 55%, var(--accent-3));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bar-color, var(--accent-1)) 70%, white 8%), var(--bar-color, var(--accent-1)));
   animation: growBar .5s ease both;
 }
 
@@ -911,6 +953,10 @@ select:focus-visible,
   min-width: 0;
 }
 
+.selection-info .score-meter {
+  margin-top: 7px;
+}
+
 .selection-model {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1018,6 +1064,10 @@ select:focus-visible,
   background: var(--surface-row);
 }
 
+.tier-item .score-meter {
+  margin-top: 8px;
+}
+
 .tier-label {
   color: var(--tertiary);
   font-size: 12px;
@@ -1050,6 +1100,14 @@ select:focus-visible,
   font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.latest-score strong {
+  display: block;
+}
+
+.latest-score .score-meter {
+  margin-top: 5px;
 }
 
 .modal {
@@ -1129,6 +1187,13 @@ select:focus-visible,
   overflow-wrap: anywhere;
 }
 
+.detail-stat small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .detail-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1193,6 +1258,17 @@ select:focus-visible,
   font-size: 13px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.score-row-rank strong {
+  display: block;
+  color: var(--text);
+}
+
+.score-row-rank span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
 }
 
 .score-row-score {
