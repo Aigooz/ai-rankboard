@@ -3,7 +3,7 @@ import CryptoKit
 
 @MainActor
 final class SnapshotStore: ObservableObject {
-    static let defaultRemoteURL = "https://raw.githubusercontent.com/Aigooz/ai-rankboard/main/android/app/src/main/assets/leaderboards.json"
+    static let defaultRemoteURL = "https://api.github.com/repos/Aigooz/ai-rankboard/contents/leaderboards.json?ref=main"
 
     @Published private(set) var snapshot: Snapshot = .empty
     @Published private(set) var isLoading = false
@@ -117,7 +117,7 @@ final class SnapshotStore: ObservableObject {
     }
 
     private func remoteHash(for url: URL) async throws -> String? {
-        guard let hashURL = URL(string: url.absoluteString + ".sha256") else { return nil }
+        guard let hashURL = hashURL(for: url) else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(for: request(for: hashURL))
             return String(data: data, encoding: .utf8)?
@@ -130,12 +130,21 @@ final class SnapshotStore: ObservableObject {
         }
     }
 
+    private func hashURL(for url: URL) -> URL? {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.path += ".sha256"
+        return components.url
+    }
+
     private func verify(_ data: Data, expectedHash: String) -> Bool {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() == expectedHash.lowercased()
     }
 
     private func request(for url: URL) -> URLRequest {
         var request = URLRequest(url: url)
+        request.setValue("application/vnd.github.raw+json", forHTTPHeaderField: "Accept")
         request.setValue("AI-Rankboard-iOS", forHTTPHeaderField: "User-Agent")
 
         let token = remoteTokenString

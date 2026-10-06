@@ -81,7 +81,7 @@ class SnapshotStore(private val context: Context) {
         return withContext(Dispatchers.IO) {
             try {
                 val jsonBytes = httpBytes(url)
-                val hashBytes = httpBytes("$url.sha256")
+                val hashBytes = httpBytes(hashUrl(url))
                 val expectedHash = parseHash(hashBytes.decodeToString())
                 if (!verify(jsonBytes, expectedHash)) {
                     throw IllegalStateException("snapshot checksum mismatch")
@@ -119,6 +119,7 @@ class SnapshotStore(private val context: Context) {
     private fun httpBytes(url: String): ByteArray {
         val request = Request.Builder()
             .url(url)
+            .header("Accept", "application/vnd.github.raw")
             .header("User-Agent", "AI-Rankboard/0.4")
             .build()
         client.newCall(request).execute().use { response ->
@@ -230,6 +231,16 @@ class SnapshotStore(private val context: Context) {
         ): Boolean {
             val generated = parseInstant(generatedAt) ?: return false
             return Duration.between(generated, now).toHours() < intervalDays * 24
+        }
+
+        fun hashUrl(url: String): String {
+            val marker = url.indexOf('#')
+            val fragment = if (marker >= 0) url.substring(marker) else ""
+            val withoutFragment = if (marker >= 0) url.substring(0, marker) else url
+            val queryMarker = withoutFragment.indexOf('?')
+            val query = if (queryMarker >= 0) withoutFragment.substring(queryMarker) else ""
+            val core = if (queryMarker >= 0) withoutFragment.substring(0, queryMarker) else withoutFragment
+            return "$core.sha256$query$fragment"
         }
 
         private fun parseInstant(value: String?): Instant? {

@@ -1,5 +1,7 @@
 const SNAPSHOT_URLS = [
+  "https://api.github.com/repos/Aigooz/ai-rankboard/contents/leaderboards.json?ref=main",
   "https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/leaderboards.json",
+  "https://raw.githubusercontent.com/Aigooz/ai-rankboard/main/leaderboards.json",
   "https://ghfast.top/https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/leaderboards.json",
 ];
 
@@ -104,7 +106,10 @@ async function loadSnapshot() {
   let lastError = null;
   for (const url of SNAPSHOT_URLS) {
     try {
-      const response = await fetch(url, { cache: "no-store" });
+      const response = await fetch(url, {
+        cache: "no-store",
+        headers: { Accept: "application/vnd.github.raw+json" },
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const snapshot = await response.json();
       if (snapshot?.schemaVersion !== 3 || !snapshot.entriesByBoard) throw new Error("快照格式不支持");
