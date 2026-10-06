@@ -62,13 +62,13 @@ class RelayModelClient(
         .readTimeout(30, TimeUnit.SECONDS)
         .build(),
 ) {
-    suspend fun fetchModels(url: String, apiKey: String): List<RelayRemoteModel> =
+    suspend fun fetchModels(url: String): List<RelayRemoteModel> =
         withContext(Dispatchers.IO) {
             val endpoints = endpointCandidates(url)
             var lastError: Exception? = null
             for (endpoint in endpoints) {
                 try {
-                    val models = execute(endpoint, apiKey)
+                    val models = execute(endpoint)
                     if (models.isNotEmpty()) return@withContext models
                     lastError = IllegalStateException("接口返回成功，但没有找到模型列表")
                 } catch (error: Exception) {
@@ -78,21 +78,15 @@ class RelayModelClient(
             throw lastError ?: IllegalStateException("无法读取模型列表")
         }
 
-    private fun execute(url: String, apiKey: String): List<RelayRemoteModel> {
+    private fun execute(url: String): List<RelayRemoteModel> {
         val builder = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
             .header("User-Agent", "AI-Rankboard/1.0")
-        if (apiKey.isNotBlank()) {
-            builder.header(
-                "Authorization",
-                if (apiKey.startsWith("Bearer ", ignoreCase = true)) apiKey else "Bearer $apiKey",
-            )
-        }
 
         client.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("HTTP ${response.code}，请确认地址和访问密钥")
+                throw IllegalStateException("HTTP ${response.code}，请确认地址是否可访问")
             }
             val body = response.body?.string().orEmpty()
             return parseModels(body).ifEmpty {

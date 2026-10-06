@@ -1,8 +1,7 @@
 package com.ai.rankboard.data
 
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,14 +29,8 @@ data class AppSettings(
     val snapshotUrl: String = "",
     val appUpdateUrl: String = "",
     val relayUrl: String = "",
-    val relayApiKey: String = "",
-    val relayEndpoints: List<RelayEndpoint> = emptyList(),
+    val relayUrls: List<String> = emptyList(),
     val compareModels: List<String> = emptyList(),
-)
-
-data class RelayEndpoint(
-    val url: String = "",
-    val apiKey: String = "",
 )
 
 class SettingsStore(private val context: Context) {
@@ -93,37 +86,33 @@ class SettingsStore(private val context: Context) {
         _settings.value = _settings.value.copy(appUpdateUrl = normalized)
     }
 
-    fun setRelay(url: String, apiKey: String) {
+    fun setRelay(url: String) {
         val normalizedUrl = url.trim()
-        val normalizedKey = apiKey.trim()
-        val endpoints = (
-            listOf(RelayEndpoint(normalizedUrl, normalizedKey)) +
-                _settings.value.relayEndpoints.filterNot { it.url == normalizedUrl }
-            ).take(MAX_RELAY_ENDPOINTS)
+        val urls = (
+            listOf(normalizedUrl) +
+                _settings.value.relayUrls.filterNot { it == normalizedUrl }
+            ).take(MAX_RELAY_URLS)
         prefs.edit()
             .putString(KEY_RELAY_URL, normalizedUrl)
-            .putString(KEY_RELAY_API_KEY, normalizedKey)
-            .putString(KEY_RELAY_ENDPOINTS, Gson().toJson(endpoints))
+            .putString(KEY_RELAY_URLS, urls.joinToString("\n"))
             .apply()
         _settings.value = _settings.value.copy(
             relayUrl = normalizedUrl,
-            relayApiKey = normalizedKey,
-            relayEndpoints = endpoints,
+            relayUrls = urls,
         )
     }
 
-    fun removeRelayEndpoint(url: String) {
+    fun removeRelayUrl(url: String) {
         val normalizedUrl = url.trim()
-        val removed = _settings.value.relayEndpoints.firstOrNull { it.url == normalizedUrl }
-        val endpoints = _settings.value.relayEndpoints.filterNot { it.url == normalizedUrl }
+        val removed = _settings.value.relayUrls.firstOrNull { it == normalizedUrl }
+        val urls = _settings.value.relayUrls.filterNot { it == normalizedUrl }
         prefs.edit()
-            .putString(KEY_RELAY_ENDPOINTS, Gson().toJson(endpoints))
+            .putString(KEY_RELAY_URLS, urls.joinToString("\n"))
             .apply()
         val clearedCurrent = removed != null && _settings.value.relayUrl == normalizedUrl
         _settings.value = _settings.value.copy(
             relayUrl = if (clearedCurrent) "" else _settings.value.relayUrl,
-            relayApiKey = if (clearedCurrent) "" else _settings.value.relayApiKey,
-            relayEndpoints = endpoints,
+            relayUrls = urls,
         )
     }
 
@@ -140,18 +129,22 @@ class SettingsStore(private val context: Context) {
     private fun read(): AppSettings {
         val themeName = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name)
         val savedRelayUrl = prefs.getString(KEY_RELAY_URL, "").orEmpty().trim()
-        val savedRelayApiKey = prefs.getString(KEY_RELAY_API_KEY, "").orEmpty().trim()
-        val savedRelayEndpoints = readRelayEndpoints(
+        val savedRelayUrls = readRelayUrls(
+            prefs.getString(KEY_RELAY_URLS, null),
             prefs.getString(KEY_RELAY_ENDPOINTS, null),
         )
-        val relayEndpoints = if (
+        val relayUrls = if (
             savedRelayUrl.isNotBlank() &&
-            savedRelayEndpoints.none { it.url == savedRelayUrl }
+            savedRelayUrls.none { it == savedRelayUrl }
         ) {
-            listOf(RelayEndpoint(savedRelayUrl, savedRelayApiKey)) + savedRelayEndpoints
+            listOf(savedRelayUrl) + savedRelayUrls
         } else {
-            savedRelayEndpoints
-        }.take(MAX_RELAY_ENDPOINTS)
+            savedRelayUrls
+        }.take(MAX_RELAY_URLS)
+        prefs.edit()
+            .remove(KEY_RELAY_API_KEY)
+            .remove(KEY_RELAY_ENDPOINTS)
+            .apply()
 
         return AppSettings(
             themeMode = ThemeMode.entries.firstOrNull { it.name == themeName } ?: ThemeMode.SYSTEM,
@@ -166,8 +159,7 @@ class SettingsStore(private val context: Context) {
             snapshotUrl = prefs.getString(KEY_SNAPSHOT_URL, "").orEmpty().trim(),
             appUpdateUrl = prefs.getString(KEY_APP_UPDATE_URL, "").orEmpty().trim(),
             relayUrl = savedRelayUrl,
-            relayApiKey = savedRelayApiKey,
-            relayEndpoints = relayEndpoints,
+            relayUrls = relayUrls,
             compareModels = prefs.getString(KEY_COMPARE_MODELS, "").orEmpty()
                 .split(',')
                 .map { it.trim() }
@@ -189,20 +181,31 @@ class SettingsStore(private val context: Context) {
         private const val KEY_RELAY_URL = "relay_url"
         private const val KEY_RELAY_API_KEY = "relay_api_key"
         private const val KEY_RELAY_ENDPOINTS = "relay_endpoints"
+        private const val KEY_RELAY_URLS = "relay_urls"
         private const val KEY_COMPARE_MODELS = "compare_models"
-        private const val MAX_RELAY_ENDPOINTS = 10
+        private const val MAX_RELAY_URLS = 10
 
-        private fun readRelayEndpoints(json: String?): List<RelayEndpoint> {
-            if (json.isNullOrBlank()) return emptyList()
-            return runCatching {
-                Gson().fromJson<List<RelayEndpoint>>(
-                    json,
-                    TypeToken.getParameterized(List::class.java, RelayEndpoint::class.java).type,
-                )
-            }.getOrNull().orEmpty()
-                .filter { it.url.isNotBlank() }
-                .distinctBy { it.url }
-                .take(MAX_RELAY_ENDPOINTS)
+        private fun readRelayUrls(json: String?, legacyJson: String?): List<String> {
+            val currentUrls = json.orEmpty()
+                .split('\n')
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            val legacyUrls = if (legacyJson.isNullOrBlank()) {
+                emptyList()
+            } else {
+                runCatching {
+                    JsonParser.parseString(legacyJson).asJsonArray
+                        .mapNotNull { item ->
+                            item.takeIf { it.isJsonObject }?.asJsonObject
+                                ?.get("url")?.takeIf { it.isJsonPrimitive }?.asString
+                        }
+                }.getOrDefault(emptyList())
+            }
+            return (currentUrls + legacyUrls)
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .take(MAX_RELAY_URLS)
         }
     }
 }

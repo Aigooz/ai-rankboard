@@ -2,7 +2,6 @@ package com.ai.rankboard.ui.relay
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,13 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -89,60 +90,56 @@ fun RelayScreen(
                         )
                     },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (state.relayEndpoints.isNotEmpty()) {
-                item {
-                    Column {
-                        Text(
-                            "已保存地址",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 7.dp)
-                                .horizontalScroll(rememberScrollState()),
-                        ) {
-                            state.relayEndpoints.forEach { endpoint ->
-                                FilterChip(
-                                    selected = state.url == endpoint.url,
-                                    onClick = { vm.selectEndpoint(endpoint) },
-                                    label = {
-                                        Text(
-                                            relayEndpointLabel(endpoint.url),
-                                            maxLines = 1,
+                    trailingIcon = if (state.relayUrls.isNotEmpty()) {
+                        {
+                            Box {
+                                var savedUrlsExpanded by remember { mutableStateOf(false) }
+                                IconButton(onClick = { savedUrlsExpanded = true }) {
+                                    Icon(
+                                        Icons.Filled.ArrowDropDown,
+                                        contentDescription = "已保存地址",
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = savedUrlsExpanded,
+                                    onDismissRequest = { savedUrlsExpanded = false },
+                                ) {
+                                    state.relayUrls.forEach { url ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    relayEndpointLabel(url),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                IconButton(
+                                                    onClick = {
+                                                        savedUrlsExpanded = false
+                                                        vm.removeUrl(url)
+                                                    },
+                                                    modifier = Modifier.size(30.dp),
+                                                ) {
+                                                    Icon(
+                                                        Icons.Filled.Delete,
+                                                        contentDescription = "移除 ${relayEndpointLabel(url)}",
+                                                        modifier = Modifier.size(17.dp),
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                savedUrlsExpanded = false
+                                                vm.selectUrl(url)
+                                            },
                                         )
-                                    },
-                                    trailingIcon = {
-                                        IconButton(
-                                            onClick = { vm.removeEndpoint(endpoint) },
-                                            modifier = Modifier.size(24.dp),
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.Close,
-                                                contentDescription = "移除 ${relayEndpointLabel(endpoint.url)}",
-                                                modifier = Modifier.size(15.dp),
-                                            )
-                                        }
-                                    },
-                                )
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-            }
-            item {
-                OutlinedTextField(
-                    value = state.apiKey,
-                    onValueChange = vm::setApiKey,
-                    label = { Text("访问密钥（可选）") },
-                    placeholder = { Text("sk-...") },
-                    singleLine = true,
+                    } else {
+                        null
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

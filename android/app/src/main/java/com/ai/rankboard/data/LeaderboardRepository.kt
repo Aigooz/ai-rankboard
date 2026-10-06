@@ -24,8 +24,8 @@ class LeaderboardRepository(
     fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> =
         local.recentlyReleasedModels(days, limit)
 
-    suspend fun relayRanking(url: String, apiKey: String): RelayRanking {
-        val models = RelayModelClient().fetchModels(url, apiKey)
+    suspend fun relayRanking(url: String): RelayRanking {
+        val models = RelayModelClient().fetchModels(url)
         return RelayModelRanking.rank(models, snapshotStore?.snapshot ?: Snapshot())
             .copy(url = url.trim())
     }
