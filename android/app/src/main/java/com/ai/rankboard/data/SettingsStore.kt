@@ -1,6 +1,8 @@
 package com.ai.rankboard.data
 
 import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +31,13 @@ data class AppSettings(
     val appUpdateUrl: String = "",
     val relayUrl: String = "",
     val relayApiKey: String = "",
+    val relayEndpoints: List<RelayEndpoint> = emptyList(),
     val compareModels: List<String> = emptyList(),
+)
+
+data class RelayEndpoint(
+    val url: String = "",
+    val apiKey: String = "",
 )
 
 class SettingsStore(private val context: Context) {
@@ -88,11 +96,35 @@ class SettingsStore(private val context: Context) {
     fun setRelay(url: String, apiKey: String) {
         val normalizedUrl = url.trim()
         val normalizedKey = apiKey.trim()
+        val endpoints = (
+            listOf(RelayEndpoint(normalizedUrl, normalizedKey)) +
+                _settings.value.relayEndpoints.filterNot { it.url == normalizedUrl }
+            ).take(MAX_RELAY_ENDPOINTS)
         prefs.edit()
             .putString(KEY_RELAY_URL, normalizedUrl)
             .putString(KEY_RELAY_API_KEY, normalizedKey)
+            .putString(KEY_RELAY_ENDPOINTS, Gson().toJson(endpoints))
             .apply()
-        _settings.value = _settings.value.copy(relayUrl = normalizedUrl, relayApiKey = normalizedKey)
+        _settings.value = _settings.value.copy(
+            relayUrl = normalizedUrl,
+            relayApiKey = normalizedKey,
+            relayEndpoints = endpoints,
+        )
+    }
+
+    fun removeRelayEndpoint(url: String) {
+        val normalizedUrl = url.trim()
+        val removed = _settings.value.relayEndpoints.firstOrNull { it.url == normalizedUrl }
+        val endpoints = _settings.value.relayEndpoints.filterNot { it.url == normalizedUrl }
+        prefs.edit()
+            .putString(KEY_RELAY_ENDPOINTS, Gson().toJson(endpoints))
+            .apply()
+        val clearedCurrent = removed != null && _settings.value.relayUrl == normalizedUrl
+        _settings.value = _settings.value.copy(
+            relayUrl = if (clearedCurrent) "" else _settings.value.relayUrl,
+            relayApiKey = if (clearedCurrent) "" else _settings.value.relayApiKey,
+            relayEndpoints = endpoints,
+        )
     }
 
     fun setCompareModels(slugs: List<String>) {
@@ -107,6 +139,20 @@ class SettingsStore(private val context: Context) {
 
     private fun read(): AppSettings {
         val themeName = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name)
+        val savedRelayUrl = prefs.getString(KEY_RELAY_URL, "").orEmpty().trim()
+        val savedRelayApiKey = prefs.getString(KEY_RELAY_API_KEY, "").orEmpty().trim()
+        val savedRelayEndpoints = readRelayEndpoints(
+            prefs.getString(KEY_RELAY_ENDPOINTS, null),
+        )
+        val relayEndpoints = if (
+            savedRelayUrl.isNotBlank() &&
+            savedRelayEndpoints.none { it.url == savedRelayUrl }
+        ) {
+            listOf(RelayEndpoint(savedRelayUrl, savedRelayApiKey)) + savedRelayEndpoints
+        } else {
+            savedRelayEndpoints
+        }.take(MAX_RELAY_ENDPOINTS)
+
         return AppSettings(
             themeMode = ThemeMode.entries.firstOrNull { it.name == themeName } ?: ThemeMode.SYSTEM,
             dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, false),
@@ -119,8 +165,9 @@ class SettingsStore(private val context: Context) {
             } ?: SnapshotFrequency.DAILY,
             snapshotUrl = prefs.getString(KEY_SNAPSHOT_URL, "").orEmpty().trim(),
             appUpdateUrl = prefs.getString(KEY_APP_UPDATE_URL, "").orEmpty().trim(),
-            relayUrl = prefs.getString(KEY_RELAY_URL, "").orEmpty().trim(),
-            relayApiKey = prefs.getString(KEY_RELAY_API_KEY, "").orEmpty().trim(),
+            relayUrl = savedRelayUrl,
+            relayApiKey = savedRelayApiKey,
+            relayEndpoints = relayEndpoints,
             compareModels = prefs.getString(KEY_COMPARE_MODELS, "").orEmpty()
                 .split(',')
                 .map { it.trim() }
@@ -141,6 +188,21 @@ class SettingsStore(private val context: Context) {
         private const val KEY_APP_UPDATE_URL = "app_update_url"
         private const val KEY_RELAY_URL = "relay_url"
         private const val KEY_RELAY_API_KEY = "relay_api_key"
+        private const val KEY_RELAY_ENDPOINTS = "relay_endpoints"
         private const val KEY_COMPARE_MODELS = "compare_models"
+        private const val MAX_RELAY_ENDPOINTS = 10
+
+        private fun readRelayEndpoints(json: String?): List<RelayEndpoint> {
+            if (json.isNullOrBlank()) return emptyList()
+            return runCatching {
+                Gson().fromJson<List<RelayEndpoint>>(
+                    json,
+                    TypeToken.getParameterized(List::class.java, RelayEndpoint::class.java).type,
+                )
+            }.getOrNull().orEmpty()
+                .filter { it.url.isNotBlank() }
+                .distinctBy { it.url }
+                .take(MAX_RELAY_ENDPOINTS)
+        }
     }
 }

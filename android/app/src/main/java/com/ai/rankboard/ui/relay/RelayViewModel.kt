@@ -10,6 +10,7 @@ import com.ai.rankboard.data.LeaderboardRepository
 import com.ai.rankboard.data.RelayMatchQuality
 import com.ai.rankboard.data.RelayModelRank
 import com.ai.rankboard.data.RelayRanking
+import com.ai.rankboard.data.RelayEndpoint
 import com.ai.rankboard.data.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 data class RelayUiState(
     val url: String = "",
     val apiKey: String = "",
+    val relayEndpoints: List<RelayEndpoint> = emptyList(),
     val query: String = "",
     val filter: RelayFilter = RelayFilter.ALL,
     val ranking: RelayRanking? = null,
@@ -61,6 +63,7 @@ class RelayViewModel(
         RelayUiState(
             url = settingsStore.settings.value.relayUrl,
             apiKey = settingsStore.settings.value.relayApiKey,
+            relayEndpoints = settingsStore.settings.value.relayEndpoints,
         ),
     )
     val state: StateFlow<RelayUiState> = _state.asStateFlow()
@@ -75,6 +78,32 @@ class RelayViewModel(
 
     fun setApiKey(value: String) = _state.update { it.copy(apiKey = value) }
 
+    fun selectEndpoint(endpoint: RelayEndpoint) {
+        if (_state.value.loading) return
+        settingsStore.setRelay(endpoint.url, endpoint.apiKey)
+        _state.update {
+            it.copy(
+                url = endpoint.url,
+                apiKey = endpoint.apiKey,
+                relayEndpoints = settingsStore.settings.value.relayEndpoints,
+            )
+        }
+        fetch()
+    }
+
+    fun removeEndpoint(endpoint: RelayEndpoint) {
+        if (_state.value.loading) return
+        settingsStore.removeRelayEndpoint(endpoint.url)
+        _state.update {
+            val clearedCurrent = it.url == endpoint.url
+            it.copy(
+                url = if (clearedCurrent) "" else it.url,
+                apiKey = if (clearedCurrent) "" else it.apiKey,
+                relayEndpoints = settingsStore.settings.value.relayEndpoints,
+            )
+        }
+    }
+
     fun setQuery(value: String) = _state.update { it.copy(query = value) }
 
     fun setFilter(value: RelayFilter) = _state.update { it.copy(filter = value) }
@@ -88,7 +117,14 @@ class RelayViewModel(
                 repository.relayRanking(url, _state.value.apiKey.trim())
             }.onSuccess { ranking ->
                 settingsStore.setRelay(url, _state.value.apiKey.trim())
-                _state.update { it.copy(loading = false, ranking = ranking, error = "") }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        ranking = ranking,
+                        relayEndpoints = settingsStore.settings.value.relayEndpoints,
+                        error = "",
+                    )
+                }
             }.onFailure { error ->
                 _state.update {
                     it.copy(
