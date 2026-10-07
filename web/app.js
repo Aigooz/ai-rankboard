@@ -1,4 +1,5 @@
 const SNAPSHOT_URLS = [
+  "./leaderboards.json",
   "https://api.github.com/repos/Aigooz/ai-rankboard/contents/leaderboards.json?ref=main",
   "https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/leaderboards.json",
   "https://raw.githubusercontent.com/Aigooz/ai-rankboard/main/leaderboards.json",
@@ -13,6 +14,9 @@ const DIMENSIONS = [
   { slug: "multimodal", name: "多模态" },
   { slug: "search", name: "搜索" },
   { slug: "math", name: "数学" },
+  { slug: "reasoning", name: "推理" },
+  { slug: "instruction", name: "指令遵循" },
+  { slug: "analysis", name: "数据分析" },
   { slug: "speed", name: "速度" },
   { slug: "value", name: "性价比" },
 ];
@@ -141,6 +145,9 @@ function normalizeSnapshot(snapshot) {
       ...board,
       sourceId: board.source_id,
       scoreType: board.score_type,
+      kind: board.kind,
+      category: board.category,
+      release: board.release,
       lastSuccessAt: board.last_success_at,
       modelCount: board.model_count,
     })),
@@ -290,6 +297,7 @@ function leaderboardTemplate() {
   const entries = filteredEntries();
   const generated = formatDate(state.snapshot.generatedAt);
   const overview = leaderboardOverview();
+  const livebenchRelease = livebenchReleaseLabel();
 
   return `
     <div class="view-header">
@@ -297,7 +305,7 @@ function leaderboardTemplate() {
         <h1>模型排行</h1>
         <p>按能力、价格和发布状态对比 ${formatNumber(entries.length)} 个模型</p>
       </div>
-      <div class="freshness">最新快照<strong>${generated}</strong></div>
+      <div class="freshness">最新快照<strong>${generated}</strong>${livebenchRelease ? `<span>LiveBench release ${escapeHtml(livebenchRelease)}</span>` : ""}</div>
     </div>
     <div class="metric-grid">
       ${overview.cards.map((item) => `
@@ -343,6 +351,7 @@ function leaderboardTemplate() {
         </div>
       </section>
     </div>
+    ${livebenchMatrix()}
     <div class="dimension-tabs" role="tablist" aria-label="榜单维度">
       ${DIMENSIONS.map((dimension) => `
         <button class="chip ${dimension.slug === state.dimension ? "active" : ""}" type="button" data-dimension="${dimension.slug}">
@@ -428,6 +437,90 @@ function leaderboardOverview() {
       { label: "30 天上新", value: formatNumber(newCount), detail: "以快照日期为基准", color: "#EC4899" },
     ],
   };
+}
+
+const LIVEBENCH_MATRIX_COLUMNS = [
+  { slug: "livebench-overall", label: "综合" },
+  { slug: "livebench-reasoning", label: "推理" },
+  { slug: "livebench-coding", label: "代码" },
+  { slug: "livebench-agentic-coding", label: "Agent 代码" },
+  { slug: "livebench-math", label: "数学" },
+  { slug: "livebench-data-analysis", label: "数据分析" },
+  { slug: "livebench-writing", label: "语言" },
+  { slug: "livebench-instruction-following", label: "指令遵循" },
+];
+
+function isLiveBenchBoard(board) {
+  return board?.kind === "livebench" || board?.scoreType === "livebench";
+}
+
+function livebenchReleaseLabel() {
+  const release = state.snapshot.benchmarkMeta?.livebench?.release;
+  if (release) return release;
+  return state.snapshot.boards.find(isLiveBenchBoard)?.release || "";
+}
+
+function livebenchMatrix() {
+  const available = LIVEBENCH_MATRIX_COLUMNS
+    .map((column) => ({ ...column, board: state.snapshot.boards.find((board) => board.slug === column.slug) }))
+    .filter((column) => column.board && (state.snapshot.entriesByBoard[column.slug] || []).length);
+  const overall = available.find((column) => column.slug === "livebench-overall");
+  if (!overall || available.length < 2) return "";
+
+  const entries = (state.snapshot.entriesByBoard[overall.slug] || []).slice().sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 10);
+  const byBoard = Object.fromEntries(available.map((column) => [column.slug, new Map(
+    (state.snapshot.entriesByBoard[column.slug] || []).map((entry) => [entry.slug, entry]),
+  )]));
+  const ranges = Object.fromEntries(available.map((column) => {
+    const values = (state.snapshot.entriesByBoard[column.slug] || []).map((entry) => entry.score).filter((score) => score != null);
+    return [column.slug, { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 100 }];
+  }));
+  const release = livebenchReleaseLabel();
+  const updated = formatDate(state.snapshot.generatedAt);
+
+  return `
+    <section class="panel livebench-matrix-panel">
+      <div class="panel-head livebench-matrix-head">
+        <div>
+          <div class="eyebrow">LiveBench 多维评测</div>
+          <h2>能力矩阵</h2>
+          <p class="panel-sub">按综合榜前 10 名横向比较各能力，颜色越亮代表该分类内相对表现越强。</p>
+        </div>
+        <div class="benchmark-meta">
+          <strong>${escapeHtml(release || "—")}</strong>
+          <span>${available.length} 个分类 · 更新于 ${escapeHtml(updated)}</span>
+        </div>
+      </div>
+      <div class="matrix-scroll">
+        <table class="livebench-matrix">
+          <thead>
+            <tr>
+              <th>模型</th>
+              ${available.map((column) => `<th title="${escapeAttr(column.board.name)}">${escapeHtml(column.label)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${entries.map((entry) => `
+              <tr tabindex="0" data-slug="${escapeAttr(entry.slug)}">
+                <th scope="row">
+                  <span class="matrix-rank">#${entry.rank || "—"}</span>
+                  <span class="matrix-model">${escapeHtml(entry.displayName)}</span>
+                  <span class="matrix-vendor">${escapeHtml(entry.vendor || "未知厂商")}</span>
+                </th>
+                ${available.map((column) => {
+                  const cell = byBoard[column.slug].get(entry.slug);
+                  const range = ranges[column.slug];
+                  const ratio = cell?.score == null ? 0 : scoreRatio(cell.score, range.min, range.max);
+                  const color = cell?.score == null ? "#94A3B8" : scoreColor(cell.score, range.min, range.max);
+                  return `<td class="matrix-score" style="--matrix-color:${color};--matrix-ratio:${(ratio * 100).toFixed(1)}%">${cell?.score == null ? "—" : cell.score.toFixed(1)}<span></span></td>`;
+                }).join("")}
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
 }
 
 function percentile(sortedValues, ratio) {
@@ -1148,6 +1241,7 @@ function axisLabel(score) {
   const labels = {
     overall: "综合", coding: "代码", writing: "写作", multimodal: "多模态",
     agent: "Agent", search: "搜索", speed: "速度", value: "性价比", math: "数学",
+    reasoning: "推理", instruction: "指令遵循", analysis: "数据分析",
   };
   const dimension = score.dimension || score.boardSlug;
   return labels[dimension] || score.boardName?.split(" ")[0] || dimension;

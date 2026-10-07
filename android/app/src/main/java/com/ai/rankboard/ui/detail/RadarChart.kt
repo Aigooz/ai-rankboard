@@ -279,6 +279,7 @@ private fun axisLabel(score: ScoreDto): String = when (score.dimension) {
     "math" -> "数学"
     "analysis" -> "分析"
     "reasoning" -> "推理"
+    "instruction" -> "指令遵循"
     else -> score.boardName.substringBefore(" ")
 }
 

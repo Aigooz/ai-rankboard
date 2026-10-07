@@ -29,10 +29,14 @@ jobs:
         run: python -m app.publish ../leaderboards.json
       - name: Commit snapshot to the main repository
         run: |
+          cp leaderboards.json web/leaderboards.json
+          cp leaderboards.json.sha256 web/leaderboards.json.sha256
+          cp leaderboards.json android/app/src/main/assets/leaderboards.json
+          cp leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json.sha256
           git config user.name "snapshot-bot"
           git config user.email "ai-rankboard@local"
-          if [ -n "$(git status --porcelain -- leaderboards.json leaderboards.json.sha256)" ]; then
-            git add leaderboards.json leaderboards.json.sha256
+          if [ -n "$(git status --porcelain -- leaderboards.json leaderboards.json.sha256 web/leaderboards.json web/leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json android/app/src/main/assets/leaderboards.json.sha256)" ]; then
+            git add leaderboards.json leaderboards.json.sha256 web/leaderboards.json web/leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json android/app/src/main/assets/leaderboards.json.sha256
             git commit -m "chore: refresh leaderboard snapshot"
             git push origin HEAD:main
           else

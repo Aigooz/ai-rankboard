@@ -10,11 +10,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.ai.rankboard.R
-import java.io.File
 
 class AppUpdateNotifier(private val context: Context) {
 
-    fun notifyReady(info: AppUpdateInfo?) {
+    fun notifyAvailable(info: AppUpdateInfo?) {
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
@@ -38,12 +37,13 @@ class AppUpdateNotifier(private val context: Context) {
         val versionName = info?.versionName?.takeIf { it.isNotBlank() }
             ?: info?.versionCode?.toString()
             ?: context.getString(R.string.app_update_fallback_version)
-        val apkFile = File(context.cacheDir, AppUpdater.APK_FILE_PATH)
-        val installIntent = AppUpdater.installIntent(context, apkFile)
+        val openAppIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            ?: return
         val pendingIntent = PendingIntent.getActivity(
             context,
             REQUEST_CODE,
-            installIntent,
+            openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)

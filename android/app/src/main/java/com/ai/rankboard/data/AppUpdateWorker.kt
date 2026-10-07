@@ -27,14 +27,14 @@ class AppUpdateWorker(
             ?: BuildConfig.APP_UPDATE_URL
         if (url.isBlank()) return Result.success()
 
-        val result = AppUpdater.prepareUpdate(context, url)
+        val result = AppUpdater.checkUpdate(context, url)
         return when (result.status) {
-            AppUpdateStatus.DOWNLOADED -> {
+            AppUpdateStatus.AVAILABLE -> {
                 app.appUpdateMonitor.setAvailable(result.info)
-                AppUpdateNotifier(context).notifyReady(result.info)
+                AppUpdateNotifier(context).notifyAvailable(result.info)
                 Result.success()
             }
-            AppUpdateStatus.AVAILABLE -> Result.success()
+            AppUpdateStatus.DOWNLOADED -> Result.success()
             AppUpdateStatus.UP_TO_DATE -> Result.success()
             AppUpdateStatus.ERROR -> Result.retry()
         }

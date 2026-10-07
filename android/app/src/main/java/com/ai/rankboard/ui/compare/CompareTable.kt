@@ -351,6 +351,7 @@ internal fun dimensionLabel(dimension: String): String = when (dimension) {
     "math" -> "数学"
     "analysis" -> "数据分析"
     "reasoning" -> "推理"
+    "instruction" -> "指令遵循"
     else -> dimension.replaceFirstChar { it.uppercase(Locale.US) }
 }
 

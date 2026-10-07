@@ -11,6 +11,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .boards import BOARD_BY_SLUG, LIVEBENCH
 from .db import get_conn
 
 SCHEMA_VERSION = 3
@@ -37,7 +38,15 @@ def build_snapshot() -> dict:
     }
     with get_conn() as conn:
         boards = [
-            {**dict(row), "source_id": board_source.get(row["score_type"], "modelsage")}
+            {
+                **dict(row),
+                "source_id": board_source.get(row["score_type"], "modelsage"),
+                **{
+                    key: BOARD_BY_SLUG[row["slug"]][key]
+                    for key in ("kind", "category", "release")
+                    if row["slug"] in BOARD_BY_SLUG and key in BOARD_BY_SLUG[row["slug"]]
+                },
+            }
             for row in conn.execute(
                 """
                 SELECT slug, name, dimension, score_type, url, last_success_at,
@@ -145,6 +154,23 @@ def build_snapshot() -> dict:
         "boards": boards,
         "entriesByBoard": dict(entries),
         "models": models,
+        "benchmarkMeta": {
+            "livebench": {
+                "release": next(
+                    (board.get("release") for board in boards if board.get("kind") == LIVEBENCH),
+                    None,
+                ),
+                "categories": [
+                    {
+                        "slug": board["slug"],
+                        "name": board["name"],
+                        "category": board.get("category"),
+                    }
+                    for board in boards
+                    if board.get("kind") == LIVEBENCH
+                ],
+            },
+        },
     }
     if usage:
         snapshot["usageRanking"] = usage

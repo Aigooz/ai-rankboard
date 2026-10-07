@@ -1,6 +1,6 @@
 # AI 排行榜聚合（Android + FastAPI）
 
-聚合 modelsage.cn 各榜单（综合 / 代码 / Agent / 搜索 / 写作 / 视觉 / 图像 / 视频 / 速度 / 性价比），安卓端以静态快照启动，支持 WorkManager 后台更新快照。首页开放综合、代码、写作、多模态、智能体、搜索、速度、性价比维度，支持搜索、排序、筛选、下拉刷新、分页加载、模型对比、价格计算器、本地收藏与离线缓存。
+聚合 ModelSage、Arena、LiveBench 与 SWE-bench 榜单。Android 端以静态快照启动，支持 WorkManager 后台更新；首页按综合、代码、推理、指令遵循、写作、多模态、智能体、搜索、速度、性价比等维度浏览，支持搜索、排序、筛选、下拉刷新、分页加载、模型对比、价格计算器、本地收藏与离线缓存。网页端提供 LiveBench 多维能力矩阵，可直接横向比较模型在不同分类的得分。
 
 ## 目录结构
 
@@ -98,7 +98,7 @@ v0.7.0 起支持应用内自更新。流程是：设置页填写更新清单地�
 - schema v2 记录 `schemaVersion`、`generatedAt`、`sources`，每个榜单保留原始 URL 和最后抓取时间。
 - `backend/app/model_identity.py` 会把 “Claude 4.5 Sonnet” / “Claude Sonnet 4.5”、推理档位差异、fallback 标记等归一到稳定 canonical slug，避免跨榜漏配。
 - 真实 HTML 保存在 `backend/tests/fixtures/`，每次网站改版会由回归测试提前发现。
-- 后续可接入 Artificial Analysis、LMArena、OpenRouter、OpenCompass、HELM、LiveBench、SuperCLUE 等源；当前 `sources` 字段已为多源扩展预留。
+- 当前已接入 Artificial Analysis/ModelSage、LMArena、LiveBench 与 SWE-bench 数据；`sources` 字段可继续扩展 OpenRouter、OpenCompass、HELM、SuperCLUE 等源。
 
 核心结构：
 

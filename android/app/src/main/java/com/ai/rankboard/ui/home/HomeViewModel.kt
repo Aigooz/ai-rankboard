@@ -36,6 +36,8 @@ val HOME_TABS = listOf(
     HomeTab("speed", "速度榜"),
     HomeTab("value", "性价比榜"),
     HomeTab("math", "数学榜"),
+    HomeTab("reasoning", "推理榜"),
+    HomeTab("instruction", "指令遵循榜"),
     HomeTab("analysis", "数据分析榜"),
 )
 
@@ -380,13 +382,18 @@ private val FALLBACK_BOARDS = mapOf(
         BoardDto("coding", "ModelSage 代码能力", "coding", sourceId = "modelsage"),
         BoardDto("livebench-coding", "LiveBench 代码", "coding", sourceId = "livebench"),
     ),
-    "writing" to listOf(BoardDto("arena-text", "Arena 写作盲测", "writing")),
+    "writing" to listOf(
+        BoardDto("arena-text", "Arena 写作盲测", "writing"),
+        BoardDto("livebench-writing", "LiveBench 语言", "writing", sourceId = "livebench"),
+    ),
     "multimodal" to listOf(
         BoardDto("arena-vision", "Arena 视觉理解", "multimodal"),
         BoardDto("arena-image", "Arena 图像生成", "multimodal"),
         BoardDto("arena-video", "Arena 视频生成", "multimodal"),
     ),
     "math" to listOf(BoardDto("livebench-math", "LiveBench 数学", "math", sourceId = "livebench")),
+    "reasoning" to listOf(BoardDto("livebench-reasoning", "LiveBench 推理", "reasoning", sourceId = "livebench")),
+    "instruction" to listOf(BoardDto("livebench-instruction-following", "LiveBench 指令遵循", "instruction", sourceId = "livebench")),
     "analysis" to listOf(BoardDto("livebench-data-analysis", "LiveBench 数据分析", "analysis", sourceId = "livebench")),
 )
 

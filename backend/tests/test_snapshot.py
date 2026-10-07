@@ -59,6 +59,8 @@ class SnapshotContractTests(unittest.TestCase):
         self.assertTrue(snapshot["boards"])
         self.assertTrue(snapshot["entriesByBoard"])
         self.assertTrue(snapshot["models"])
+        self.assertIn("benchmarkMeta", snapshot)
+        self.assertIn("livebench", snapshot["benchmarkMeta"])
         for board in snapshot["boards"]:
             self.assertIn(board["slug"], snapshot["entriesByBoard"])
             self.assertEqual(len(snapshot["entriesByBoard"][board["slug"]]), board["model_count"])
