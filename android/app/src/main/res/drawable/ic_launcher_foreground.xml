@@ -1,35 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-  <path
-      android:fillColor="#FFFFFF"
-      android:pathData="M31,66h10a3,3 0,0 1,3 3v21a3,3 0,0 1,-3 3H31a3,3 0,0 1,-3 -3V69A3,3 0,0 1,31 66z" />
-  <path
-      android:fillColor="#22D3EE"
-      android:pathData="M49,55h10a3,3 0,0 1,3 3v32a3,3 0,0 1,-3 3H49a3,3 0,0 1,-3 -3V58A3,3 0,0 1,49 55z" />
-  <path
-      android:fillColor="#34D399"
-      android:pathData="M67,61h10a3,3 0,0 1,3 3v26a3,3 0,0 1,-3 3H67a3,3 0,0 1,-3 -3V64A3,3 0,0 1,67 61z" />
-  <path android:pathData="M74,20c1.9,6.2 4.6,8.9 10.8,10.8 -6.2,1.9 -8.9,4.6 -10.8,10.8 -1.9,-6.2 -4.6,-8.9 -10.8,-10.8C69.4,28.9 72.1,26.2 74,20z">
-    <aapt:attr name="android:fillColor">
-      <gradient
-          android:startX="63"
-          android:startY="20"
-          android:endX="85"
-          android:endY="42"
-          android:type="linear">
-        <item android:offset="0" android:color="#FDE68A" />
-        <item android:offset="1" android:color="#F97316" />
-      </gradient>
-    </aapt:attr>
-  </path>
-  <path
-      android:fillColor="#FFFFFF"
-      android:pathData="M35,22h7v14h-7z" />
-  <path
-      android:fillColor="#FFFFFF"
-      android:pathData="M31,36h15l-7.5,-9z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M27,60a4,4 0,0 1,4 -4h8a4,4 0,0 1,4 4v23h-16z" />
+    <path
+        android:fillColor="#63E6D2"
+        android:pathData="M46,48a4,4 0,0 1,4 -4h8a4,4 0,0 1,4 4v35h-16z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M65,36a4,4 0,0 1,4 -4h8a4,4 0,0 1,4 4v47h-16z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M24,86h60a2,2 0,0 1,0 4H24a2,2 0,0 1,0 -4z" />
+    <path
+        android:fillColor="#FFC857"
+        android:pathData="M76,17l3.2,8.8L88,29l-8.8,3.2L76,41l-3.2,-8.8L64,29l8.8,-3.2z" />
 </vector>
