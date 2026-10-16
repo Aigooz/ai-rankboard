@@ -1,151 +1,116 @@
-# AI 排行榜聚合（Android + FastAPI）
+# AI 排行榜
 
-聚合 ModelSage、Arena、LiveBench 与 SWE-bench 榜单。Android 端以静态快照启动，支持 WorkManager 后台更新；首页按综合、代码、推理、指令遵循、写作、多模态、智能体、搜索、速度、性价比等维度浏览，支持搜索、排序、筛选、下拉刷新、分页加载、模型对比、价格计算器、本地收藏与离线缓存。网页端提供 LiveBench 多维能力矩阵，可直接横向比较模型在不同分类的得分。
+[![CI](https://github.com/Aigooz/ai-rankboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Aigooz/ai-rankboard/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Aigooz/ai-rankboard)](https://github.com/Aigooz/ai-rankboard/releases/latest)
 
-## 目录结构
+聚合 ModelSage、Arena、LiveBench 与 SWE-bench 的 AI 模型榜单，提供模型详情、能力可视化、趋势、选型与对比。Android 离线优先，网页无需安装。
 
-- `backend/` Python FastAPI 后端：定时抓取 modelsage.cn 榜单页，解析入库 SQLite，暴露 REST API。
-- `android/` Kotlin + Jetpack Compose (Material 3) 安卓端：Retrofit 拉取 + Room 离线缓存/收藏。
-- `web/` 纯静态网页端：读取公开快照仓库，支持排行、趋势、选型与模型详情，由 GitHub Pages 自动发布。
+**[下载 Android 安装包](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)** · **[打开网页版](https://aigooz.github.io/ai-rankboard/)** · [全部版本](https://github.com/Aigooz/ai-rankboard/releases) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/Aigooz/ai-rankboard/issues)
 
-## 网页端
+## 下载与使用
 
-网页端不需要构建，直接运行：
+| 平台 | 入口与要求 |
+| --- | --- |
+| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.16** |
+| 网页 | [GitHub Pages](https://aigooz.github.io/ai-rankboard/)，现代浏览器直接使用 |
+| iOS | 提供 [源码](ios/) 和 [构建工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/ios.yml)，iOS 17+；产物未签名，不是可直接安装的正式版 |
 
-```powershell
-cd web
-python -m http.server 8000
+GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/app-release.apk)。网页及下载服务受网络环境影响。
+
+安装时选择 `app-release.apk`，不是 GitHub 自动生成的 **Source code (zip)**。首次安装需要 Android 的“允许安装未知应用”授权。官方新版沿用原签名，可覆盖升级，无需先卸载旧版。
+
+### 最近更新
+
+- **0.20.16**：更新中心默认连接官方源，无需填写地址；榜单同步与应用升级分别设置提醒，完善检查状态、通知权限及安装授权流程。
+- **0.20.15**：Android 新增国内/国外模型筛选，可与搜索、厂商、许可等条件组合。
+- **0.20.14**：更新 Android 自适应及单色启动图标。
+- **0.20.13**：接入 LiveBench 八类榜单，网页增加多维能力矩阵。
+
+完整历史见 [CHANGELOG](CHANGELOG.md)。
+
+## 功能与平台
+
+| 功能 | Android | 网页 |
+| --- | --- | --- |
+| 多维榜单、搜索与筛选 | 支持，含国内/国外归属筛选 | 支持，具体筛选项与 Android 有差异 |
+| 模型详情、成绩与价格 | 支持 | 支持 |
+| 能力雷达、分数可视化 | 支持 | 支持，含 LiveBench 能力矩阵 |
+| 趋势与选型 | 支持 | 支持 |
+| 独立模型对比、收藏与离线缓存 | 支持 | 暂无独立对比/收藏功能，需联网加载快照 |
+| 中转站地址历史 | 支持下拉选择，不保存访问密钥 | 暂未提供 |
+| 后台数据检查、应用升级 | 支持 | 无 APK 安装流程 |
+
+各平台独立实现，并非所有设置完全一致。不同评测的分数尺度、版本和时间不同，不应直接把跨榜分数当成同一标准。
+
+## 数据与更新
+
+当前后端注册 **23 个榜单**：ModelSage/Arena 相关 12 个、LiveBench 8 个、SWE-bench 3 个。保留来源链接、评测信息和抓取状态。数据来自公开来源，商用前请确认上游条款；不是各评测机构的官方客户端。
+
+**榜单数据更新**与**应用版本升级**是两条独立通道：
+
+- 主仓库的 `leaderboards.json` 为官方快照，Android、iOS 和网页默认读取它。[快照工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/snapshot.yml)计划每 6 小时抓取一次；GitHub 调度可能延迟，上游网站也未必每次有新数据。
+- Android 更新中心已内置官方地址。可立即同步榜单、检查应用版本，分别管理数据提醒和应用升级提醒，不需要手动填写 URL。
+- 应用前台约每 5 分钟检查版本，后台计划每 15 分钟检查。后台任务受系统省电、强行停止、网络等限制，**不是服务器实时推送**；系统通知需要通知权限，关闭提醒仍可手动检查。
+- 下载快照会校验 SHA-256 和结构；APK 会校验哈希、包名和版本，并交给 Android 系统安装器确认。网络或数据校验失败时保留可用缓存，不以失败内容替换它。
+
+“快照生成时间”“某榜单抓取时间”“上游评测版本”不是同一个概念。抓取成功不意味着上游成绩刚刚发布，不能保证榜单实时变化。
+
+## 常见问题
+
+**为什么以前在 GitHub 找不到安装包？** 之前安装包只放在独立更新通道，主仓库没有正式 Release。现在统一从本仓库 [Releases](https://github.com/Aigooz/ai-rankboard/releases) 下载；Actions 的未签名测试产物不作为正式安装包。
+
+**为什么没有更新通知？** 先在更新中心手动检查，确认通知总开关及分类权限；系统禁止后台运行或强行停止应用时，定时检查可能延后。关闭提醒不会关闭手动检查。已安装最新版时不会提示新版本。
+
+**数据日期没变化怎么办？** 查看来源和检查结果，手动同步后仍旧，可能是上游尚未更新或抓取失败。反馈时请提供版本、榜单名称、数据时间和来源链接。
+
+**iOS 的 IPA 能直接安装吗？** 不能。当前工作流输出未签名开发产物，需要自行完成 Apple 签名与分发，不是 App Store/TestFlight 发行版。
+
+## 开发
+
+```text
+android/              Kotlin + Jetpack Compose / Room / WorkManager
+ios/                  iOS 客户端与 XcodeGen 配置
+web/                  无需构建的静态网页
+backend/              FastAPI、来源解析、SQLite 与快照导出
+scripts/              正式发布准备与校验
+.github/workflows/    CI、网页部署、快照同步、iOS 构建、Android 发布
+docs/RELEASING.md     签名、兼容升级与正式发版说明
 ```
 
-推荐使用 Node 静态服务器或其他能返回 `text/javascript` 的本地服务器；Windows 自带的 `python -m http.server` 可能在部分系统上把 `.js` 标成 `text/plain`，导致浏览器拒绝模块脚本。生产环境由 `.github/workflows/pages.yml` 发布到 GitHub Pages，数据直接来自本仓库的快照文件，榜单快照更新后网页无需重新发版。
+### Android
 
-## 后端启动
-
-```bash
-cd backend
-pip install -r requirements.txt
-python run.py            # http://127.0.0.1:8000
-```
-
-首次启动会自动抓取全部 12 个榜单；之后每 6 小时自动刷新。手动刷新：
-
-```bash
-curl -X POST http://127.0.0.1:8000/v1/admin/refresh
-```
-
-主要接口：
-
-| 接口 | 说明 |
-|---|---|
-| `GET /v1/meta` | 各榜单健康状态与最后更新时间 |
-| `GET /v1/leaderboards` | 榜单列表（可按 dimension 过滤） |
-| `GET /v1/leaderboards/{slug}?sort=rank\|score\|updated&q=关键词&limit=50&offset=0` | 榜单条目（分页，返回 total） |
-| `GET /v1/models?q=` | 跨榜单模型搜索 |
-| `GET /v1/models/{slug}` | 模型详情（全部榜单成绩 + 价格） |
-
-## 安卓端
-
-用 Android Studio 打开 `android/` 目录即可构建运行（AGP 8.7 / Kotlin 2.0 / minSdk 26）。包名 `com.ai.rankboard`。
-项目已包含 Gradle Wrapper。首次构建：
+用 Android Studio 打开 `android/`。需要 JDK 17、Android SDK 35；包名 `com.ai.rankboard`，minSdk 26。
 
 ```powershell
 cd android
-.\gradlew.bat :app:testReleaseUnitTest :app:assembleRelease
+.\gradlew.bat :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
 ```
 
-当前版本已改为“离线优先”：不再需要电脑保持后端运行。APK 内置 `android/app/src/main/assets/leaderboards.json` 初始快照；可选远端更新见下文。
+没有本地发布密钥时构建的是未签名 release，不能拿它覆盖正式版。正式发布必须沿用原密钥，详见 [发布指南](docs/RELEASING.md)。Windows 中文路径出现测试 worker 异常时，复制到纯 ASCII 路径构建。
 
-## 远端快照更新
+### 网页
 
-后端导出 schema v3 快照：
+```powershell
+npx --yes http-server web -p 8080 -c-1
+```
 
-```bash
+访问 `http://127.0.0.1:8080`。也可使用能正确返回 JavaScript MIME 的其他静态服务器；部分 Windows 的 Python 静态服务器会将 `.js` 返回为 `text/plain`。推送 `main` 后由 [Deploy Web](https://github.com/Aigooz/ai-rankboard/actions/workflows/pages.yml) 自动部署。
+
+### 后端
+
+```powershell
 cd backend
-python -m app.snapshot ../android/app/src/main/assets/leaderboards.json
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -t .
+python run.py
 ```
 
-会同时生成：
+本地 API 地址 `http://127.0.0.1:8000`，接口文档 `/docs`。主要接口为 `/v1/meta`、`/v1/leaderboards`、`/v1/models`。对外部署前设置 `ADMIN_TOKEN`，管理刷新请求使用 `X-Admin-Token`，不要把默认空令牌配置暴露在公网。
 
-```text
-leaderboards.json
-leaderboards.json.sha256
-```
+导出快照：在 `backend/` 执行 `python -m app.snapshot ../leaderboards.json`，同时生成 SHA-256 文件。自动发布逻辑见 `.github/workflows/snapshot.yml`。
 
-仓库内置了数据自动更新通道：快照直接发布在本仓库根目录（`leaderboards.json`），Android / iOS / Web 的默认数据源会读取它。GitHub Actions（`.github/workflows/snapshot.yml`）每 6 小时抓取一次全部数据源，通过 `github.token` 自动提交新快照，不再依赖跨仓库 `SNAPSHOT_TOKEN`。WorkManager 按设定频率检查，下拉首页也会立即检查；更新需通过 SHA-256 校验且 `schemaVersion` 受支持。无网络、校验失败或解析失败时，继续使用内置快照或最后一次成功下载的快照。
+## 维护
 
-从 v0.4.0 起，后台 Worker 检测到新快照后会发送系统通知“AI 排行榜数据已更新”；v0.17.0 起通知会附带新增模型。首次启动时 App 会请求 Android 13+ 的通知权限；如果拒绝，后续可到系统设置里重新开启“通知”。点击通知会回到应用首页。
+[贡献指南](CONTRIBUTING.md) · [安全说明](SECURITY.md) · [正式发布与验证](docs/RELEASING.md) · [Actions 状态](https://github.com/Aigooz/ai-rankboard/actions)
 
-## 应用内自更新
-
-v0.7.0 起支持应用内自更新。流程是：设置页填写更新清单地址，App 下载新版 APK、校验 SHA-256、校验包名和版本号，然后调起系统安装器确认升级。因为 Android 系统限制，不能完全静默安装；首次安装需要在“允许安装未知应用”里授权一次。只要新版 APK 使用同一签名密钥，确认后会原位覆盖升级，不需要卸载。
-
-更新清单示例：
-
-```json
-{
-  "versionCode": 8,
-  "versionName": "0.7.1",
-  "apkUrl": "https://example.com/app-release.apk",
-  "sha256": "APK_FILE_SHA256",
-  "notes": "优化界面和更新流程"
-}
-```
-
-把这个文件和签名后的 APK 上传到任意 HTTPS 静态地址，然后在 App 设置页填入 `app-update.json` 地址即可。
-
-## 数据可信度与归一
-
-- schema v2 记录 `schemaVersion`、`generatedAt`、`sources`，每个榜单保留原始 URL 和最后抓取时间。
-- `backend/app/model_identity.py` 会把 “Claude 4.5 Sonnet” / “Claude Sonnet 4.5”、推理档位差异、fallback 标记等归一到稳定 canonical slug，避免跨榜漏配。
-- 真实 HTML 保存在 `backend/tests/fixtures/`，每次网站改版会由回归测试提前发现。
-- 当前已接入 Artificial Analysis/ModelSage、LMArena、LiveBench 与 SWE-bench 数据；`sources` 字段可继续扩展 OpenRouter、OpenCompass、HELM、SuperCLUE 等源。
-
-核心结构：
-
-```
-com/ai/rankboard/
-├── RankboardApp.kt        # Application + Retrofit/Room 初始化（API 地址在这里改）
-├── MainActivity.kt        # 导航宿主（home / model/{slug} / favorites）
-├── data/
-│   ├── Api.kt             # Retrofit 接口 + DTO
-│   ├── LocalDb.kt         # Room：离线缓存 + 收藏
-│   └── LeaderboardRepository.kt
-└── ui/
-    ├── home/              # 首页：四维度 Tab + 搜索 + 下拉刷新 + 分页
-    ├── detail/            # 模型详情：基础信息 / 各榜单成绩 / 价格 / 收藏
-    ├── favorites/         # 我的收藏：取消收藏
-    └── theme/             # Material 3 动态取色，自动适配深色模式
-```
-
-## 说明
-
-- 数据来源于 modelsage.cn 公开榜单页，仅作聚合展示，应用内会展示数据来源；抓取频率已压到最低（每 6 小时一次），商用前请确认目标站点的使用条款。
-- 榜单页改版时，解析器按表头文本映射列，有一定容错；某源失败不影响其他源，`/v1/meta` 可看到每个榜单的健康状态。
-
-## 正式发布
-
-1. 生成或替换 `android/release.keystore`，并在 `android/keystore.properties` 配置：
-
-   ```properties
-   storeFile=release.keystore
-   storePassword=...
-   keyAlias=...
-   keyPassword=...
-   ```
-
-2. 构建签名 release：
-
-   ```powershell
-   cd android
-   .\gradlew.bat clean :app:assembleRelease :app:testReleaseUnitTest
-   ```
-
-3. 校验签名：
-
-   ```powershell
-   <android-sdk>\build-tools\35.0.0\apksigner.bat verify --verbose --print-certs app\build\outputs\apk\release\app-release.apk
-   ```
-
-`keystore.properties`、`release.keystore`、`local.properties`、构建产物和 APK 都已加入 `.gitignore`，不要提交私钥。GitHub Actions 会在 `push`/`pull_request` 时执行后端单测、Android 单测和 release 构建，并上传未签名 APK artifact。
-
-> Windows 提示：如果源码路径包含中文导致 Gradle test worker/KSP 异常，可在同盘建立 ASCII 路径联接后从该路径构建，例如 `New-Item -ItemType Junction -Path D:\1Project\ai-rankboard -Target "D:\1Project\手机ai排行榜软件"`。注意：路径联接能解决编译，但 Gradle 会把项目目录还原为真实中文路径，`testReleaseUnitTest` 的 worker 仍会全部 ClassNotFoundException；跑单测需要把 `android/` 完整拷贝到纯 ASCII 目录（如 `D:\ai-rankboard-test`）后在该目录构建，首次可用 `tar -cf - --exclude=.gradle --exclude=build . | (cd /d/ai-rankboard-test && tar -xf -)` 同步。
+仓库未提供开源许可证授权声明；公开可见不等于自动获得任意复制或商用授权。第三方榜单数据权利归相应来源所有。

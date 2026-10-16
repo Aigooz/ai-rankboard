@@ -1,0 +1,94 @@
+name: Publish Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version already published to the signed update channel (e.g. 0.20.16)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-official-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test release validation
+        run: python -m unittest discover -s scripts/tests
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test and lint Android
+        run: ./gradlew testReleaseUnitTest lintRelease --stacktrace
+        working-directory: android
+      - name: Prepare official signed assets
+        run: python scripts/prepare_release.py --version "$RELEASE_VERSION" --output dist/release
+      - name: Verify APK identity and original signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "build-tools;35.0.0"
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          apk=dist/release/app-release.apk
+          "$tools/apksigner" verify --verbose --print-certs "$apk" | tee dist/signature.txt
+          grep -Fx 'Signer #1 certificate SHA-256 digest: 47093e6d34cce8f3ee449637cb36083f0bb205b0f36d4d156b3286469035942c' dist/signature.txt
+          "$tools/zipalign" -c -v 4 "$apk"
+          "$tools/aapt" dump badging "$apk" > dist/badging.txt
+          python - <<'PY'
+          import json, pathlib, re
+          manifest = json.loads(pathlib.Path('dist/release/app-update.json').read_text())
+          badging = pathlib.Path('dist/badging.txt').read_text()
+          match = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.M)
+          expected = ('com.ai.rankboard', str(manifest['versionCode']), manifest['versionName'])
+          if not match or match.groups() != expected:
+              raise SystemExit('APK package/version does not match official source and manifest')
+          PY
+      - name: Publish complete Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          if git rev-parse --verify "refs/tags/$tag" >/dev/null 2>&1; then
+            test "$(git rev-parse "$tag^{commit}")" = "$GITHUB_SHA" || { echo 'Tag points to another source revision'; exit 1; }
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > dist/releases.json
+          state=$(python -c 'import json,os; r=[r for r in json.load(open("dist/releases.json")) if r["tag_name"] == "v"+os.environ["RELEASE_VERSION"]]; print("absent" if not r else "draft" if r[0]["draft"] else "published")')
+          if [ "$state" = published ]; then
+            echo 'This version is already public; publish a new version instead of replacing it.'
+            exit 1
+          fi
+          if [ "$state" = absent ]; then
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "AI 排行榜 $RELEASE_VERSION" --notes-file dist/release/release-notes.md
+          fi
+          gh release upload "$tag" dist/release/app-release.apk dist/release/SHA256SUMS dist/release/app-update.json --clobber
+          gh release edit "$tag" --notes-file dist/release/release-notes.md --draft=false --latest
+      - name: Preserve validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation
+          path: |
+            android/app/build/reports/lint-results-release.*
+            android/app/build/reports/tests/testReleaseUnitTest/
+            dist/signature.txt
+            dist/badging.txt
+          if-no-files-found: ignore
