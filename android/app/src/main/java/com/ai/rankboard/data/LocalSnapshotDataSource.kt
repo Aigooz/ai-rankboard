@@ -1,7 +1,17 @@
 package com.ai.rankboard.data
 
-class LocalSnapshotDataSource(private val store: SnapshotStore) {
-    private val snapshot get() = store.snapshot
+class LocalSnapshotDataSource private constructor(
+    private val snapshotProvider: () -> Snapshot,
+    private val infoProvider: () -> SnapshotInfo,
+) {
+    constructor(store: SnapshotStore) : this({ store.snapshot }, { store.info() })
+
+    internal constructor(snapshot: Snapshot) : this({ snapshot }, {
+        SnapshotInfo(snapshot.generatedAt, snapshot.source?.id.orEmpty(),
+            snapshot.source?.name.orEmpty(), isDownloaded = false, verified = true)
+    })
+
+    private val snapshot get() = snapshotProvider()
 
     private fun EntryDto.withModelMetadata(): EntryDto {
         val model = snapshot.models[slug] ?: return this
@@ -22,7 +32,7 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
 
     fun news(): NewsDto? = snapshot.news
 
-    fun info(): SnapshotInfo = store.info()
+    fun info(): SnapshotInfo = infoProvider()
 
     fun boardsForDimension(dimension: String): List<BoardDto> =
         snapshot.boards.filter { it.dimension == dimension }
@@ -62,6 +72,7 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
         offset: Int,
         periodDimension: String? = null,
         period: String? = null,
+        region: ModelRegion = ModelRegion.ALL,
     ): EntriesResponse? {
         val board = snapshot.boards.firstOrNull { it.slug == boardSlug } ?: return null
         val baseEntries = snapshot.entriesByBoard[boardSlug].orEmpty()
@@ -89,6 +100,7 @@ class LocalSnapshotDataSource(private val store: SnapshotStore) {
             .filter { entry ->
                 license.isEmpty() || license.any { entry.matchesLicense(it) }
             }
+            .filter { entry -> region.matches(entry.vendor) }
         val sorted = sortEntries(entries, sort)
         return EntriesResponse(
             board = board,

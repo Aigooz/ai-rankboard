@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.EntryDto
+import com.ai.rankboard.data.ModelRegion
 import com.ai.rankboard.data.Periods
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.MetricTile
@@ -153,7 +154,12 @@ fun HomeScreen(
                 !state.loading && state.entries.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            if (state.offline) "无网络且无本地缓存，请联网后下拉刷新" else "暂无数据",
+                            when {
+                                state.offline -> "无网络且无本地缓存，请联网后下拉刷新"
+                                state.regionFilter != ModelRegion.ALL || state.vendorFilter.isNotEmpty() ||
+                                    state.licenseFilter.isNotEmpty() || state.query.isNotBlank() -> "没有符合筛选条件的模型"
+                                else -> "暂无数据"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -243,6 +249,7 @@ fun HomeScreen(
                 onSelectPeriod = vm::setPeriod,
                 onSelectVendor = vm::setVendorFilter,
                 onSelectLicense = vm::setLicenseFilter,
+                onSelectRegion = vm::setRegionFilter,
                 onClear = vm::clearValueFilters,
             )
         }
@@ -359,11 +366,12 @@ private fun LeaderboardOverview(
                     }
                 }
             }
-            if (state.recentModels.isNotEmpty()) {
+            val recentModels = state.recentModels.filter { state.regionFilter.matches(it.vendor) }
+            if (recentModels.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SectionHeader(title = "最近上新")
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(state.recentModels, key = { it.slug }) { entry ->
+                        items(recentModels, key = { it.slug }) { entry ->
                             RecentModelChip(
                                 entry = entry,
                                 onClick = { onOpenModel(entry.slug) },
@@ -583,6 +591,7 @@ private fun FilterSheet(
     onSelectPeriod: (String) -> Unit,
     onSelectVendor: (String) -> Unit,
     onSelectLicense: (String) -> Unit,
+    onSelectRegion: (ModelRegion) -> Unit,
     onClear: () -> Unit,
 ) {
     Column(
@@ -640,6 +649,15 @@ private fun FilterSheet(
                         label = { Text(board.name, maxLines = 1) },
                     )
                 }
+            }
+        }
+        FilterSection("模型归属") {
+            items(ModelRegion.entries, key = { it.name }) { region ->
+                FilterChip(
+                    selected = state.regionFilter == region,
+                    onClick = { onSelectRegion(region) },
+                    label = { Text(region.label, maxLines = 1) },
+                )
             }
         }
         if (state.vendorOptions.isNotEmpty()) {
@@ -707,7 +725,8 @@ private fun FilterSection(
 }
 
 private fun HomeUiState.activeFilterCount(): Int =
-    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size
+    listOfNotNull(sourceFilter).size + vendorFilter.size + licenseFilter.size +
+        if (regionFilter == ModelRegion.ALL) 0 else 1
 
 @Composable
 private fun ModelRow(

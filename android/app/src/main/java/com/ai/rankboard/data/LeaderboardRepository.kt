@@ -55,6 +55,7 @@ class LeaderboardRepository(
         offset: Int,
         periodDimension: String? = null,
         period: String? = null,
+        region: ModelRegion = ModelRegion.ALL,
     ): EntriesResponse? = local.page(
         boardSlug = boardSlug,
             sort = sort,
@@ -65,6 +66,7 @@ class LeaderboardRepository(
             offset = offset,
             periodDimension = periodDimension,
             period = period,
+            region = region,
         )
 
     suspend fun vendorOptions(

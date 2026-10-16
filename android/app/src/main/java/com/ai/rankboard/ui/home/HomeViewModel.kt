@@ -9,6 +9,7 @@ import com.ai.rankboard.RankboardApp
 import com.ai.rankboard.data.BoardDto
 import com.ai.rankboard.data.EntryDto
 import com.ai.rankboard.data.LeaderboardRepository
+import com.ai.rankboard.data.ModelRegion
 import com.ai.rankboard.data.PeriodOption
 import com.ai.rankboard.data.Periods
 import com.ai.rankboard.data.SnapshotInfo
@@ -54,6 +55,7 @@ data class HomeUiState(
     val vendorOptions: List<String> = emptyList(),
     val vendorFilter: Set<String> = emptySet(),
     val licenseFilter: Set<String> = emptySet(),
+    val regionFilter: ModelRegion = ModelRegion.ALL,
     val entries: List<EntryDto> = emptyList(),
     val total: Int = 0,
     val scoreMin: Double? = null,
@@ -77,7 +79,7 @@ class HomeViewModel(
 
     private var loadJob: Job? = null
     private var searchJob: Job? = null
-    private var loadKey: Pair<String, String>? = null
+    private var loadKey: Triple<String, String, ModelRegion>? = null
 
     init {
         _state.update { it.copy(snapshotInfo = repository.snapshotInfo()) }
@@ -163,14 +165,22 @@ class HomeViewModel(
         refresh(showLoading = true)
     }
 
+    fun setRegionFilter(value: ModelRegion) {
+        if (_state.value.regionFilter == value) return
+        _state.update { it.copy(regionFilter = value) }
+        refresh(showLoading = true)
+    }
+
     fun clearValueFilters() {
         val changed = _state.value.vendorFilter.isNotEmpty() ||
-            _state.value.licenseFilter.isNotEmpty()
+            _state.value.licenseFilter.isNotEmpty() ||
+            _state.value.regionFilter != ModelRegion.ALL
         if (!changed) return
         _state.update {
             it.copy(
                 vendorFilter = emptySet(),
                 licenseFilter = emptySet(),
+                regionFilter = ModelRegion.ALL,
             )
         }
         refresh(showLoading = true)
@@ -303,7 +313,7 @@ class HomeViewModel(
 
     private suspend fun fetchPage(boardSlug: String, reset: Boolean) {
         val s = _state.value
-        val key = boardSlug to s.query
+        val key = Triple(boardSlug, s.query, s.regionFilter)
         loadKey = key
         val offset = if (reset) 0 else s.entries.size
         val response = repository.page(
@@ -316,6 +326,7 @@ class HomeViewModel(
             offset = offset,
             periodDimension = s.tab.takeIf { it in Periods.supported },
             period = s.period,
+            region = s.regionFilter,
         )
         if (loadKey != key) return
         if (response != null) {
@@ -342,6 +353,7 @@ class HomeViewModel(
         } else {
             if (reset) {
                 val cached = runCatching { repository.cachedEntries(boardSlug) }.getOrDefault(emptyList())
+                    .filter { s.regionFilter.matches(it.vendor) }
                 _state.update {
                     it.copy(
                         entries = cached.map { c -> c.toDto() },
