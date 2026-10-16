@@ -20,10 +20,10 @@ internal class AppUpdatePromptPolicy {
     private val dismissedVersionCodes = mutableSetOf<Int>()
 
     @Synchronized
-    fun shouldShow(info: AppUpdateInfo?, currentVersionCode: Int): Boolean {
+    fun shouldShow(info: AppUpdateInfo?, currentVersionCode: Int, manual: Boolean = false): Boolean {
         return info != null &&
             info.versionCode > currentVersionCode &&
-            info.versionCode !in dismissedVersionCodes
+            (manual || info.versionCode !in dismissedVersionCodes)
     }
 
     @Synchronized
@@ -32,8 +32,22 @@ internal class AppUpdatePromptPolicy {
     }
 }
 
-class AppUpdateMonitor(context: Context) {
-    private val appContext = context.applicationContext
+data class AppUpdateCheckState(
+    val checking: Boolean = false,
+    val checkedAt: Long = 0L,
+    val result: AppUpdateResult? = null,
+)
+
+class AppUpdateMonitor internal constructor(
+    private val check: suspend (String) -> AppUpdateResult,
+    private val currentVersionCode: Int,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    constructor(context: Context) : this(
+        check = { url -> AppUpdater.checkUpdate(context.applicationContext, url) },
+        currentVersionCode = BuildConfig.VERSION_CODE,
+    )
+
     private val promptPolicy = AppUpdatePromptPolicy()
     private val checkMutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -41,8 +55,18 @@ class AppUpdateMonitor(context: Context) {
 
     private val _pendingUpdate = MutableStateFlow<AppUpdateInfo?>(null)
     val pendingUpdate: StateFlow<AppUpdateInfo?> = _pendingUpdate.asStateFlow()
+    private val _state = MutableStateFlow(AppUpdateCheckState())
+    val state: StateFlow<AppUpdateCheckState> = _state.asStateFlow()
+    @Volatile private var automaticEnabled = true
+    @Volatile private var sourceUrl: String? = null
 
     fun start(enabled: Boolean, url: String) {
+        automaticEnabled = enabled
+        if (sourceUrl != null && sourceUrl != url) {
+            _state.value = AppUpdateCheckState()
+            clearPending()
+        }
+        sourceUrl = url
         pollingJob?.cancel()
         pollingJob = null
 
@@ -59,25 +83,29 @@ class AppUpdateMonitor(context: Context) {
         }
     }
 
-    suspend fun checkNow(enabled: Boolean, url: String): AppUpdateResult? {
-        if (!enabled || url.isBlank()) {
-            clearPending()
-            return null
-        }
+    suspend fun checkNow(enabled: Boolean, url: String, manual: Boolean = false): AppUpdateResult? {
+        if (!enabled && !manual) return null
 
         return checkMutex.withLock {
-            val result = AppUpdater.checkUpdate(appContext, url)
-            if (result.status == AppUpdateStatus.AVAILABLE) {
-                setAvailable(result.info)
-            } else if (result.status == AppUpdateStatus.UP_TO_DATE) {
-                _pendingUpdate.value = null
+            _state.value = _state.value.copy(checking = true)
+            try {
+                val result = check(url)
+                if (!manual && sourceUrl != null && sourceUrl != url) return@withLock result
+                _state.value = AppUpdateCheckState(checkedAt = now(), result = result)
+                if (result.status == AppUpdateStatus.AVAILABLE && (manual || automaticEnabled)) {
+                    setAvailable(result.info, manual)
+                } else if (result.status == AppUpdateStatus.UP_TO_DATE) {
+                    clearPending()
+                }
+                result
+            } finally {
+                _state.value = _state.value.copy(checking = false)
             }
-            result
         }
     }
 
-    fun setAvailable(info: AppUpdateInfo?) {
-        if (!promptPolicy.shouldShow(info, BuildConfig.VERSION_CODE)) return
+    fun setAvailable(info: AppUpdateInfo?, manual: Boolean = false) {
+        if (!promptPolicy.shouldShow(info, currentVersionCode, manual)) return
         _pendingUpdate.value = info
     }
 

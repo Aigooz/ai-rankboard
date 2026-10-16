@@ -25,6 +25,7 @@ data class AppSettings(
     val compactList: Boolean = false,
     val showOverview: Boolean = true,
     val updateReminders: Boolean = true,
+    val appUpdateReminders: Boolean = true,
     val snapshotFrequency: SnapshotFrequency = SnapshotFrequency.DAILY,
     val snapshotUrl: String = "",
     val appUpdateUrl: String = "",
@@ -67,6 +68,11 @@ class SettingsStore(private val context: Context) {
     fun setUpdateReminders(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_UPDATE_REMINDERS, enabled).apply()
         _settings.value = _settings.value.copy(updateReminders = enabled)
+    }
+
+    fun setAppUpdateReminders(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_APP_UPDATE_REMINDERS, enabled).apply()
+        _settings.value = _settings.value.copy(appUpdateReminders = enabled)
     }
 
     fun setSnapshotFrequency(frequency: SnapshotFrequency) {
@@ -153,6 +159,10 @@ class SettingsStore(private val context: Context) {
             compactList = prefs.getBoolean(KEY_COMPACT_LIST, false),
             showOverview = prefs.getBoolean(KEY_SHOW_OVERVIEW, true),
             updateReminders = prefs.getBoolean(KEY_UPDATE_REMINDERS, true),
+            appUpdateReminders = prefs.getBoolean(
+                KEY_APP_UPDATE_REMINDERS,
+                prefs.getBoolean(KEY_UPDATE_REMINDERS, true),
+            ),
             snapshotFrequency = SnapshotFrequency.entries.firstOrNull {
                 it.name == prefs.getString(KEY_SNAPSHOT_FREQUENCY, null)
             } ?: SnapshotFrequency.DAILY,
@@ -175,6 +185,7 @@ class SettingsStore(private val context: Context) {
         private const val KEY_COMPACT_LIST = "compact_list"
         private const val KEY_SHOW_OVERVIEW = "show_overview"
         private const val KEY_UPDATE_REMINDERS = "update_reminders"
+        private const val KEY_APP_UPDATE_REMINDERS = "app_update_reminders"
         private const val KEY_SNAPSHOT_FREQUENCY = "snapshot_frequency"
         private const val KEY_SNAPSHOT_URL = "snapshot_url"
         private const val KEY_APP_UPDATE_URL = "app_update_url"

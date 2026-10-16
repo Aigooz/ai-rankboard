@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -31,7 +33,10 @@ fun AppUpdateDialog(
         onDismissRequest = onDismiss,
         title = { Text("发现新版本") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
                     "v${info.versionName.ifBlank { info.versionCode.toString() }} · ${AppUpdater.formatSize(info.sizeBytes)}",
                     style = MaterialTheme.typography.titleSmall,
@@ -40,7 +45,7 @@ fun AppUpdateDialog(
                 if (info.notes.isNotBlank()) {
                 Text(info.notes, style = MaterialTheme.typography.bodyMedium)
                 }
-                if (installing) {
+                if (installing && progress != null) {
                     val completed = progress?.fraction ?: 0f
                     LinearProgressIndicator(
                         progress = { completed },
@@ -69,7 +74,12 @@ fun AppUpdateDialog(
                 onClick = onConfirm,
                 enabled = !installing,
             ) {
-                Text(if (installing) "下载中..." else "下载并安装")
+                Text(when {
+                    installing && progress == null -> "等待安装授权"
+                    installing -> "下载中..."
+                    message.isNotBlank() -> "重试更新"
+                    else -> "下载并安装"
+                })
             }
         },
         dismissButton = {

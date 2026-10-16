@@ -10,6 +10,7 @@ import androidx.core.content.pm.PackageInfoCompat
 import com.ai.rankboard.BuildConfig
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -73,7 +74,7 @@ object AppUpdater {
         return Intent(
             android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
             Uri.parse("package:${context.packageName}"),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 
     suspend fun checkUpdate(context: Context, url: String): AppUpdateResult {
@@ -104,8 +105,11 @@ object AppUpdater {
                         info.copy(sizeBytes = sizeBytes),
                     )
                 }
+            } catch (exc: CancellationException) {
+                throw exc
             } catch (exc: Exception) {
-                AppUpdateResult(AppUpdateStatus.ERROR, exc.message ?: "应用更新检查失败")
+                android.util.Log.w("AppUpdater", "Update check failed", exc)
+                AppUpdateResult(AppUpdateStatus.ERROR, "暂时无法连接更新服务，请检查网络后重试")
             }
         }
     }
@@ -137,6 +141,8 @@ object AppUpdater {
                     "已下载 v${info.versionName.ifBlank { info.versionCode.toString() }}，请确认安装",
                     info,
                 )
+            } catch (exc: CancellationException) {
+                throw exc
             } catch (exc: Exception) {
                 AppUpdateResult(AppUpdateStatus.ERROR, exc.message ?: "应用更新失败")
             }
@@ -177,6 +183,8 @@ object AppUpdater {
                     "已下载 v${info.versionName.ifBlank { info.versionCode.toString() }}，可在通知中点击安装",
                     info,
                 )
+            } catch (exc: CancellationException) {
+                throw exc
             } catch (exc: Exception) {
                 AppUpdateResult(AppUpdateStatus.ERROR, exc.message ?: "应用更新失败")
             }
@@ -280,6 +288,8 @@ object AppUpdater {
         for (candidate in manifestCandidates(url)) {
             try {
                 return parseManifest(httpBytes(candidate))
+                    ?.takeIf { it.versionCode > 0 && it.versionName.isNotBlank() }
+                    ?: throw IllegalStateException("更新清单无效")
             } catch (exc: Exception) {
                 lastError = exc
             }
@@ -380,14 +390,20 @@ object AppUpdater {
     ) {
         val urls = buildList {
             add(info.apkUrl)
-            addAll(info.mirrorUrls.filter { it.isNotBlank() && it != info.apkUrl })
+            addAll(info.mirrorUrls.filter { it.startsWith("https://", true) && it != info.apkUrl })
         }.distinct()
 
         var lastError: Exception? = null
         for ((index, url) in urls.withIndex()) {
             try {
                 downloadApk(context, url, info.sizeBytes, onProgress)
+                if (!sha256(apkFile(context)).equals(info.sha256, ignoreCase = true)) {
+                    throw IllegalStateException("APK SHA-256 校验失败")
+                }
+                verifyArchive(context, apkFile(context), info.versionCode)
                 return
+            } catch (exc: CancellationException) {
+                throw exc
             } catch (exc: Exception) {
                 lastError = exc
                 onProgress(DownloadProgress(0L, info.sizeBytes, 0L))

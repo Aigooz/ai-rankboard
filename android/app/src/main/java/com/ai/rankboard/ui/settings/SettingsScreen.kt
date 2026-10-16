@@ -1,8 +1,9 @@
 package com.ai.rankboard.ui.settings
 
-import android.Manifest
-import android.content.pm.PackageManager
+import android.content.Intent
+import android.app.NotificationManager
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -26,11 +27,12 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Dataset
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -43,7 +45,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -64,13 +65,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.runtime.DisposableEffect
 import com.ai.rankboard.BuildConfig
 import com.ai.rankboard.RankboardApp
-import com.ai.rankboard.data.AppUpdater
 import com.ai.rankboard.data.AppUpdateStatus
-import com.ai.rankboard.data.AppUpdateWorker
+import com.ai.rankboard.data.AppUpdateNotifier
+import com.ai.rankboard.data.UpdateNotifier
 import com.ai.rankboard.data.FavoriteEntity
 import com.ai.rankboard.data.SnapshotFrequency
+import com.ai.rankboard.data.SnapshotUpdateStatus
 import com.ai.rankboard.data.ThemeMode
 import com.ai.rankboard.ui.common.openUrl
 import com.google.gson.Gson
@@ -107,24 +114,42 @@ fun SettingsScreen(
     val favorites by app.repository.favorites().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val gson = remember { Gson() }
-    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
-    var refreshing by remember { mutableStateOf(false) }
+    val snapshotCheck by app.snapshotStore.checkState.collectAsState()
+    val appUpdateCheck by app.appUpdateMonitor.state.collectAsState()
+    val officialSnapshot = settings.snapshotUrl.isBlank() || settings.snapshotUrl == BuildConfig.SNAPSHOT_URL
+    val officialAppUpdate = settings.appUpdateUrl.isBlank() || settings.appUpdateUrl == BuildConfig.APP_UPDATE_URL
     var snapshotMessage by remember { mutableStateOf("") }
     var cacheCount by remember { mutableStateOf(0) }
-    var remoteUrl by remember { mutableStateOf(settings.snapshotUrl) }
-    var appUpdateUrl by remember { mutableStateOf(settings.appUpdateUrl) }
-    var appUpdateChecking by remember { mutableStateOf(false) }
-    var appUpdateMessage by remember { mutableStateOf("") }
-    var canInstall by remember { mutableStateOf(AppUpdater.canInstall(app)) }
+    var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(app).areNotificationsEnabled()) }
+    var blockedChannels by remember { mutableStateOf(emptyList<String>()) }
     var confirmReset by remember { mutableStateOf(false) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) {}
-    val installPermissionLauncher = rememberLauncherForActivityResult(
+    fun refreshNotificationStatus() {
+        notificationsEnabled = NotificationManagerCompat.from(app).areNotificationsEnabled()
+        val manager = app.getSystemService(NotificationManager::class.java)
+        blockedChannels = listOf(
+            Triple(settings.updateReminders, UpdateNotifier.CHANNEL_ID, "榜单通知"),
+            Triple(settings.appUpdateReminders, AppUpdateNotifier.CHANNEL_ID, "应用更新通知"),
+        ).filter { (enabled, channel, _) ->
+            enabled && manager.getNotificationChannel(channel)?.importance == NotificationManager.IMPORTANCE_NONE
+        }.map { it.third }
+    }
+
+    val notificationSettingsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
-    ) { canInstall = AppUpdater.canInstall(app) }
+    ) { refreshNotificationStatus() }
+    LaunchedEffect(settings.updateReminders, settings.appUpdateReminders) { refreshNotificationStatus() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, settings.updateReminders, settings.appUpdateReminders) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshNotificationStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
@@ -186,24 +211,6 @@ fun SettingsScreen(
 
     LaunchedEffect(snapshot) {
         cacheCount = runCatching { app.repository.cachedEntryCount() }.getOrDefault(0)
-    }
-
-    fun requestNotificationPermission() {
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
-    fun scheduleSnapshotUpdates() {
-        app.snapshotStore.setDailyUpdateEnabled(
-            true,
-            settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
-            settings.snapshotFrequency.days,
-        )
     }
 
     Scaffold(
@@ -285,173 +292,110 @@ fun SettingsScreen(
 
             item {
                 SettingsGroup(title = "榜单数据", icon = Icons.Filled.Dataset) {
-                    TextRow(
-                        title = "快照状态",
-                        value = if (app.snapshotStore.isDownloaded) "已使用远端快照" else "内置快照",
-                        detail = "${snapshot.generatedAt.take(19).replace("T", " ")} · Schema v${snapshot.schemaVersion}",
+                    UpdateSummary(
+                        headline = if (snapshotCheck.checking) "正在同步榜单…" else "${snapshot.models.size} 个模型 · ${snapshot.boards.size} 个榜单",
+                        detail = "数据时间 ${snapshot.generatedAt.take(19).replace("T", " ")}\n" +
+                            "${snapshot.sources.size} 个数据源 · " +
+                            if (officialSnapshot) "官方数据源" else "自定义数据源",
+                        checkedAt = snapshotCheck.checkedAt,
+                        message = snapshotCheck.result?.message,
+                        isError = snapshotCheck.result?.status == SnapshotUpdateStatus.ERROR,
                     )
-                    TextRow(
-                        title = "数据规模",
-                        value = "${snapshot.models.size} 个模型",
-                        detail = "${snapshot.boards.size} 个榜单 · ${snapshot.sources.size} 个数据源 · $cacheCount 条缓存",
+                    UpdateAction(
+                        label = if (snapshotCheck.checking) "同步中" else "立即同步",
+                        checking = snapshotCheck.checking,
+                        icon = Icons.Filled.Refresh,
+                        onClick = { scope.launch { app.repository.refreshSnapshot() } },
                     )
-                    OutlinedTextField(
-                        value = remoteUrl,
-                        onValueChange = { remoteUrl = it },
-                        label = { Text("远端快照地址") },
-                        placeholder = { Text("留空使用默认远端快照") },
-                        supportingText = { Text("默认地址已内置；自定义后系统会请求同一地址加 .sha256 校验") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp),
-                    )
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = {
-                                val savedUrl = remoteUrl.trim()
-                                app.settingsStore.setSnapshotUrl(savedUrl)
-                                scheduleSnapshotUpdates()
-                                snapshotMessage = if (savedUrl.isBlank()) "已清除远端地址" else "已保存远端地址"
-                            },
-                            enabled = remoteUrl.trim() != settings.snapshotUrl,
-                        ) { Text("保存") }
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    refreshing = true
-                                    snapshotMessage = ""
-                                    val result = app.repository.refreshSnapshot()
-                                    snapshotMessage = result.message
-                                    refreshing = false
-                                }
-                            },
-                            enabled = !refreshing,
-                        ) {
-                            if (refreshing) {
-                                CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-                            Text("立即检查", modifier = Modifier.padding(start = 6.dp))
-                        }
-                    }
                     OptionRow(
                         label = "自动更新频率",
                         options = SnapshotFrequency.entries.map { it to it.label },
                         selected = settings.snapshotFrequency,
-                        onSelect = { frequency ->
-                            app.settingsStore.setSnapshotFrequency(frequency)
-                            scheduleSnapshotUpdates()
-                        },
+                        onSelect = app.settingsStore::setSnapshotFrequency,
                     )
                     SwitchRow(
-                        title = "更新提醒",
-                        subtitle = "发现新榜单数据时发送系统通知",
+                        title = "榜单更新通知",
+                        subtitle = "关闭通知仍会自动同步榜单",
                         checked = settings.updateReminders,
-                        onCheckedChange = { enabled ->
-                            app.settingsStore.setUpdateReminders(enabled)
-                            scheduleSnapshotUpdates()
-                            AppUpdateWorker.schedule(
-                                app,
-                                enabled,
-                                settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
-                            )
-                            if (enabled) requestNotificationPermission()
-                        },
+                        onCheckedChange = app.settingsStore::setUpdateReminders,
                     )
-                    if (snapshotMessage.isNotBlank()) {
-                        StatusText(snapshotMessage)
+                    if (!officialSnapshot) {
+                        TextButton(onClick = { app.settingsStore.setSnapshotUrl("") }) {
+                            Text("恢复官方数据源")
+                        }
                     }
                 }
             }
 
             item {
                 SettingsGroup(title = "应用更新", icon = Icons.Filled.Security) {
-                    TextRow(
-                        title = "当前版本",
-                        value = "v${BuildConfig.VERSION_NAME}",
-                        detail = "版本号 ${BuildConfig.VERSION_CODE} · 自动检查更新",
+                    val available = appUpdateCheck.result?.takeIf { it.status == AppUpdateStatus.AVAILABLE }?.info
+                    UpdateSummary(
+                        headline = "当前版本 v${BuildConfig.VERSION_NAME}",
+                        detail = if (officialAppUpdate) "官方稳定版 · 自动切换备用下载源" else "自定义更新源",
+                        checkedAt = appUpdateCheck.checkedAt,
+                        message = if (appUpdateCheck.checking) "正在检查新版本…" else appUpdateCheck.result?.message,
+                        isError = appUpdateCheck.result?.status == AppUpdateStatus.ERROR && !appUpdateCheck.checking,
                     )
-                    OutlinedTextField(
-                        value = appUpdateUrl,
-                        onValueChange = { appUpdateUrl = it },
-                        label = { Text("应用更新清单地址") },
-                        placeholder = { Text(BuildConfig.APP_UPDATE_URL) },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp),
-                    )
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = {
-                                val savedUrl = appUpdateUrl.trim()
-                                app.settingsStore.setAppUpdateUrl(savedUrl)
-                                AppUpdateWorker.schedule(
-                                    app,
-                                    settings.updateReminders,
-                                    savedUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
-                                )
-                                appUpdateMessage = if (savedUrl.isBlank()) "已恢复默认更新源" else "已保存更新源"
-                            },
-                            enabled = appUpdateUrl.trim() != settings.appUpdateUrl,
-                        ) { Text("保存") }
-                        OutlinedButton(
-                            onClick = {
-                                if (!canInstall) {
-                                    installPermissionLauncher.launch(AppUpdater.installPermissionIntent(app))
-                                } else {
-                                    scope.launch {
-                                        appUpdateChecking = true
-                                        appUpdateMessage = ""
-                                        val result = app.appUpdateMonitor.checkNow(
-                                            settings.updateReminders,
-                                            settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
-                                        )
-                                        if (result != null && result.status != AppUpdateStatus.AVAILABLE) {
-                                            appUpdateMessage = result.message
-                                        }
-                                        appUpdateChecking = false
-                                    }
-                                }
-                            },
-                            enabled = !appUpdateChecking,
-                        ) {
-                            if (appUpdateChecking) {
-                                CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
+                    UpdateAction(
+                        label = when {
+                            appUpdateCheck.checking -> "检查中"
+                            available != null -> "查看新版本 v${available.versionName}"
+                            else -> "检查新版本"
+                        },
+                        checking = appUpdateCheck.checking,
+                        icon = if (available != null) Icons.Filled.SystemUpdate else Icons.Filled.Refresh,
+                        onClick = {
+                            if (available != null) {
+                                app.appUpdateMonitor.setAvailable(available, manual = true)
                             } else {
-                                Icon(Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                scope.launch {
+                                    app.appUpdateMonitor.checkNow(
+                                        enabled = settings.appUpdateReminders,
+                                        url = settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
+                                        manual = true,
+                                    )
+                                }
                             }
-                            Text(
-                                if (appUpdateChecking) {
-                                    "检查中"
-                                } else if (canInstall) {
-                                    "检查并安装"
-                                } else {
-                                    "允许安装"
-                                },
-                                modifier = Modifier.padding(start = 6.dp),
-                            )
+                        },
+                    )
+                    SwitchRow(
+                        title = "新版本自动提醒",
+                        subtitle = "应用内弹窗，后台通过系统通知提醒",
+                        checked = settings.appUpdateReminders,
+                        onCheckedChange = app.settingsStore::setAppUpdateReminders,
+                    )
+                    if (!officialAppUpdate) {
+                        TextButton(onClick = { app.settingsStore.setAppUpdateUrl("") }) {
+                            Text("恢复官方更新源")
                         }
                     }
-                    TextRow(
-                        title = "安装权限",
-                        value = if (canInstall) "已允许" else "未授权",
-                        detail = "安装应用内更新时需要允许“安装未知应用”",
-                    )
-                    if (appUpdateMessage.isNotBlank()) {
-                        StatusText(appUpdateMessage)
+                }
+            }
+
+            if (settings.updateReminders || settings.appUpdateReminders) {
+                item {
+                    SettingsGroup(title = "推送通知", icon = Icons.Filled.Notifications) {
+                        SettingsActionRow(
+                            title = when {
+                                !notificationsEnabled -> "系统通知未开启"
+                                blockedChannels.isNotEmpty() -> "部分通知已关闭"
+                                else -> "系统通知已开启"
+                            },
+                            detail = when {
+                                !notificationsEnabled -> "后台更新提醒无法送达，应用内检查不受影响"
+                                blockedChannels.isNotEmpty() -> "${blockedChannels.joinToString("、")}被系统关闭"
+                                else -> "后台检查可能受省电策略延迟"
+                            },
+                            icon = Icons.Filled.Notifications,
+                            label = if (notificationsEnabled) "管理" else "开启",
+                            onClick = {
+                                notificationSettingsLauncher.launch(
+                                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(Settings.EXTRA_APP_PACKAGE, app.packageName),
+                                )
+                            },
+                        )
                     }
                 }
             }
@@ -503,6 +447,7 @@ fun SettingsScreen(
                             }
                         },
                     )
+                    if (snapshotMessage.isNotBlank()) StatusText(snapshotMessage)
                 }
             }
 
@@ -541,10 +486,6 @@ fun SettingsScreen(
                 TextButton(
                     onClick = {
                         app.settingsStore.reset()
-                        AppUpdateWorker.schedule(app, true, BuildConfig.APP_UPDATE_URL)
-                        app.snapshotStore.setDailyUpdateEnabled(true, BuildConfig.SNAPSHOT_URL, 1)
-                        remoteUrl = ""
-                        appUpdateUrl = ""
                         confirmReset = false
                         snapshotMessage = "已恢复默认设置"
                     },
@@ -596,6 +537,53 @@ private fun SettingsGroup(
             )
             content()
         }
+    }
+}
+
+@Composable
+private fun UpdateSummary(
+    headline: String,
+    detail: String,
+    checkedAt: Long,
+    message: String?,
+    isError: Boolean = false,
+) {
+    val formatter = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(headline, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (checkedAt > 0) "上次检查 ${formatter.format(checkedAt)}" else "尚未完成检查",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (!message.isNullOrBlank()) {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdateAction(label: String, checking: Boolean, icon: ImageVector, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = !checking,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        if (checking) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(label)
     }
 }
 

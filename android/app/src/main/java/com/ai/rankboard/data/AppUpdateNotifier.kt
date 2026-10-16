@@ -39,6 +39,7 @@ class AppUpdateNotifier(private val context: Context) {
             ?: context.getString(R.string.app_update_fallback_version)
         val openAppIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
             ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            ?.putExtra(EXTRA_CHECK_UPDATE, true)
             ?: return
         val pendingIntent = PendingIntent.getActivity(
             context,
@@ -74,6 +75,7 @@ class AppUpdateNotifier(private val context: Context) {
     companion object {
         const val CHANNEL_ID = "app_updates"
         const val NOTIFICATION_ID = 1002
+        const val EXTRA_CHECK_UPDATE = "check_app_update"
         private const val REQUEST_CODE = 1002
     }
 }

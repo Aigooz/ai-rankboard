@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -37,7 +40,17 @@ data class SnapshotInfo(
     val verified: Boolean,
 )
 
+data class SnapshotCheckState(
+    val checking: Boolean = false,
+    val checkedAt: Long = 0L,
+    val result: SnapshotUpdateResult? = null,
+)
+
 class SnapshotStore(private val context: Context) {
+    private val refreshMutex = Mutex()
+    private val prefs = context.getSharedPreferences("snapshot_checks", Context.MODE_PRIVATE)
+    private val _checkState = MutableStateFlow(SnapshotCheckState(checkedAt = prefs.getLong("checked_at", 0L)))
+    val checkState: StateFlow<SnapshotCheckState> = _checkState.asStateFlow()
     private val gson = Gson()
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -78,41 +91,59 @@ class SnapshotStore(private val context: Context) {
             return SnapshotUpdateResult(SnapshotUpdateStatus.SKIPPED, "未配置远端快照地址")
         }
 
-        return withContext(Dispatchers.IO) {
+        return refreshMutex.withLock {
+            _checkState.value = _checkState.value.copy(checking = true)
             try {
-                val jsonBytes = httpBytes(url)
-                val hashBytes = httpBytes(hashUrl(url))
-                val expectedHash = parseHash(hashBytes.decodeToString())
-                if (!verify(jsonBytes, expectedHash)) {
-                    throw IllegalStateException("snapshot checksum mismatch")
+                val result = withContext(Dispatchers.IO) {
+                    refreshRemote(url)
                 }
-                if (expectedHash == currentHash()) {
-                    return@withContext SnapshotUpdateResult(SnapshotUpdateStatus.UP_TO_DATE, "榜单快照已是最新")
-                }
-
-                val parsed = parse(jsonBytes) ?: throw IllegalStateException("snapshot parse failed")
-                if (parsed.schemaVersion !in 1..3 || parsed.boards.isEmpty()) {
-                    throw IllegalStateException("unsupported snapshot schema ${parsed.schemaVersion}")
-                }
-
-                // 与旧快照对比找出新增模型；旧快照为空（首装）时不提示，避免全部算作新增。
-                val previousSlugs = _snapshot.value.models.keys
-                val addedModels = if (previousSlugs.isEmpty()) {
-                    emptyList()
-                } else {
-                    parsed.models.keys
-                        .minus(previousSlugs)
-                        .sortedByDescending { slug -> parsed.models[slug]?.releaseDate.orEmpty() }
-                }
-
-                jsonFile.writeBytes(jsonBytes)
-                hashFile.writeText("$expectedHash  $SNAPSHOT_FILE_NAME\n", Charsets.US_ASCII)
-                verified = true
-                _snapshot.value = parsed
-                SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "榜单数据已更新", addedModels)
-            } catch (exc: Exception) {
-                SnapshotUpdateResult(SnapshotUpdateStatus.ERROR, exc.message ?: "快照更新失败")
+                val checkedAt = System.currentTimeMillis()
+                prefs.edit().putLong("checked_at", checkedAt).apply()
+                _checkState.value = SnapshotCheckState(checkedAt = checkedAt, result = result)
+                result
+            } finally {
+                _checkState.value = _checkState.value.copy(checking = false)
             }
+        }
+    }
+
+    private fun refreshRemote(url: String): SnapshotUpdateResult {
+        return try {
+            val jsonBytes = httpBytes(url)
+            val hashBytes = httpBytes(hashUrl(url))
+            val expectedHash = parseHash(hashBytes.decodeToString())
+            if (!verify(jsonBytes, expectedHash)) {
+                throw IllegalStateException("snapshot checksum mismatch")
+            }
+            if (expectedHash == currentHash()) {
+                return SnapshotUpdateResult(SnapshotUpdateStatus.UP_TO_DATE, "榜单数据已是最新")
+            }
+
+            val parsed = parse(jsonBytes) ?: throw IllegalStateException("snapshot parse failed")
+            if (parsed.schemaVersion !in 1..3 || parsed.boards.isEmpty()) {
+                throw IllegalStateException("unsupported snapshot schema ${parsed.schemaVersion}")
+            }
+
+            // 与旧快照对比找出新增模型；旧快照为空（首装）时不提示，避免全部算作新增。
+            val previousSlugs = _snapshot.value.models.keys
+            val addedModels = if (previousSlugs.isEmpty()) {
+                emptyList()
+            } else {
+                parsed.models.keys
+                    .minus(previousSlugs)
+                    .sortedByDescending { slug -> parsed.models[slug]?.releaseDate.orEmpty() }
+            }
+
+            jsonFile.writeBytes(jsonBytes)
+            hashFile.writeText("$expectedHash  $SNAPSHOT_FILE_NAME\n", Charsets.US_ASCII)
+            verified = true
+            _snapshot.value = parsed
+            SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "榜单数据已更新", addedModels)
+        } catch (exc: CancellationException) {
+            throw exc
+        } catch (exc: Exception) {
+            android.util.Log.w("SnapshotStore", "Snapshot check failed", exc)
+            SnapshotUpdateResult(SnapshotUpdateStatus.ERROR, "同步失败，已保留现有榜单，请检查网络后重试")
         }
     }
 
@@ -211,7 +242,7 @@ class SnapshotStore(private val context: Context) {
 
     fun setDailyUpdateEnabled(enabled: Boolean, url: String, intervalDays: Int = 1) {
         if (enabled) {
-            scheduleDailyUpdate(url)
+            scheduleDailyUpdate(url, intervalDays)
         } else {
             WorkManager.getInstance(context).cancelUniqueWork(DAILY_UPDATE_WORK)
         }

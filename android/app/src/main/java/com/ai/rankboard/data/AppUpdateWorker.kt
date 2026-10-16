@@ -22,16 +22,17 @@ class AppUpdateWorker(
 
     override suspend fun doWork(): Result {
         val app = context.applicationContext as? RankboardApp ?: return Result.failure()
-        val url = inputData.getString(KEY_URL)?.takeIf { it.isNotBlank() }
-            ?: app.settingsStore.settings.value.appUpdateUrl
-            ?: BuildConfig.APP_UPDATE_URL
+        val settings = app.settingsStore.settings.value
+        if (!settings.appUpdateReminders) return Result.success()
+        val url = settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL }
         if (url.isBlank()) return Result.success()
 
-        val result = AppUpdater.checkUpdate(context, url)
+        val result = app.appUpdateMonitor.checkNow(true, url) ?: return Result.success()
         return when (result.status) {
             AppUpdateStatus.AVAILABLE -> {
-                app.appUpdateMonitor.setAvailable(result.info)
-                AppUpdateNotifier(context).notifyAvailable(result.info)
+                if (app.settingsStore.settings.value.appUpdateReminders) {
+                    AppUpdateNotifier(context).notifyAvailable(result.info)
+                }
                 Result.success()
             }
             AppUpdateStatus.DOWNLOADED -> Result.success()

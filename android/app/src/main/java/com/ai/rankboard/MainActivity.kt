@@ -2,6 +2,7 @@ package com.ai.rankboard
 
 import android.os.Bundle
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.ComponentActivity
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
@@ -50,6 +52,8 @@ import com.ai.rankboard.ui.theme.RankboardTheme
 import com.ai.rankboard.ui.trend.TrendScreen
 import com.ai.rankboard.ui.common.AppUpdateDialog
 import com.ai.rankboard.data.AppUpdateStatus
+import com.ai.rankboard.data.AppUpdateInfo
+import com.ai.rankboard.data.AppUpdateNotifier
 import com.ai.rankboard.data.AppUpdater
 import com.ai.rankboard.data.DownloadProgress
 import kotlinx.coroutines.launch
@@ -70,8 +74,21 @@ private val TOP_LEVEL_DESTINATIONS = listOf(
 )
 
 class MainActivity : ComponentActivity() {
+    private var notificationCheckRequest by mutableStateOf(0)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(AppUpdateNotifier.EXTRA_CHECK_UPDATE, false)) {
+            notificationCheckRequest++
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.getBooleanExtra(AppUpdateNotifier.EXTRA_CHECK_UPDATE, false)) {
+            notificationCheckRequest++
+        }
         enableEdgeToEdge()
         setContent {
             val app = applicationContext as RankboardApp
@@ -89,18 +106,69 @@ class MainActivity : ComponentActivity() {
             var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
             var updateMessage by remember { mutableStateOf("") }
             val updateScope = rememberCoroutineScope()
+            var awaitingInstallPermission by rememberSaveable { mutableStateOf(false) }
+            var permissionVersionCode by rememberSaveable { mutableStateOf(0) }
+
+            fun installUpdate(info: AppUpdateInfo) {
+                updateScope.launch {
+                    updateInstalling = true
+                    downloadProgress = DownloadProgress(0L, info.sizeBytes, 0L)
+                    updateMessage = ""
+                    try {
+                        val result = AppUpdater.downloadAndInstall(context, info) { progress ->
+                            downloadProgress = progress
+                        }
+                        if (result.status == AppUpdateStatus.DOWNLOADED) {
+                            app.appUpdateMonitor.clearPending()
+                        } else {
+                            updateMessage = result.message
+                        }
+                    } finally {
+                        downloadProgress = null
+                        updateInstalling = false
+                    }
+                }
+            }
+
+            val installPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.StartActivityForResult(),
+            ) {
+                val info = app.appUpdateMonitor.pendingUpdate.value
+                val shouldContinue = awaitingInstallPermission
+                awaitingInstallPermission = false
+                if (shouldContinue && info != null && info.versionCode == permissionVersionCode) {
+                    if (AppUpdater.canInstall(context)) {
+                        installUpdate(info)
+                    } else {
+                        updateMessage = "未获得安装权限，未开始下载。可重新授权后重试。"
+                    }
+                }
+            }
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
             ) {}
 
             LaunchedEffect(Unit) {
                 if (
-                    settings.updateReminders &&
+                    (settings.updateReminders || settings.appUpdateReminders) &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                     PackageManager.PERMISSION_GRANTED
                 ) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+
+            LaunchedEffect(pendingUpdate?.versionCode) {
+                updateMessage = ""
+            }
+            LaunchedEffect(notificationCheckRequest) {
+                if (notificationCheckRequest > 0) {
+                    app.appUpdateMonitor.checkNow(
+                        enabled = settings.appUpdateReminders,
+                        url = settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
+                        manual = true,
+                    )
                 }
             }
 
@@ -195,30 +263,22 @@ class MainActivity : ComponentActivity() {
                 pendingUpdate?.let { info ->
                     AppUpdateDialog(
                         info = info,
-                        installing = updateInstalling,
+                        installing = updateInstalling || awaitingInstallPermission,
                         progress = downloadProgress,
                         message = updateMessage,
                         onDismiss = {
-                            if (!updateInstalling) {
+                            if (!updateInstalling && !awaitingInstallPermission) {
                                 app.appUpdateMonitor.dismiss(info)
                                 updateMessage = ""
                             }
                         },
                         onConfirm = {
-                                updateScope.launch {
-                                    updateInstalling = true
-                                    downloadProgress = DownloadProgress(0L, info.sizeBytes, 0L)
-                                    updateMessage = ""
-                                    val result = AppUpdater.downloadAndInstall(context, info) { progress ->
-                                        downloadProgress = progress
-                                    }
-                                    downloadProgress = null
-                                    if (result.status == AppUpdateStatus.DOWNLOADED) {
-                                    app.appUpdateMonitor.clearPending()
-                                } else {
-                                    updateMessage = result.message
-                                }
-                                updateInstalling = false
+                            if (!AppUpdater.canInstall(context)) {
+                                awaitingInstallPermission = true
+                                permissionVersionCode = info.versionCode
+                                installPermissionLauncher.launch(AppUpdater.installPermissionIntent(context))
+                            } else {
+                                installUpdate(info)
                             }
                         },
                     )

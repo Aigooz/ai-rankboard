@@ -35,4 +35,13 @@ class AppUpdatePromptPolicyTest {
         assertFalse(policy.shouldShow(null, currentVersionCode = 54))
         assertEquals(0, AppUpdateInfo().versionCode)
     }
+
+    @Test
+    fun manualPromptStillRejectsInstalledAndInvalidVersions() {
+        val policy = AppUpdatePromptPolicy()
+        policy.dismiss(55)
+        assertTrue(policy.shouldShow(AppUpdateInfo(versionCode = 55), 54, manual = true))
+        assertFalse(policy.shouldShow(AppUpdateInfo(versionCode = 54), 54, manual = true))
+        assertFalse(policy.shouldShow(null, 54, manual = true))
+    }
 }

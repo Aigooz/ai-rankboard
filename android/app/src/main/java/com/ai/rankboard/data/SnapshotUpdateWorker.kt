@@ -15,9 +15,7 @@ class SnapshotUpdateWorker(
 
     override suspend fun doWork(): Result {
         val app = context.applicationContext as? RankboardApp ?: return Result.failure()
-        val url = inputData.getString(KEY_URL)?.takeIf { it.isNotBlank() }
-            ?: app.settingsStore.settings.value.snapshotUrl
-            ?: BuildConfig.SNAPSHOT_URL
+        val url = app.settingsStore.settings.value.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL }
         val store = app.snapshotStore
         val result = store.refresh(url)
         return when (result.status) {

@@ -51,24 +51,21 @@ class RankboardApp : Application() {
             )
         }
 
-        if (settings.updateReminders) {
-            AppUpdateWorker.schedule(
-                this,
-                true,
-                settings.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL },
-            )
-        } else {
-            AppUpdateWorker.schedule(this, false, "")
-        }
-
         // 更新状态跨界面共享；设置里切换提醒或更新源时也无需各界面单独重启检查。
         settingsScope.launch {
             settingsStore.settings
-                .map { it.updateReminders to it.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL } }
+                .map { it.appUpdateReminders to it.appUpdateUrl.ifBlank { BuildConfig.APP_UPDATE_URL } }
                 .distinctUntilChanged()
                 .collect { (enabled, url) ->
                     appUpdateMonitor.start(enabled, url)
+                    AppUpdateWorker.schedule(this@RankboardApp, enabled, url)
                 }
+        }
+        settingsScope.launch {
+            settingsStore.settings
+                .map { it.snapshotFrequency to it.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL } }
+                .distinctUntilChanged()
+                .collect { (frequency, url) -> snapshotStore.scheduleDailyUpdate(url, frequency.days) }
         }
     }
 }
