@@ -26,6 +26,7 @@ data class TrendUiState(
     val distributionTotal: Int = 0,
     val nameToSlug: Map<String, String> = emptyMap(),
     val snapshotDate: String = "",
+    val boardChanges: Map<String, List<String>> = emptyMap(),
 )
 
 class TrendViewModel(
@@ -65,6 +66,11 @@ class TrendViewModel(
                     distributionTotal = entries.size,
                     nameToSlug = byName,
                     snapshotDate = repository.snapshotInfo()?.generatedAt?.take(10).orEmpty(),
+                    boardChanges = repository.historyByBoard().mapNotNull { (slug, history) ->
+                        val lines = com.ai.rankboard.data.historyChangeLines(history)
+                        if (lines.isEmpty()) null else
+                            (repository.boards().firstOrNull { board -> board.slug == slug }?.name ?: slug) to lines
+                    }.toMap(),
                 )
             }
         }

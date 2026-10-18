@@ -116,7 +116,7 @@ class SnapshotStore(private val context: Context) {
                 throw IllegalStateException("snapshot checksum mismatch")
             }
             if (expectedHash == currentHash()) {
-                return SnapshotUpdateResult(SnapshotUpdateStatus.UP_TO_DATE, "榜单数据已是最新")
+                return SnapshotUpdateResult(SnapshotUpdateStatus.UP_TO_DATE, "远端快照与本地一致；不代表上游评测刚刚更新")
             }
 
             val parsed = parse(jsonBytes) ?: throw IllegalStateException("snapshot parse failed")
@@ -138,7 +138,7 @@ class SnapshotStore(private val context: Context) {
             hashFile.writeText("$expectedHash  $SNAPSHOT_FILE_NAME\n", Charsets.US_ASCII)
             verified = true
             _snapshot.value = parsed
-            SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "榜单数据已更新", addedModels)
+            SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "已同步新快照；各榜抓取状态与上游版本请查看榜单说明", addedModels)
         } catch (exc: CancellationException) {
             throw exc
         } catch (exc: Exception) {

@@ -1632,3 +1632,55 @@ select:focus-visible,
     min-width: 720px;
   }
 }
+
+/* Selection and data provenance: touch-friendly, contained horizontal scrolling. */
+.trust-note, .board-info, .history-panel { padding: 16px; margin: 16px 0; }
+.trust-note { border-left: 4px solid var(--secondary); background: var(--secondary-container); color: var(--on-secondary-container); border-radius: 10px; }
+.board-info h2, .history-panel h2 { margin: 0 0 8px; font-size: 17px; }
+.board-info p, .history-panel p { overflow-wrap: anywhere; }
+.time-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.time-grid dt { color: var(--muted); font-size: 12px; }
+.time-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.warning { color: var(--tertiary); overflow-wrap: anywhere; }
+.selection-toolbar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.selection-toolbar span { color: var(--muted); font-size: 12px; }
+.model-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.model-actions .chip { min-height: 44px; padding: 0 10px; }
+.model-actions [aria-pressed="true"] { background: var(--primary-container); color: var(--on-primary-container); }
+.control-panel { grid-template-columns: minmax(200px,1.5fr) repeat(4,minmax(100px,1fr)); }
+.control-panel select { min-width: 0; }
+.comparison-scroll { overflow: auto; margin-top: 16px; }
+.comparison-table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.comparison-table th, .comparison-table td { padding: 16px; border-bottom: 1px solid var(--outline); text-align: left; min-width: 135px; max-width: 280px; overflow-wrap: anywhere; }
+.comparison-table th:first-child { position: sticky; left: 0; background: var(--surface); }
+.compare-selector select { min-height: 44px; max-width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--outline); border-radius: 10px; padding: 8px; }
+button, .app-nav a { touch-action: manipulation; }
+@media (max-width: 900px) {
+  .control-panel { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .search-field { grid-column: 1 / -1; }
+  .time-grid { grid-template-columns: 1fr; }
+  .app-nav a { min-height: 44px; }
+}
+@media (max-width: 600px) {
+  .data-table { min-width: 0; display: block; }
+  .data-table thead { display: none; }
+  .data-table tbody { display: grid; gap: 10px; padding: 8px; }
+  .data-table tr { display: grid; grid-template-columns: 54px minmax(0,1fr); border: 1px solid var(--outline); border-radius: 14px; padding: 8px; }
+  .data-table td { padding: 6px; border: 0; text-align: left !important; min-width: 0; }
+  .data-table .rank-cell { grid-column: 1; }
+  .data-table td:nth-child(2) { grid-column: 2; }
+  .data-table td:nth-child(n+3) { grid-column: 1 / -1; }
+  .data-table td:nth-child(3)::before { content: "本榜成绩："; color: var(--muted); }
+  .data-table td:nth-child(4)::before { content: "估算混合价 / 1M："; }
+  .data-table td:nth-child(5)::before { content: "上下文："; }
+  .data-table td:nth-child(6)::before { content: "模型发布："; }
+  .data-table .score-meter { display: none; }
+  .data-table .score-cell small { display: inline; margin-left: 8px; }
+  .model-cell { min-width: 0; }
+  .model-info { min-width: 0; }
+  .model-name { white-space: normal; overflow-wrap: anywhere; }
+  .freshness { white-space: normal; }
+  .modal-panel { max-height: 90dvh; }
+  .modal-body { max-height: calc(90dvh - 70px); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

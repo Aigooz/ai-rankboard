@@ -206,6 +206,7 @@ fun DetailScreen(
                 }
             }
             item {
+                com.ai.rankboard.ui.common.CrossBoardNotice()
                 SectionHeader(title = "能力雷达")
             }
             item {
@@ -301,6 +302,7 @@ fun DetailScreen(
 private fun ScoreCard(
     score: com.ai.rankboard.data.ScoreDto,
 ) {
+    val context = LocalContext.current
     AppCard(Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
@@ -335,6 +337,13 @@ private fun ScoreCard(
                     color = scoreColor(score.score, score.scoreMin, score.scoreMax),
                 )
             }
+            Text(score.board?.metric?.description ?: com.ai.rankboard.data.metricExplanation(score.scoreType),
+                style = MaterialTheme.typography.bodySmall)
+            Text("本条成绩抓取：${score.fetchedAt.ifBlank { "未提供" }}；上游版本：${score.board?.evaluation?.version ?: score.board?.release ?: "未提供"}",
+                style = MaterialTheme.typography.bodySmall)
+            val source = com.ai.rankboard.data.sourceHttpUrl(score.board?.url)
+                ?: com.ai.rankboard.data.sourceHttpUrl(score.board?.source?.url)
+            if (source != null) TextButton(onClick = { openUrl(context, source) }) { Text("查看榜单来源 ↗") }
             ScoreBar(
                 score = score.score,
                 minScore = score.scoreMin,

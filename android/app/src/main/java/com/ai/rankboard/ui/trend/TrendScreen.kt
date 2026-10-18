@@ -91,22 +91,8 @@ fun TrendScreen(
                     CircularProgressIndicator()
                 }
             }
-            state.usage == null -> {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "暂无用量数据，下拉刷新榜单后重试",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
             else -> {
-                val usage = state.usage!!
+                val usage = state.usage
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -114,6 +100,25 @@ fun TrendScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    item(key = "history-explanation") {
+                        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("榜单历史观测", style = MaterialTheme.typography.titleSmall)
+                            com.ai.rankboard.ui.common.CrossBoardNotice()
+                            if (state.boardChanges.isEmpty()) Text("尚无可比较的两次真实抓取记录，暂不展示分数变化。", style = MaterialTheme.typography.bodySmall)
+                            if (state.usage == null) Text("暂无用量数据，可同步快照后重试。", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    state.boardChanges.forEach { (name, lines) ->
+                        item(key = "history-$name") {
+                            AppCard(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(name, style = MaterialTheme.typography.titleSmall)
+                                    lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                                }
+                            }
+                        }
+                    }
+                    if (usage != null) {
                     item(key = "header") {
                         AppCard(Modifier.fillMaxWidth()) {
                             Column(
@@ -159,6 +164,7 @@ fun TrendScreen(
                             },
                         )
                     }
+                    }
                     val articles = state.news?.articles.orEmpty()
                     if (articles.isNotEmpty()) {
                         item(key = "news-title") {
@@ -187,7 +193,7 @@ fun TrendScreen(
                     if (state.distribution.isNotEmpty()) {
                         item(key = "dist-title") {
                             Text(
-                                "价格分布 · ${state.snapshotDate}",
+                                "价格分布 · 快照 ${state.snapshotDate}",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(top = 10.dp),

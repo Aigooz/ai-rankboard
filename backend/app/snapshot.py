@@ -13,6 +13,8 @@ from pathlib import Path
 
 from .boards import BOARD_BY_SLUG, LIVEBENCH
 from .db import get_conn
+from .store import HISTORY_LIMIT, HISTORY_ENTRY_LIMIT
+from .trust import health_info, metric_info
 
 SCHEMA_VERSION = 3
 # 受众以国内为主，时间戳直接使用东八区，便于 App 端直接展示日期。
@@ -50,12 +52,40 @@ def build_snapshot() -> dict:
             for row in conn.execute(
                 """
                 SELECT slug, name, dimension, score_type, url, last_success_at,
+                       last_attempt_at, last_status, last_error, evaluation_version,
                        (SELECT COUNT(*) FROM scores s WHERE s.board_slug = b.slug) AS model_count
                 FROM boards b
                 ORDER BY b.slug
                 """
             )
         ]
+
+        history = {board["slug"]: [] for board in boards}
+        now = datetime.now(timezone.utc)
+        for board in boards:
+            observations = conn.execute(
+                """SELECT * FROM board_history WHERE board_slug=?
+                   ORDER BY fetched_at DESC LIMIT ?""", (board["slug"], HISTORY_LIMIT)
+            ).fetchall()
+            history[board["slug"]] = [
+                {"fetchedAt": row["fetched_at"], "modelCount": row["model_count"],
+                 "evaluationVersion": row["evaluation_version"],
+                 "truncated": row["model_count"] > HISTORY_ENTRY_LIMIT,
+                 "entries": json.loads(row["entries_json"])[:HISTORY_ENTRY_LIMIT]}
+                for row in reversed(observations)
+            ]
+            board["health"] = health_info(board, history[board["slug"]], now)
+            board["metric"] = metric_info(board)
+            source = next(item for item in SOURCES if item["id"] == board["source_id"])
+            board["source"] = {**source, "url": board["url"]}
+            version = board.pop("evaluation_version")
+            if "release" in board:
+                board["release"] = version
+            board["evaluation"] = {"version": version,
+                                   "versionSource": "registry" if version else None,
+                                   "upstreamUpdatedAt": None}
+            # Old flat fields remain available; never expose raw legacy errors.
+            board["last_error"] = board["health"]["error"]
 
         models = {
             row["slug"]: {
@@ -153,6 +183,7 @@ def build_snapshot() -> dict:
         "sources": SOURCES,
         "boards": boards,
         "entriesByBoard": dict(entries),
+        "historyByBoard": history,
         "models": models,
         "benchmarkMeta": {
             "livebench": {

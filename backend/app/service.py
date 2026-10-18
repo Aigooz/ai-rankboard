@@ -20,11 +20,11 @@ async def refresh_board(board: dict) -> int:
     fetched_at = now_iso()
     try:
         rows = await fetch_board(board)
+        return save_board_data(board, rows, fetched_at)
     except Exception as exc:  # noqa: BLE001
         log.warning("board %s refresh failed: %s", board["slug"], exc)
-        mark_board_error(board, str(exc))
+        mark_board_error(board, str(exc), fetched_at)
         raise
-    return save_board_data(board, rows, fetched_at)
 
 
 async def refresh_all(slugs=None) -> dict:

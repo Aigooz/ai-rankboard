@@ -13,7 +13,18 @@ CREATE TABLE IF NOT EXISTS boards (
     url TEXT NOT NULL,
     last_success_at TEXT,
     last_status TEXT,
-    last_error TEXT
+    last_error TEXT,
+    last_attempt_at TEXT,
+    evaluation_version TEXT
+);
+CREATE TABLE IF NOT EXISTS board_history (
+    board_slug TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    model_count INTEGER NOT NULL,
+    evaluation_version TEXT,
+    entries_json TEXT NOT NULL,
+    PRIMARY KEY (board_slug, fetched_at),
+    FOREIGN KEY (board_slug) REFERENCES boards(slug)
 );
 CREATE TABLE IF NOT EXISTS models (
     slug TEXT PRIMARY KEY,
@@ -92,6 +103,11 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        board_columns = {row[1] for row in conn.execute("PRAGMA table_info(boards)")}
+        if "last_attempt_at" not in board_columns:
+            conn.execute("ALTER TABLE boards ADD COLUMN last_attempt_at TEXT")
+        if "evaluation_version" not in board_columns:
+            conn.execute("ALTER TABLE boards ADD COLUMN evaluation_version TEXT")
         columns = {row[1] for row in conn.execute("PRAGMA table_info(models)")}
         if "release_date" not in columns:
             conn.execute("ALTER TABLE models ADD COLUMN release_date TEXT")

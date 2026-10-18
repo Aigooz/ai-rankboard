@@ -18,6 +18,7 @@ data class Snapshot(
     val models: Map<String, ModelDetailDto> = emptyMap(),
     val usageRanking: UsageRankingDto? = null,
     val news: NewsDto? = null,
+    val historyByBoard: Map<String, List<BoardHistoryDto>>? = null,
 )
 
 data class UsageRankingDto(
@@ -57,6 +58,37 @@ data class BoardDto(
     val url: String? = null,
     @SerializedName("last_success_at") val lastSuccessAt: String? = null,
     @SerializedName("model_count") val modelCount: Int = 0,
+    val health: BoardHealthDto? = null,
+    val metric: BoardMetricDto? = null,
+    val source: SnapshotSourceDto? = null,
+    val evaluation: BoardEvaluationDto? = null,
+    val release: String? = null,
+)
+
+data class BoardHealthDto(
+    val latestAttemptAt: String? = null,
+    val latestAttemptStatus: String? = null,
+    val error: String? = null,
+    val lastSuccessAt: String? = null,
+    val stale: Boolean? = null,
+    val staleAfterHours: Int? = null,
+    val anomalies: List<BoardAnomalyDto>? = null,
+)
+data class BoardAnomalyDto(val code: String? = null, val message: String? = null, val severity: String? = null)
+data class BoardMetricDto(
+    val name: String? = null, val description: String? = null, val unit: String? = null,
+    val higherIsBetter: Boolean? = null, val comparableAcrossBoards: Boolean? = null,
+)
+data class BoardEvaluationDto(
+    val version: String? = null, val versionSource: String? = null, val upstreamUpdatedAt: String? = null,
+)
+data class BoardHistoryDto(
+    val fetchedAt: String? = null, val modelCount: Int? = null, val truncated: Boolean? = null,
+    val evaluationVersion: String? = null, val entries: List<BoardHistoryEntryDto>? = null,
+)
+data class BoardHistoryEntryDto(
+    val slug: String = "", @SerializedName("display_name") val displayName: String? = null,
+    val rank: Int? = null, val score: Double? = null,
 )
 
 data class EntryDto(
@@ -104,6 +136,7 @@ data class ScoreDto(
     @SerializedName("score_min") val scoreMin: Double? = null,
     @SerializedName("score_max") val scoreMax: Double? = null,
     @SerializedName("entry_count") val entryCount: Int = 0,
+    val board: BoardDto? = null,
 )
 
 data class ModelDetailDto(

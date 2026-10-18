@@ -15,6 +15,8 @@ class LeaderboardRepository(
 
     fun boards(): List<BoardDto> = local.boards()
 
+    fun historyByBoard(): Map<String, List<BoardHistoryDto>> = local.historyByBoard()
+
     fun usageRanking(): UsageRankingDto? = local.usageRanking()
 
     fun news(): NewsDto? = local.news()

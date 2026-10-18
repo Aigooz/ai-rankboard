@@ -69,7 +69,7 @@ import java.util.Locale
 private val SORT_OPTIONS = listOf(
     "rank" to "按排名",
     "score" to "按得分",
-    "updated" to "按更新时间",
+    "updated" to "按抓取时间",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,7 +152,11 @@ fun HomeScreen(
                     }
                 }
                 !state.loading && state.entries.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        com.ai.rankboard.ui.common.BoardTrustCard(
+                            state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard },
+                            state.snapshotInfo?.generatedAt,
+                        )
                         Text(
                             when {
                                 state.offline -> "无网络且无本地缓存，请联网后下拉刷新"
@@ -171,6 +175,13 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
+                        item(key = "board-trust") {
+                            com.ai.rankboard.ui.common.BoardTrustCard(
+                                state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
+                                    ?: state.boardsForTab.firstOrNull { it.slug == state.selectedBoard },
+                                state.snapshotInfo?.generatedAt,
+                            )
+                        }
                         if (state.offline) {
                             item {
                                 Surface(
@@ -405,7 +416,7 @@ private fun LeaderboardOverview(
                     modifier = Modifier.weight(1f),
                 )
                 MetricTile(
-                    label = "更新",
+                    label = "快照生成",
                     value = state.snapshotInfo?.generatedAt?.take(10).orEmpty().ifBlank { "-" },
                     modifier = Modifier.weight(1f),
                 )
@@ -572,7 +583,7 @@ private fun FilterSummaryBar(
             )
             if (snapshotDate.isNotBlank()) {
                 Text(
-                    text = "更新 $snapshotDate",
+                    text = "快照 $snapshotDate",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

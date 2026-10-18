@@ -1,9 +1,21 @@
 """Persistence: upsert parsed rows into SQLite."""
 
-from .db import get_conn
+import json
+
+from .db import get_conn, now_iso
 from .model_identity import canonical_model_slug
 from .scraper import _PARAMS_RE
 from .config import LIVEBENCH_URL, SWE_BENCH_URL
+
+HISTORY_LIMIT = 12
+HISTORY_ENTRY_LIMIT = 100
+
+
+def safe_fetch_error(error: str) -> str:
+    """Do not publish URLs, local paths, or arbitrary upstream exception bodies."""
+    # Exceptions may contain credentials or response bodies; publish only a generic
+    # diagnostic, preserving detailed exceptions exclusively in server-side logs.
+    return "抓取失败；保留上次成功数据。请检查来源可用性或服务端日志。"
 
 
 def extract_params_b(name: str):
@@ -50,6 +62,25 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
         deduped.append((model_slug, row))
 
     with get_conn() as conn:
+        upsert_board_meta(conn, board)
+        # Capture only observed successful fetches, never backfill invented history.
+        history_entries = [
+            {"slug": slug, "display_name": row["name"], "rank": row["rank"], "score": row["score"]}
+            for slug, row in deduped[:HISTORY_ENTRY_LIMIT]
+        ]
+        conn.execute(
+            """INSERT OR REPLACE INTO board_history
+               (board_slug, fetched_at, model_count, evaluation_version, entries_json)
+               VALUES (?, ?, ?, ?, ?)""",
+            (board["slug"], fetched_at, len(deduped), board.get("release"),
+             json.dumps(history_entries, ensure_ascii=False, allow_nan=False)),
+        )
+        conn.execute(
+            """DELETE FROM board_history WHERE board_slug=? AND fetched_at NOT IN
+               (SELECT fetched_at FROM board_history WHERE board_slug=?
+                ORDER BY fetched_at DESC LIMIT ?)""",
+            (board["slug"], board["slug"], HISTORY_LIMIT),
+        )
         # 榜单内容以本次抓取为准：先清掉该榜旧成绩再写入，避免站点改了命名后
         # 新旧两代 slug 并存出现"模型分身"。抓取失败不会走到这里，旧数据得以保留。
         conn.execute("DELETE FROM scores WHERE board_slug=?", (board["slug"],))
@@ -88,8 +119,9 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
         # 清理已经不在任何榜单里的孤儿模型。
         conn.execute("DELETE FROM models WHERE slug NOT IN (SELECT DISTINCT model_slug FROM scores)")
         conn.execute(
-            "UPDATE boards SET last_success_at=?, last_status='ok', last_error=NULL WHERE slug=?",
-            (fetched_at, board["slug"]),
+            """UPDATE boards SET last_success_at=?, last_attempt_at=?, last_status='ok',
+               last_error=NULL, evaluation_version=? WHERE slug=?""",
+            (fetched_at, fetched_at, board.get("release"), board["slug"]),
         )
     return len(deduped)
 
@@ -134,9 +166,10 @@ def save_news_articles(articles: list[dict], fetched_at: str) -> int:
     return len(articles)
 
 
-def mark_board_error(board: dict, error: str) -> None:
+def mark_board_error(board: dict, error: str, attempted_at: str | None = None) -> None:
     with get_conn() as conn:
+        upsert_board_meta(conn, board)
         conn.execute(
-            "UPDATE boards SET last_status='error', last_error=? WHERE slug=?",
-            (error[:500], board["slug"]),
+            "UPDATE boards SET last_status='error', last_error=?, last_attempt_at=? WHERE slug=?",
+            (safe_fetch_error(error), attempted_at or now_iso(), board["slug"]),
         )

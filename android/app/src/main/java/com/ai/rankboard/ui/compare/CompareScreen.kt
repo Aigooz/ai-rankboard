@@ -107,6 +107,7 @@ fun CompareScreen(
                 label = { slug -> visibleBoards.firstOrNull { it.slug == slug }?.name.orEmpty() },
                 onSelect = vm::selectBoard,
             )
+            com.ai.rankboard.ui.common.CrossBoardNotice()
             SelectionBar(
                 models = state.models,
                 canAdd = state.selectedSlugs.size < CompareViewModel.MAX_MODELS,

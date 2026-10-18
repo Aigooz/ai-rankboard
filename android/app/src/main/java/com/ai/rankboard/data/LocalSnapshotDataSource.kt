@@ -28,6 +28,8 @@ class LocalSnapshotDataSource private constructor(
 
     fun boards(): List<BoardDto> = snapshot.boards
 
+    fun historyByBoard(): Map<String, List<BoardHistoryDto>> = snapshot.historyByBoard.orEmpty()
+
     fun usageRanking(): UsageRankingDto? = snapshot.usageRanking
 
     fun news(): NewsDto? = snapshot.news
@@ -166,6 +168,7 @@ class LocalSnapshotDataSource private constructor(
                 scoreMin = boardScores.minOrNull(),
                 scoreMax = boardScores.maxOrNull(),
                 entryCount = boardScores.size,
+                board = board,
             )
         }
         return ModelDetailResponse(model, scores)
