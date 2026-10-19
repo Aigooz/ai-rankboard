@@ -115,28 +115,25 @@ test('native reader escapes snapshot paragraphs and supports missing content', (
 
 test('HLE reference stays closed, limited to one public text example with no answer', () => {
   const data = structuredClone(old);
-  data.boards.push({slug:'hle-official-2025-04',name:'HLE',dimension:'reasoning',kind:'hle',score_type:'hle',release:'2025-04-03'});
+  data.boards.push({slug:'livebench-reasoning',name:'LiveBench reasoning',dimension:'reasoning',kind:'livebench',score_type:'livebench',release:'LiveBench release'});
   data.benchmarkReferences = {hle:{name:'HLE',publisher:'CAIS',description:'Original vs Diamond',trainingWarning:'NO TRAINING',canary:'test-canary',licenseNotice:'Do not redistribute',examples:[{modality:'text',category:'Ecology',question:'Public <question>',author:'Author',sourceUrl:'https://lastexam.ai',answer:'DO-NOT-SHOW'}, {modality:'text',question:'SECOND-DO-NOT-SHOW'}]}};
-  const run = ui(data), html = run('benchmarkReferenceTemplate("hle-official-2025-04")');
+  const run = ui(data), html = run('benchmarkReferenceTemplate("livebench-reasoning")');
   assert.match(html, /^<details class=/); assert.doesNotMatch(html.split('<summary>')[0], /open/);
   assert.match(html, /Public &lt;question&gt;/); assert.match(html, /NO TRAINING/); assert.match(html, /test-canary/);
   assert.match(html, /题集版本日期不等于/); assert.match(html, /Do not redistribute/);
   assert.doesNotMatch(html, /DO-NOT-SHOW/);
   assert.equal(run('benchmarkReferenceTemplate("overall")'), '');
   run('state.snapshot.benchmarkReferences = undefined');
-  assert.equal(run('benchmarkReferenceTemplate("hle-official-2025-04")'), '');
+  assert.equal(run('benchmarkReferenceTemplate("livebench-reasoning")'), '');
 });
 
-test('reasoning entry is early and defaults to HLE Diamond ahead of other reasoning boards', () => {
+test('reasoning uses snapshot order and defaults to LiveBench without HLE scoring navigation', () => {
   const data = structuredClone(old);
-  data.boards.push({slug:'other-reasoning',dimension:'reasoning',name:'Other'}, {slug:'hle-official-2025-04',dimension:'reasoning',name:'HLE original'}, {slug:'hle-diamond-no-tools-high',dimension:'reasoning',name:'HLE Diamond'});
+  data.boards.push({slug:'livebench-reasoning',dimension:'reasoning',name:'LiveBench reasoning'}, {slug:'other-reasoning',dimension:'reasoning',name:'Other'});
   const run = ui(data);
   assert.equal(run('DIMENSIONS[2].slug'), 'reasoning');
-  assert.match(run('DIMENSIONS[2].name'), /HLE/);
-  assert.equal(run('boardsForDimension("reasoning").map(x=>x.slug).join(",")'), 'hle-diamond-no-tools-high,hle-official-2025-04,other-reasoning');
+  assert.equal(run('DIMENSIONS[2].name'), '推理');
+  assert.equal(run('boardsForDimension("reasoning").map(x=>x.slug).join(",")'), 'livebench-reasoning,other-reasoning');
   run('state.dimension="reasoning"; state.board="overall"; leaderboardTemplate()');
-  assert.equal(run('state.board'),'hle-diamond-no-tools-high');
-  assert.equal(run('state.snapshot.boards.at(-1).slug'),'hle-diamond-no-tools-high');
-  run('state.snapshot.boards=state.snapshot.boards.filter(x=>!x.slug.startsWith("hle"))');
-  assert.equal(run('boardsForDimension("reasoning")[0].slug'),'other-reasoning');
+  assert.equal(run('state.board'),'livebench-reasoning');
 });

@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -130,13 +128,6 @@ fun HomeScreen(
                             )
                         }
                     }
-                }
-                if (state.hleShortcutBoard != null) {
-                    AssistChip(
-                        onClick = vm::openHle,
-                        label = { Text("⭐ HLE 官网公开结果 · 查看评分", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                    )
                 }
                 FilterSummaryBar(
                     activeCount = state.activeFilterCount(),

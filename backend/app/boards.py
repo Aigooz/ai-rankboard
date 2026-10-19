@@ -41,12 +41,6 @@ BOARDS.extend([
     {"slug": "evalplus-mbpp-plus", "name": "EvalPlus MBPP+", "dimension": "coding",
      "score_type": "evalplus", "kind": "evalplus", "source_id": "evalplus", "category": "mbpp+", "release": "MBPP+ 0.2.0",
      "url": "https://evalplus.github.io/leaderboard.html"},
-    {"slug": "hle-diamond-no-tools-high", "name": "HLE-Diamond（无工具·high）", "dimension": "reasoning",
-     "score_type": "hle_diamond", "kind": "hle_diamond", "source_id": "hle",
-     "release": "HLE-Diamond 2026-09-22", "url": "https://lastexam.ai/blog/hle-diamond"},
-    {"slug": "hle-official-2025-04", "name": "HLE（官网公开结果·2025-04）", "dimension": "reasoning",
-     "score_type": "hle", "kind": "hle", "source_id": "hle",
-     "release": "HLE dataset 2025-04-03", "url": "https://lastexam.ai/"},
 ])
 
 BOARD_BY_SLUG = {b["slug"]: b for b in BOARDS}

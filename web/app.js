@@ -15,7 +15,7 @@ const SNAPSHOT_URLS = [
 const DIMENSIONS = [
   { slug: "overall", name: "综合" },
   { slug: "coding", name: "代码" },
-  { slug: "reasoning", name: "推理 · HLE" },
+  { slug: "reasoning", name: "推理" },
   { slug: "agent", name: "Agent" },
   { slug: "writing", name: "写作" },
   { slug: "multimodal", name: "多模态" },
@@ -1310,11 +1310,7 @@ function licenseOptions() {
 }
 
 function boardsForDimension(dimension) {
-  const boards = state.snapshot.boards.filter((board) => board.dimension === dimension);
-  if (dimension !== "reasoning") return boards;
-  const priority = ["hle-diamond-no-tools-high", "hle-official-2025-04"];
-  const order = slug => { const index = priority.indexOf(slug); return index < 0 ? priority.length : index; };
-  return boards.sort((a, b) => order(a.slug) - order(b.slug));
+  return state.snapshot.boards.filter((board) => board.dimension === dimension);
 }
 
 function findModel(slug) {
@@ -1609,13 +1605,13 @@ async function translateReader() {
 function benchmarkReferenceTemplate(slug) {
   const board = state.snapshot.boards.find(item => item.slug === slug);
   const reference = state.snapshot.benchmarkReferences?.hle;
-  if (!reference || !board || !["hle", "hle_diamond"].includes(board.kind || board.scoreType)) return "";
+  if (!reference || !board || board.dimension !== "reasoning") return "";
   // The reference is one publisher-public example, not permission to mirror the dataset.
   const example = (Array.isArray(reference.examples) ? reference.examples : []).find(item => item?.modality === "text" && typeof item.question === "string");
-  return `<details class="benchmark-reference inline-disclosure"><summary>测评说明与公开示例</summary><div class="disclosure-body">
+  return `<details class="benchmark-reference inline-disclosure"><summary>HLE 测评说明与公开示例（无评分榜）</summary><div class="disclosure-body">
     <h2>${escapeHtml(reference.name || "HLE")} · ${escapeHtml(reference.publisher || "")}</h2>
     <p>${escapeHtml(reference.description || "")}</p>
-    <p>当前题集版本：${escapeHtml(board.evaluation?.version || board.release || "未提供")}。题集版本日期不等于每个模型成绩发布日期；原版 HLE 与 HLE-Diamond、不同工具与推理配置不能直接混比。</p>
+    <p>此处仅保留 HLE 测评参考资料，不提供 HLE 模型评分榜；上方成绩属于当前所选推理榜，不是 HLE 成绩。题集版本日期不等于每个模型成绩发布日期；原版 HLE 与 HLE-Diamond、不同工具与推理配置不能直接混比。</p>
     <p>${sourceLink(reference.sourceUrl, "官方说明")} · ${sourceLink(reference.datasetUrl, "数据集访问条件")} · ${sourceLink(reference.paperUrl, "论文")}</p>
     <p class="warning">${escapeHtml(reference.licenseNotice || "仅引用官网公开示例，不提供完整题库。")}</p>
     ${reference.trainingWarning ? `<p class="training-warning">${escapeHtml(reference.trainingWarning)}</p>` : ""}

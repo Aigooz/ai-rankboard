@@ -45,8 +45,6 @@ def build_snapshot() -> dict:
         "swe_bench": "swebench",
         "aider_polyglot": "aider",
         "evalplus": "evalplus",
-        "hle": "hle",
-        "hle_diamond": "hle",
     }
     with get_conn() as conn:
         boards = [
@@ -65,6 +63,7 @@ def build_snapshot() -> dict:
                        last_attempt_at, last_status, last_error, evaluation_version,
                        (SELECT COUNT(*) FROM scores s WHERE s.board_slug = b.slug) AS model_count
                 FROM boards b
+                WHERE b.score_type NOT IN ('hle', 'hle_diamond')
                 ORDER BY b.slug
                 """
             )
@@ -114,6 +113,10 @@ def build_snapshot() -> dict:
                 SELECT slug, display_name, vendor, params_b, license, context_window,
                        source_url, release_date, updated_at
                 FROM models
+                WHERE slug IN (
+                    SELECT s.model_slug FROM scores s JOIN boards b ON b.slug=s.board_slug
+                    WHERE b.score_type NOT IN ('hle', 'hle_diamond')
+                )
                 ORDER BY slug
                 """
             )
@@ -129,6 +132,8 @@ def build_snapshot() -> dict:
         """
         for row in conn.execute(query):
             item = dict(row)
+            if item["board_slug"] not in history:
+                continue
             entries[item["board_slug"]].append(
                 {
                     "slug": item["slug"],

@@ -5,6 +5,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
+import com.ai.rankboard.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -136,6 +137,7 @@ class SnapshotStore(private val context: Context) {
 
             jsonFile.writeBytes(jsonBytes)
             hashFile.writeText("$expectedHash  $SNAPSHOT_FILE_NAME\n", Charsets.US_ASCII)
+            prefs.edit().putInt(SNAPSHOT_APP_VERSION_KEY, BuildConfig.VERSION_CODE).apply()
             verified = true
             _snapshot.value = parsed
             SnapshotUpdateResult(SnapshotUpdateStatus.UPDATED, "已同步新快照；各榜抓取状态与上游版本请查看榜单说明", addedModels)
@@ -160,7 +162,19 @@ class SnapshotStore(private val context: Context) {
     }
 
     private fun initialSnapshot(): Snapshot {
-        readDownloaded()?.let { return it }
+        val discardDownloaded = shouldDiscardDownloadedSnapshot(
+            prefs.getInt(SNAPSHOT_APP_VERSION_KEY, 0), BuildConfig.VERSION_CODE,
+        )
+        if (discardDownloaded) {
+            // A checksum-valid old cache can still hide boards/features bundled with the new APK.
+            // Ignore it for this launch even if filesystem deletion unexpectedly fails.
+            jsonFile.delete()
+            hashFile.delete()
+        }
+        if (!discardDownloaded || (!jsonFile.exists() && !hashFile.exists())) {
+            prefs.edit().putInt(SNAPSHOT_APP_VERSION_KEY, BuildConfig.VERSION_CODE).apply()
+        }
+        if (!discardDownloaded) readDownloaded()?.let { return it }
         val bytes = context.assets.open(ASSET_SNAPSHOT_FILE).use { it.readBytes() }
         val expectedHash = runCatching {
             parseHash(context.assets.open(ASSET_SNAPSHOT_HASH).use { it.readBytes().decodeToString() })
@@ -254,6 +268,10 @@ class SnapshotStore(private val context: Context) {
         const val ASSET_SNAPSHOT_FILE = "leaderboards.json"
         const val ASSET_SNAPSHOT_HASH = "leaderboards.json.sha256"
         const val DAILY_UPDATE_WORK = "snapshot-daily-update"
+        const val SNAPSHOT_APP_VERSION_KEY = "snapshot_app_version"
+
+        fun shouldDiscardDownloadedSnapshot(recordedVersionCode: Int, currentVersionCode: Int): Boolean =
+            recordedVersionCode < currentVersionCode
 
         fun isSnapshotFresh(
             generatedAt: String?,

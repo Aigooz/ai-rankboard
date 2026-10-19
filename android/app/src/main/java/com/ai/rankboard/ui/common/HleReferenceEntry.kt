@@ -12,21 +12,21 @@ import com.ai.rankboard.data.BenchmarkReferenceDto
 import com.ai.rankboard.data.BoardDto
 import com.ai.rankboard.data.sourceHttpUrl
 
-fun isHleBoard(board: BoardDto?): Boolean = board?.sourceId == "hle" || board?.scoreType in setOf("hle", "hle_diamond")
+fun hasHleReference(reference: BenchmarkReferenceDto?): Boolean = reference?.id == "hle"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HleReferenceEntry(board: BoardDto?, reference: BenchmarkReferenceDto?) {
-    if (!isHleBoard(board) || reference == null) return
+    if (!hasHleReference(reference) || board?.dimension != "reasoning") return
+    if (reference == null) return
     var open by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    TextButton(onClick = { open = true }) { Text("测评说明与公开示例 ⓘ", style = MaterialTheme.typography.labelSmall) }
+    TextButton(onClick = { open = true }) { Text("HLE 测评说明与公开示例 ⓘ", style = MaterialTheme.typography.labelSmall) }
     if (open) ModalBottomSheet(onDismissRequest = { open = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         SelectionContainer {
             LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.9f), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 item { Text(reference.name ?: "HLE参考说明", style = MaterialTheme.typography.titleLarge) }
-                item { Text(board?.name.orEmpty(), style = MaterialTheme.typography.titleSmall) }
-                item { Text("题集版本：${board?.evaluation?.version ?: board?.release ?: "未提供"}。这是评测题集版本，不是模型发布日期；官网历史公开结果不代表实时榜单。", style = MaterialTheme.typography.bodyMedium) }
+                item { Text("仅供了解测评与公开示例，本应用不提供HLE评分榜。题集版本不代表模型发布日期；官网历史结果不代表实时成绩。", style = MaterialTheme.typography.bodyMedium) }
                 reference.description?.let { text -> item { Text(text) } }
                 item { Text("原版HLE与HLE-Diamond题集不同，分数不能直接混比；本页不提供完整题库或答案。") }
                 reference.publisher?.let { text -> item { Text("发布方：$text") } }
