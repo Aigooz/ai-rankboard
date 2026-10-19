@@ -11,7 +11,7 @@
 
 | 平台 | 入口与要求 |
 | --- | --- |
-| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.18** |
+| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.19** |
 | 网页 | [GitHub Pages](https://aigooz.github.io/ai-rankboard/)，现代浏览器直接使用 |
 | iOS | 提供 [源码](ios/) 和 [构建工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/ios.yml)，iOS 17+；产物未签名，不是可直接安装的正式版 |
 
@@ -21,6 +21,7 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 
 ### 最近更新
 
+- **0.20.19**：行业资讯应用内原生阅读，不再依赖 WebView/iframe；正文随快照抓取，最新 6 篇可原生阅读，其余显示未获取并可打开原文。
 - **0.20.18**：说明默认精简为一行、点击展开；修复来源筛选；新增 Aider Polyglot、EvalPlus HumanEval+ 和 MBPP+ 三张真实榜单，网页排名优先显示。
 
 - **0.20.17**：Android 完善榜单来源、指标、版本、过期与失败状态及历史观测；网页新增收藏和独立对比；后端保留真实抓取历史。

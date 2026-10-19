@@ -1,4 +1,4 @@
-import { loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
+import { articleUrl, loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
 let storage;
 try { storage = window.localStorage; } catch { /* private mode / policy */ }
 const favorites = loadFavorites(storage);
@@ -86,6 +86,7 @@ async function init() {
   let previousView = parseHash().view;
   window.addEventListener("hashchange", () => {
     const route = parseHash();
+    closeReader();
     if (route.view !== previousView) window.scrollTo({ top: 0, behavior: "instant" });
     previousView = route.view;
     if (!route.slug) closeModal();
@@ -99,6 +100,7 @@ async function init() {
     });
   });
 
+  initReader();
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !modal.hidden) {
       closeModal();
@@ -726,16 +728,16 @@ function trendsTemplate() {
         <div class="panel-head">
           <div>
             <h2>行业资讯</h2>
-            <p class="panel-sub">来自 ModelSage 的评测与分析</p>
+            <p class="panel-sub">Artificial Analysis 原文 · 应用内阅读</p>
           </div>
         </div>
         <div class="panel-body">
           <div class="news-list">
           ${(news?.articles || []).slice(0, 10).map((article) => `
-            <a class="news-item" href="https://modelsage.cn${escapeAttr(article.url)}" target="_blank" rel="noreferrer">
+            <button class="news-item" type="button" data-article="${escapeAttr(articleUrl(article.url))}" ${articleUrl(article.url) ? "" : "disabled"}>
               <h3>${escapeHtml(article.title)}</h3>
-              <span>${formatDate(article.publishedAt)}</span>
-            </a>
+              <span>${formatDate(article.publishedAt)}${articleUrl(article.url) ? " · 阅读原文" : " · 原文地址不可用"}</span>
+            </button>
           `).join("")}
           </div>
         </div>
@@ -935,6 +937,7 @@ function bindLeaderboard() {
 }
 
 function bindTrends() {
+  document.querySelectorAll("[data-article]").forEach(node => node.addEventListener("click", () => openReader(node.dataset.article)));
   bindModelRows(true);
 }
 
@@ -1501,4 +1504,49 @@ function historyTemplate(slug) {
 
 function disclosure(label, text) {
   return `<details class="inline-disclosure"><summary>${escapeHtml(label)}</summary><p>${escapeHtml(text)}</p></details>`;
+}
+
+let readerTrigger = null;
+function initReader() {
+  const reader = document.getElementById("news-reader");
+  reader.querySelectorAll("[data-close-reader]").forEach(node => node.addEventListener("click", closeReader));
+  reader.addEventListener("keydown", event => {
+    if (event.key === "Escape") { event.preventDefault(); closeReader(); }
+    if (event.key === "Tab") {
+      const first = reader.querySelector("[data-reader-source]"), last = reader.querySelector("#reader-content");
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
+}
+function articleContentTemplate(article = {}) {
+  const paragraphs = typeof article.content === "string" ? article.content.trim().slice(0, 8000).split(/\n\s*\n/).filter(Boolean) : [];
+  return `<p class="reader-date">${escapeHtml(formatDate(article.publishedAt || article.published_at))} · Artificial Analysis</p><h1 class="reader-article-title">${escapeHtml(article.title || "资讯阅读")}</h1>${paragraphs.length ? paragraphs.map(text => `<p>${escapeHtml(text)}</p>`).join("") : `<p class="reader-empty">正文未获取，请点击上方“打开原文”。</p>`}`;
+}
+function openReader(url) {
+  const safe = articleUrl(url);
+  if (!safe) return;
+  const article = (state.snapshot.news?.articles || []).find(item => articleUrl(item.url) === safe);
+  if (!article) return;
+  const reader = document.getElementById("news-reader");
+  readerTrigger = document.activeElement;
+  document.getElementById("reader-title").textContent = "资讯阅读";
+  reader.querySelector("[data-reader-source]").href = safe;
+  const content = document.getElementById("reader-content");
+  content.innerHTML = articleContentTemplate(article);
+  content.scrollTop = 0;
+  reader.hidden = false;
+  document.body.style.overflow = "hidden";
+  document.querySelectorAll(".app-header, #app, .app-footer").forEach(node => { node.inert = true; });
+  reader.querySelector("[data-close-reader].icon-button").focus();
+}
+function closeReader() {
+  const reader = document.getElementById("news-reader");
+  if (!reader || reader.hidden) return;
+  reader.hidden = true;
+  document.getElementById("reader-content").replaceChildren();
+  document.querySelectorAll(".app-header, #app, .app-footer").forEach(node => { node.inert = false; });
+  document.body.style.overflow = "";
+  if (readerTrigger?.isConnected) readerTrigger.focus({ preventScroll: true });
+  readerTrigger = null;
 }

@@ -177,6 +177,7 @@ def build_snapshot() -> dict:
                         "title": row["title"],
                         "url": row["url"],
                         "published_at": row["published_at"],
+                        "content": row["content"],
                     }
                     for row in news_rows
                 ],

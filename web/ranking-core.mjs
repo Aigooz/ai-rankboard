@@ -53,3 +53,12 @@ export function saveComparison(storage, selected) {
 export function historyComparable(previous, latest) {
   return !!previous?.evaluationVersion && previous.evaluationVersion === latest?.evaluationVersion;
 }
+
+// Reader is deliberately restricted to the article publisher, not arbitrary snapshot URLs.
+export function articleUrl(value) {
+  try {
+    const url = new URL(String(value || ""), "https://artificialanalysis.ai");
+    if (url.origin !== "https://artificialanalysis.ai" || !/^\/articles\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(url.pathname)) return "";
+    return url.origin + url.pathname;
+  } catch { return ""; }
+}

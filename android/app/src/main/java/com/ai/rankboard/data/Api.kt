@@ -47,6 +47,7 @@ data class NewsArticleDto(
     val title: String = "",
     val url: String = "",
     @SerializedName("published_at") val publishedAt: String? = null,
+    val content: String? = null,
 )
 
 data class BoardDto(

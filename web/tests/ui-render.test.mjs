@@ -88,3 +88,27 @@ test('provenance defaults closed with visible failure badges and generic source 
   assert.doesNotMatch(summary, /快照生成时间|跨榜分数/);
   assert.match(info, /https:\/\/example.com/);
 });
+
+test('industry articles render as reader buttons rather than outbound navigation', () => {
+  const data = structuredClone(old);
+  data.news = {articles:[{title:'Article <test>',url:'/articles/test-news',published_at:'2026-10-19'},{title:'Unsafe',url:'javascript:alert(1)'}]};
+  const run = ui(data), html = run('trendsTemplate()');
+  assert.match(html, /<button class="news-item"/);
+  assert.match(html, /data-article="https:\/\/artificialanalysis.ai\/articles\/test-news"/);
+  assert.match(html, /Article &lt;test&gt;/);
+  assert.match(html, /原文地址不可用/);
+  assert.doesNotMatch(html, /href="https:\/\/modelsage.cn/);
+});
+
+test('native reader escapes snapshot paragraphs and supports missing content', () => {
+  const run = ui(old);
+  const html = run('articleContentTemplate({title:"Unsafe <title>", published_at:"2026-10-19", content:"First paragraph.\\n\\n<script>evil()</script>\\n\\nThird paragraph."})');
+  assert.match(html, /Unsafe &lt;title&gt;/);
+  assert.match(html, /&lt;script&gt;evil\(\)&lt;\/script&gt;/);
+  assert.match(html, /2026-10-19/);
+  assert.doesNotMatch(html, /<script>|<iframe/);
+  assert.equal((html.match(/<p>/g) || []).length, 3);
+  assert.match(run('articleContentTemplate({content:null})'), /正文未获取/);
+  assert.match(run('articleContentTemplate({content:"   "})'), /正文未获取/);
+  assert.match(run('articleContentTemplate({content:{bad:true}})'), /正文未获取/);
+});

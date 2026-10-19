@@ -528,7 +528,67 @@ def parse_aa_articles(html: str) -> list[dict]:
     return entries
 
 
+ARTICLE_CONTENT_LIMIT = 8000
+ARTICLE_CONTENT_FETCH_LIMIT = 6
+
+
+def parse_aa_article_content(html: str) -> str | None:
+    """Return plain paragraphs only, never scripts, navigation or related cards.
+
+    AA's verified article body is .prose containing its h1. Refuse unknown
+    layouts rather than treating the whole page (menus/footer) as an article.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    heading = soup.find("h1")
+    if heading is None:
+        return None
+    body = next((parent for parent in heading.parents
+                 if parent.name in {"article", "div", "section"}
+                 and "prose" in (parent.get("class") or [])), None)
+    if body is None:
+        body = heading.find_parent("article")
+    if body is None:
+        main = heading.find_parent("main")
+        # Verified custom benchmark articles place prose sections in this
+        # content column, with the table of contents in an excluded aside.
+        body = main.select_one(".container.pt-12 .grid.grid-cols-12 > .col-span-full") if main else None
+        if body is None or not body.find("section", id=True):
+            return None
+    for unwanted in body.select("script,style,nav,footer,aside,form,button,iframe,noscript,[hidden],[aria-hidden='true']"):
+        unwanted.decompose()
+    paragraphs = []
+    for element in body.find_all(["p", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "pre"]):
+        # A list/block quote may contain p tags: use the enclosing semantic
+        # block once, avoiding duplicate nested text while preserving order.
+        if any(parent.name in {"li", "blockquote", "pre"} for parent in element.parents if parent is not body):
+            continue
+        text = re.sub(r"\s+", " ", element.get_text(" ", strip=True)).strip()
+        if text:
+            paragraphs.append(text)
+    content = "\n\n".join(paragraphs).strip()
+    if not content:
+        return None
+    if len(content) > ARTICLE_CONTENT_LIMIT:
+        content = content[:ARTICLE_CONTENT_LIMIT - 1].rstrip() + "…"
+    return content
+
+
 async def fetch_aa_articles() -> list[dict]:
     async with httpx.AsyncClient(follow_redirects=True) as client:
         html = await fetch_html(client, AA_ARTICLES_URL)
-    return parse_aa_articles(html)
+        articles = parse_aa_articles(html)
+        semaphore = asyncio.Semaphore(3)
+
+        async def enrich(article):
+            article["content"] = None
+            if article["position"] > ARTICLE_CONTENT_FETCH_LIMIT:
+                return
+            async with semaphore:
+                try:
+                    article_html = await fetch_html(client, "https://artificialanalysis.ai" + article["url"])
+                    article["content"] = parse_aa_article_content(article_html)
+                except Exception:  # Independent article failures must not lose the news list.
+                    article["content"] = None
+
+        await asyncio.gather(*(enrich(article) for article in articles))
+    return articles

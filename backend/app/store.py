@@ -160,10 +160,10 @@ def save_news_articles(articles: list[dict], fetched_at: str) -> int:
         conn.execute("DELETE FROM news_articles")
         for article in articles:
             conn.execute(
-                """INSERT INTO news_articles(position, title, url, published_at, fetched_at)
-                   VALUES (?, ?, ?, ?, ?)""",
+                """INSERT INTO news_articles(position, title, url, published_at, content, fetched_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (article["position"], article["title"], article["url"],
-                 article.get("published_at"), fetched_at),
+                 article.get("published_at"), article.get("content"), fetched_at),
             )
     return len(articles)
 

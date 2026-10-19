@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS news_articles (
     title TEXT NOT NULL,
     url TEXT NOT NULL,
     published_at TEXT,
+    content TEXT,
     fetched_at TEXT NOT NULL
 );
 """
@@ -103,6 +104,9 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        news_columns = {row[1] for row in conn.execute("PRAGMA table_info(news_articles)")}
+        if "content" not in news_columns:
+            conn.execute("ALTER TABLE news_articles ADD COLUMN content TEXT")
         board_columns = {row[1] for row in conn.execute("PRAGMA table_info(boards)")}
         if "last_attempt_at" not in board_columns:
             conn.execute("ALTER TABLE boards ADD COLUMN last_attempt_at TEXT")

@@ -70,6 +70,19 @@
     </div>
   </div>
 
+  <div class="modal reader-modal" id="news-reader" hidden>
+    <div class="modal-backdrop" data-close-reader></div>
+    <section class="modal-panel reader-panel" role="dialog" aria-modal="true" aria-labelledby="reader-title" aria-describedby="reader-note">
+      <div class="modal-header">
+        <h2 id="reader-title">资讯阅读</h2>
+        <a class="chip reader-source" data-reader-source target="_blank" rel="noopener noreferrer">打开原文 ↗</a>
+        <button class="icon-button" type="button" data-close-reader aria-label="关闭资讯阅读">✕</button>
+      </div>
+      <p id="reader-note" class="reader-note">正文来自最近一次抓取快照，可能截断或滞后；完整排版与最新内容请查看原文。</p>
+      <article id="reader-content" class="reader-content" tabindex="0" aria-label="资讯正文"></article>
+    </section>
+  </div>
+
   <footer class="app-footer">
     <div class="shell footer-inner">
       <span id="data-meta">数据加载中</span>

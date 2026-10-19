@@ -32,6 +32,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,10 +51,7 @@ import com.ai.rankboard.data.PriceDistributionRow
 import com.ai.rankboard.data.UsageEntryDto
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.VendorIcon
-import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.compare.parseModelStrength
-
-private const val ARTICLES_BASE_URL = "https://artificialanalysis.ai"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +65,8 @@ fun TrendScreen(
     ),
 ) {
     val state by vm.state.collectAsState()
-    val context = LocalContext.current
+    var selectedArticle by remember { mutableStateOf<NewsArticleDto?>(null) }
+    selectedArticle?.let { ArticleReaderSheet(it, onDismiss = { selectedArticle = null }) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -178,12 +179,12 @@ fun TrendScreen(
                         items(articles.size, key = { "news-$it" }) { index ->
                             NewsRow(
                                 article = articles[index],
-                                onClick = { openUrl(context, ARTICLES_BASE_URL + articles[index].url) },
+                                onClick = { selectedArticle = articles[index] },
                             )
                         }
                         item(key = "news-note") {
                             Text(
-                                "英文内容来自 Artificial Analysis，点击跳转原文。",
+                                "英文原文来自 Artificial Analysis，点击在应用内阅读。",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 2.dp),

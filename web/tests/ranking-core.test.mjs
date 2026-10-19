@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadFavorites, saveFavorites, loadComparison, saveComparison, toggleComparison, safeUrl, boardStatus, modelRegion, comparableEntries, metricExplanation, historyComparable } from '../ranking-core.mjs';
+import { articleUrl, loadFavorites, saveFavorites, loadComparison, saveComparison, toggleComparison, safeUrl, boardStatus, modelRegion, comparableEntries, metricExplanation, historyComparable } from '../ranking-core.mjs';
 const memory = () => { const data = new Map(); return { getItem: k => data.get(k), setItem: (k,v) => data.set(k,v) }; };
 test('favorites survive reload, malformed and denied storage remain safe', () => {
   const storage = memory(); assert.equal(saveFavorites(storage, new Set(['a','b'])), true);
@@ -45,4 +45,10 @@ test('score explanations and history avoid false comparisons', () => {
   assert.equal(historyComparable({evaluationVersion:null}, {evaluationVersion:null}), false);
   assert.equal(historyComparable({evaluationVersion:'a'}, {evaluationVersion:'b'}), false);
   assert.equal(historyComparable({evaluationVersion:'a'}, {evaluationVersion:'a'}), true);
+});
+
+test('article reader only accepts Artificial Analysis article URLs', () => {
+  assert.equal(articleUrl('/articles/test-news'), 'https://artificialanalysis.ai/articles/test-news');
+  assert.equal(articleUrl('https://artificialanalysis.ai/articles/test-news?tracking=1'), 'https://artificialanalysis.ai/articles/test-news');
+  for (const url of ['javascript:alert(1)', 'https://evil.test/articles/test', '//evil.test/articles/test', '/articles/', 'https://artificialanalysis.ai.evil.test/articles/test', 'http://artificialanalysis.ai/articles/test']) assert.equal(articleUrl(url), '');
 });
