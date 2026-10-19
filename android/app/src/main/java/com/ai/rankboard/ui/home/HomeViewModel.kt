@@ -49,7 +49,7 @@ data class HomeUiState(
     val allBoardsForTab: List<BoardDto> = emptyList(),
     val period: String? = null,
     val periodOptions: List<PeriodOption> = emptyList(),
-    val sourceFilter: String? = "modelsage",
+    val sourceFilter: String? = null,
     val sort: String = "rank",
     val query: String = "",
     val vendorOptions: List<String> = emptyList(),
@@ -96,7 +96,7 @@ class HomeViewModel(
             it.copy(
                 tab = dimension,
                 allBoardsForTab = emptyList(),
-                sourceFilter = "modelsage",
+                sourceFilter = null,
                 boardsForTab = emptyList(),
                 selectedBoard = "",
                 period = null,
@@ -268,9 +268,7 @@ class HomeViewModel(
             }
             val allBoards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
             val preferredSource = _state.value.sourceFilter
-            val filtered = allBoards.filter { board ->
-                preferredSource == null || board.sourceId == preferredSource
-            }
+            val filtered = com.ai.rankboard.data.filterBoardsBySource(allBoards, preferredSource)
             val effectiveSource = when {
                 filtered.isNotEmpty() -> preferredSource
                 allBoards.isNotEmpty() -> null
@@ -285,7 +283,7 @@ class HomeViewModel(
             )
             _state.update {
                 it.copy(
-                    allBoardsForTab = sortedBoards,
+                    allBoardsForTab = allBoards,
                     boardsForTab = sortedBoards,
                     sourceFilter = effectiveSource,
                     loading = false,

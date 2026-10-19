@@ -32,11 +32,31 @@ fun collectionAgeMessage(value: String?, now: Instant = Instant.now()): String {
 
 fun metricExplanation(scoreType: String?): String = when (scoreType?.lowercase()) {
     "elo", "arena_elo" -> "Elo 为对战相对评分，受参赛模型、投票与统计区间影响，不是正确率。"
+    "aider_polyglot" -> "Aider Polyglot 为多语言编程任务通过率，受编辑格式、运行设置影响；只在同一榜单条件内比较。"
+    "evalplus" -> "EvalPlus 为指定HumanEval+/MBPP+任务集的通过率；任务集与运行条件不同，不能与其他代码榜原始分数混排。"
     "livebench" -> "LiveBench 为指定评测版本的任务成绩；不同版本的题目与评测条件可能不同，不直接跨版本比较。"
     "swe_bench", "swebench" -> "SWE-bench 为软件工程任务解决率；数据子集、代理框架与运行条件影响结果，不等同于模型通用能力。"
     "aa_index" -> "能力指数采用来源方的综合计算口径，不是百分制正确率；具体组成请查看原始来源。"
     else -> "指标类型：${scoreType?.takeIf { it.isNotBlank() } ?: "未提供"}。定义与计算口径请以原始来源说明为准。"
 }
+
+fun boardSourceLabel(board: BoardDto?): String = board?.source?.name?.takeIf { it.isNotBlank() }
+    ?: board?.sourceId?.takeIf { it.isNotBlank() } ?: "来源未知"
+
+fun boardCompactStatus(board: BoardDto?, now: Instant = Instant.now()): String {
+    if (board == null) return "抓取时间未知"
+    val success = board.health?.lastSuccessAt?.takeIf { it.isNotBlank() } ?: board.lastSuccessAt
+    val fetched = trustInstant(success)
+    val failed = board.health?.latestAttemptStatus == "error"
+    val stale = board.health?.stale == true || (fetched != null && Duration.between(fetched, now) > Duration.ofHours(48))
+    val warning = buildList { if (failed) add("抓取失败"); if (stale) add("可能过期") }.joinToString(" · ")
+    val date = if (fetched == null) "抓取未知" else "抓取 ${success?.take(10)}"
+    return if (warning.isBlank()) date else "$warning · $date"
+}
+
+/** Keep complete source options separate from a user's selected subset. */
+fun filterBoardsBySource(boards: List<BoardDto>, sourceId: String?): List<BoardDto> =
+    if (sourceId == null) boards else boards.filter { it.sourceId == sourceId }
 
 fun boardHealthLines(board: BoardDto, now: Instant = Instant.now()): List<String> = buildList {
     val success = board.health?.lastSuccessAt?.takeIf { it.isNotBlank() } ?: board.lastSuccessAt

@@ -410,6 +410,12 @@ async def fetch_swe_bench_board(board: dict) -> list:
 
 
 async def fetch_board(board: dict) -> list:
+    if board.get("kind") in {"aider_polyglot", "evalplus"}:
+        from .public_sources import AIDER_DATA_URL, EVALPLUS_DATA_URL, parse_aider_polyglot, parse_evalplus
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            if board["kind"] == "aider_polyglot":
+                return parse_aider_polyglot(await fetch_html(client, AIDER_DATA_URL))
+            return parse_evalplus(await fetch_json(client, EVALPLUS_DATA_URL), board.get("category", "humaneval+"))
     if board.get("kind") == "livebench":
         return await fetch_livebench_board(board)
     if board.get("kind") == "swe_bench":

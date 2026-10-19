@@ -37,6 +37,8 @@ fun sourceVisual(sourceId: String): SourceVisual {
     val id = sourceId.lowercase(Locale.ROOT)
     return when {
         id == "modelsage" -> SourceVisual("ModelSage", "MS", Color(0xFF6366F1))
+        id == "aider" -> SourceVisual("Aider", "AI", Color(0xFF047857))
+        id == "evalplus" -> SourceVisual("EvalPlus", "EP", Color(0xFF9333EA))
         id == "livebench" -> SourceVisual("LiveBench", "LB", Color(0xFF14B8A6))
         id == "swebench" || id == "swe-bench" -> SourceVisual("SWE-bench", "SB", Color(0xFF2563EB))
         id == "artificialanalysis" || id == "artificial-analysis" ->
@@ -49,6 +51,8 @@ fun sourceVisual(sourceId: String): SourceVisual {
 }
 
 fun boardSourceId(boardSlug: String, fallback: String = "modelsage"): String = when {
+    boardSlug.startsWith("aider-") -> "aider"
+    boardSlug.startsWith("evalplus-") -> "evalplus"
     boardSlug.startsWith("livebench") -> "livebench"
     boardSlug.startsWith("swe-bench") -> "swebench"
     boardSlug.startsWith("arena") -> "arena"

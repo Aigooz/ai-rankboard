@@ -60,6 +60,28 @@ class SnapshotParsingTest {
     """.trimIndent()
 
     @Test
+    fun bundledNewSourcesRemainSeparateBoards() {
+        val asset = java.io.File("src/main/assets/leaderboards.json").takeIf { it.isFile }
+            ?: java.io.File("app/src/main/assets/leaderboards.json")
+        val snapshot = Gson().fromJson(asset.readText(), Snapshot::class.java)
+        val source = LocalSnapshotDataSource(snapshot)
+        val expected = mapOf("aider-polyglot" to "aider", "evalplus-humaneval-plus" to "evalplus", "evalplus-mbpp-plus" to "evalplus")
+        val coding = source.boardsForDimension("coding")
+        expected.forEach { (slug, provider) ->
+            val board = coding.first { it.slug == slug }
+            assertEquals(provider, board.sourceId)
+            assertNotNull(sourceHttpUrl(board.source?.url ?: board.url))
+            val rows = source.page(slug, "rank", null, emptySet(), emptySet(), 1000, 0)!!
+            assertTrue("Real collected entries required for $slug", rows.entries.isNotEmpty())
+            assertEquals(snapshot.entriesByBoard[slug]!!.map { it.slug }.toSet(), rows.entries.map { it.slug }.toSet())
+            assertEquals(slug, rows.board.slug)
+        }
+        assertTrue(filterBoardsBySource(coding, null).map { it.slug }.containsAll(expected.keys))
+        assertEquals(setOf("evalplus-humaneval-plus", "evalplus-mbpp-plus"),
+            filterBoardsBySource(coding, "evalplus").map { it.slug }.toSet())
+    }
+
+    @Test
     fun parseSnapshotSchemaV3() {
         val snapshot = Gson().fromJson(json, Snapshot::class.java)
 

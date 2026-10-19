@@ -28,6 +28,10 @@ SOURCES = [
     SOURCE,
     {"id": "livebench", "name": "LiveBench", "url": "https://livebench.ai/leaderboard"},
     {"id": "swebench", "name": "SWE-bench", "url": "https://www.swebench.com"},
+    {"id": "aider", "name": "Aider", "url": "https://aider.chat/docs/leaderboards/",
+     "license": "Apache-2.0", "licenseUrl": "https://github.com/Aider-AI/aider/blob/main/LICENSE.txt"},
+    {"id": "evalplus", "name": "EvalPlus", "url": "https://evalplus.github.io/leaderboard.html",
+     "license": "Apache-2.0", "licenseUrl": "https://github.com/evalplus/evalplus.github.io/blob/master/LICENSE"},
 ]
 
 
@@ -37,6 +41,8 @@ def build_snapshot() -> dict:
         "arena_elo": "modelsage",
         "livebench": "livebench",
         "swe_bench": "swebench",
+        "aider_polyglot": "aider",
+        "evalplus": "evalplus",
     }
     with get_conn() as conn:
         boards = [

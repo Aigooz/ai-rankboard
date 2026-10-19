@@ -24,7 +24,9 @@ def extract_params_b(name: str):
 
 
 def upsert_board_meta(conn, board: dict) -> None:
-    if board.get("kind") == "livebench":
+    if board.get("url"):
+        url = board["url"]
+    elif board.get("kind") == "livebench":
         url = f"{LIVEBENCH_URL}/leaderboard"
     elif board.get("kind") == "swe_bench":
         url = SWE_BENCH_URL

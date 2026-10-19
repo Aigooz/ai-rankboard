@@ -289,7 +289,7 @@ private fun QuickChipsRow(
                 )
             }
         } else {
-            items(state.allBoardsForTab, key = { it.slug }) { board ->
+            items(state.boardsForTab, key = { it.slug }) { board ->
                 QuickChip(
                     label = board.name,
                     selected = state.selectedBoard == board.slug,
@@ -653,7 +653,7 @@ private fun FilterSheet(
             }
         } else {
             FilterSection("榜单") {
-                items(state.allBoardsForTab, key = { it.slug }) { board ->
+                items(state.boardsForTab, key = { it.slug }) { board ->
                     FilterChip(
                         selected = state.selectedBoard == board.slug,
                         onClick = { onSelectBoard(board.slug) },

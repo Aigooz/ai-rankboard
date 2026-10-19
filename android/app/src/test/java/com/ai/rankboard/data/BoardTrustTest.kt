@@ -7,6 +7,27 @@ import org.junit.Test
 
 class BoardTrustTest {
     private val now = Instant.parse("2026-10-19T00:00:00Z")
+    @Test fun compactStatusKeepsFailuresAndAgeWithoutLongExplanation() {
+        val board = BoardDto("x", "X", "coding", lastSuccessAt = "2026-10-18T00:00:00Z")
+        assertEquals("抓取 2026-10-18", boardCompactStatus(board, now))
+        val failed = board.copy(health = BoardHealthDto(latestAttemptStatus = "error", stale = true))
+        assertTrue(boardCompactStatus(failed, now).startsWith("抓取失败 · 可能过期"))
+        assertTrue(boardCompactStatus(board.copy(lastSuccessAt = null), now).contains("未知"))
+        assertFalse(boardCompactStatus(board, now).contains("上游"))
+    }
+    @Test fun sourceFilteringAcceptsNewAndUnknownProvidersWithoutMixingBoards() {
+        val boards = listOf("modelsage", "aider", "evalplus", "future-source").map {
+            BoardDto(it, it, "coding", sourceId = it)
+        }
+        assertEquals(4, filterBoardsBySource(boards, null).size)
+        assertEquals(listOf("aider"), filterBoardsBySource(boards, "aider").map { it.slug })
+        assertEquals(listOf("evalplus"), filterBoardsBySource(boards, "evalplus").map { it.slug })
+        assertEquals(4, boards.size) // filtering must not discard complete source options
+        assertEquals("future-source", boardSourceLabel(boards.last()))
+        assertEquals("Official name", boardSourceLabel(boards.last().copy(source = SnapshotSourceDto(name = "Official name"))))
+        assertTrue(metricExplanation("evalplus").contains("不能"))
+        assertTrue(metricExplanation("aider_polyglot").contains("通过率"))
+    }
     @Test fun safeSourceLinksOnly() {
         assertEquals("https://livebench.ai/leaderboard", sourceHttpUrl(" https://livebench.ai/leaderboard "))
         listOf(null, "", "javascript:alert(1)", "file:///etc/passwd", "https:///no-host", "/local").forEach {

@@ -16,7 +16,11 @@ const old = { schemaVersion:3, generatedAt:'2026-10-19T00:00:00Z', boards:[{slug
 test('old schema3 renders leaderboard comparison selection and missing history without exceptions', () => {
   const run=ui(old);
   assert.match(run('leaderboardTemplate()'), /快照生成时间/);
-  assert.match(run('leaderboardTemplate()'), /暂无历史记录/);
+  assert.equal(run('historyTemplate("overall")'), '');
+  const home = run('leaderboardTemplate()');
+  assert.doesNotMatch(home, /class="trust-note"/);
+  assert.ok(home.indexOf('id="table-body"') < home.indexOf('class="overview-disclosure"'));
+  assert.match(home, /<details class="overview-disclosure"><summary>/);
   assert.match(run('selectTemplate()'), /Arena/);
   run('state.comparison = ["a", "missing"]');
   assert.match(run('comparisonTemplate()'), /本榜未收录/);
@@ -47,10 +51,40 @@ test('combined filters and favorites use current board before sorting', () => {
   run('state.query=""; state.region="unknown"; state.favoritesOnly=false');
   assert.equal(run('filteredEntries()[0].slug'), 'c');
 });
+test('Aider and EvalPlus coding boards appear without a hardcoded source allowlist', () => {
+  const data = structuredClone(old);
+  for (const [slug, source, scoreType] of [['aider-polyglot','Aider','aider_polyglot'], ['evalplus-humaneval-plus','EvalPlus','evalplus']]) {
+    data.boards.push({slug, name:source + ' coding',dimension:'coding',score_type:scoreType,source:{id:source.toLowerCase(),name:source,url:'https://example.com/'+slug}, metric:{description:source+' success rate'}});
+    data.entriesByBoard[slug] = [{slug:'model-'+slug,display_name:source+' model',score:91,rank:1}];
+  }
+  const run = ui(data);
+  run('state.dimension="coding"; state.board="aider-polyglot"');
+  const html = run('leaderboardTemplate()');
+  assert.match(html, /data-board="evalplus-humaneval-plus"/);
+  assert.match(html, /Aider model/);
+  assert.match(run('boardInfo("evalplus-humaneval-plus")'), /EvalPlus success rate/);
+  assert.match(run('comparisonTemplate()'), /Aider coding/);
+});
+
 test('incomplete price and unknown currency do not become free or CNY', () => {
   const run = ui(old);
   assert.equal(run('blendedPrice({priceIn:1})'), null);
   assert.equal(run('blendedPrice({priceIn:0,priceOut:0})'), 0);
   assert.equal(run('blendedPrice({priceIn:1,priceOut:1,currency:"EUR"})'), null);
   assert.ok(Math.abs(run('blendedPrice({priceIn:1,priceOut:1,currency:"USD"})') - 7.2) < 0.0001);
+});
+
+test('provenance defaults closed with visible failure badges and generic source names', () => {
+  const data = structuredClone(old);
+  data.sources = [{id:'new-source', name:'New Public Benchmark',url:'https://example.com/new'}];
+  data.boards[0].source_id = 'new-source';
+  data.boards[0].health = {latestAttemptStatus:'error', error:'bad'};
+  const run = ui(data), info = run('boardInfo("overall")');
+  assert.match(info, /^<details class="board-info"/);
+  assert.doesNotMatch(info.split('<summary>')[0], /\bopen\b/);
+  const summary = info.split('</summary>')[0];
+  assert.match(summary, /New Public Benchmark/);
+  assert.match(summary, /抓取失败/);
+  assert.doesNotMatch(summary, /快照生成时间|跨榜分数/);
+  assert.match(info, /https:\/\/example.com/);
 });

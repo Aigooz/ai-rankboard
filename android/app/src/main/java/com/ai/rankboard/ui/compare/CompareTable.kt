@@ -357,6 +357,8 @@ internal fun dimensionLabel(dimension: String): String = when (dimension) {
 
 internal fun sourceLabel(sourceId: String): String = when (sourceId.lowercase(Locale.US)) {
     "modelsage" -> "ModelSage"
+    "aider" -> "Aider"
+    "evalplus" -> "EvalPlus"
     "livebench" -> "LiveBench"
     "swebench", "swe-bench" -> "SWE-bench"
     "arena", "lmarena" -> "Arena"

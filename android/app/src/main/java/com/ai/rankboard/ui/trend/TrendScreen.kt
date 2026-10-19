@@ -100,12 +100,12 @@ fun TrendScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    item(key = "history-explanation") {
-                        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("榜单历史观测", style = MaterialTheme.typography.titleSmall)
-                            com.ai.rankboard.ui.common.CrossBoardNotice()
-                            if (state.boardChanges.isEmpty()) Text("尚无可比较的两次真实抓取记录，暂不展示分数变化。", style = MaterialTheme.typography.bodySmall)
-                            if (state.usage == null) Text("暂无用量数据，可同步快照后重试。", style = MaterialTheme.typography.bodySmall)
+                    if (state.boardChanges.isNotEmpty()) {
+                        item(key = "history-explanation") {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("榜单历史观测", style = MaterialTheme.typography.titleSmall)
+                                com.ai.rankboard.ui.common.CrossBoardNotice()
+                            }
                         }
                     }
                     state.boardChanges.forEach { (name, lines) ->

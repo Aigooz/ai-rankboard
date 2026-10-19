@@ -31,4 +31,16 @@ BOARDS = [
     {"slug": "swe-bench-multimodal", "name": "SWE-bench Multimodal", "dimension": "multimodal", "score_type": SWE_BENCH, "kind": SWE_BENCH, "swe_board": "Multimodal"},
 ]
 
+BOARDS.extend([
+    {"slug": "aider-polyglot", "name": "Aider Polyglot", "dimension": "coding",
+     "score_type": "aider_polyglot", "kind": "aider_polyglot", "source_id": "aider",
+     "url": "https://aider.chat/docs/leaderboards/"},
+    {"slug": "evalplus-humaneval-plus", "name": "EvalPlus HumanEval+", "dimension": "coding",
+     "score_type": "evalplus", "kind": "evalplus", "source_id": "evalplus", "category": "humaneval+", "release": "HumanEval+ 0.1.10",
+     "url": "https://evalplus.github.io/leaderboard.html"},
+    {"slug": "evalplus-mbpp-plus", "name": "EvalPlus MBPP+", "dimension": "coding",
+     "score_type": "evalplus", "kind": "evalplus", "source_id": "evalplus", "category": "mbpp+", "release": "MBPP+ 0.2.0",
+     "url": "https://evalplus.github.io/leaderboard.html"},
+])
+
 BOARD_BY_SLUG = {b["slug"]: b for b in BOARDS}

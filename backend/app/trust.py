@@ -10,11 +10,13 @@ def metric_info(board):
         "arena_elo": ("Arena 偏好评分", "来自盲测偏好比较；评分受样本、类别与评测时间影响。", None),
         "livebench": ("LiveBench 得分", "来自指定评测版本与类别；不同版本不可直接比较。", None),
         "swe_bench": ("SWE-bench 解决率", "来源榜单的任务解决率；代理框架和评测子集也会影响结果。", "%"),
+        "aider_polyglot": ("Aider 双轮通过率", "Polyglot 代码编辑任务的 pass_rate_2；保留模型/推理与编辑配置，非单轮 pass@1。并列分数以名称排序不代表能力差距；公开结果可能长期未更新，不保证包含最新模型。", "%"),
+        "evalplus": ("EvalPlus pass@1", "指定 HumanEval+ 或 MBPP+ 测试集的 pass@1 百分比；基础与指令模型提示方式不同。并列分数以名称排序；公开结果可能长期未更新，不保证包含最新模型。", "%"),
         "aa_index": ("来源榜单指标", "保留来源榜单分数；速度、性价比与能力榜的指标定义不同，请查阅来源。", None),
     }
     name, description, unit = descriptions.get(kind, ("来源分数", "具体定义请查阅来源，不跨榜直接比较。", None))
     return {"name": name, "description": description, "unit": unit,
-            "higherIsBetter": True if kind in {"arena_elo", "livebench", "swe_bench"} else None,
+            "higherIsBetter": True if kind in {"arena_elo", "livebench", "swe_bench", "aider_polyglot", "evalplus"} else None,
             "comparableAcrossBoards": False}
 
 

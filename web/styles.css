@@ -1634,7 +1634,7 @@ select:focus-visible,
 }
 
 /* Selection and data provenance: touch-friendly, contained horizontal scrolling. */
-.trust-note, .board-info, .history-panel { padding: 16px; margin: 16px 0; }
+.board-info, .history-panel { margin: 10px 0; color: var(--muted); font-size: 13px; }
 .trust-note { border-left: 4px solid var(--secondary); background: var(--secondary-container); color: var(--on-secondary-container); border-radius: 10px; }
 .board-info h2, .history-panel h2 { margin: 0 0 8px; font-size: 17px; }
 .board-info p, .history-panel p { overflow-wrap: anywhere; }
@@ -1684,3 +1684,24 @@ button, .app-nav a { touch-action: manipulation; }
   .modal-body { max-height: calc(90dvh - 70px); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+.board-info > summary, .history-panel > summary { padding: 8px 0; cursor: pointer; min-height: 40px; }
+.board-info > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.board-info > summary::before { content: "▸"; color: var(--muted); }
+.board-info[open] > summary::before { content: "▾"; }
+.board-info > summary::-webkit-details-marker { display: none; }
+.provenance-label { color: var(--text); font-weight: 650; }
+.disclosure-label { color: var(--primary); font-size: 12px; }
+.status-badge { display: inline-block; background: var(--tertiary-container); color: var(--on-tertiary-container); border-radius: 6px; padding: 1px 6px; font-size: 11px; }
+.disclosure-body { border-left: 2px solid var(--outline); padding: 8px 14px; margin-bottom: 8px; }
+.inline-disclosure { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.inline-disclosure summary { cursor: pointer; width: fit-content; min-height: 28px; padding: 4px 0; }
+.inline-disclosure p { max-width: 76ch; margin: 4px 0 10px; }
+summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.board-info h2 { font-size: 15px; }
+@media (max-width: 600px) { .board-info > summary { gap: 4px 8px; } .provenance-time { font-size: 12px; } }
+
+.overview-disclosure { margin-top: 20px; }
+.overview-disclosure > summary { color: var(--primary); cursor: pointer; padding: 10px 0; min-height: 44px; }
+.compact-freshness { font-size: 12px; }
+@media (max-width: 600px) { .compact-freshness { margin-top: 4px; } }

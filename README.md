@@ -11,7 +11,7 @@
 
 | 平台 | 入口与要求 |
 | --- | --- |
-| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.17** |
+| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.18** |
 | 网页 | [GitHub Pages](https://aigooz.github.io/ai-rankboard/)，现代浏览器直接使用 |
 | iOS | 提供 [源码](ios/) 和 [构建工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/ios.yml)，iOS 17+；产物未签名，不是可直接安装的正式版 |
 
@@ -20,6 +20,8 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 安装时选择 `app-release.apk`，不是 GitHub 自动生成的 **Source code (zip)**。首次安装需要 Android 的“允许安装未知应用”授权。官方新版沿用原签名，可覆盖升级，无需先卸载旧版。
 
 ### 最近更新
+
+- **0.20.18**：说明默认精简为一行、点击展开；修复来源筛选；新增 Aider Polyglot、EvalPlus HumanEval+ 和 MBPP+ 三张真实榜单，网页排名优先显示。
 
 - **0.20.17**：Android 完善榜单来源、指标、版本、过期与失败状态及历史观测；网页新增收藏和独立对比；后端保留真实抓取历史。
 
@@ -48,7 +50,7 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 
 ## 数据与更新
 
-当前后端注册 **23 个榜单**：ModelSage/Arena 相关 12 个、LiveBench 8 个、SWE-bench 3 个。保留来源链接、评测信息和抓取状态。数据来自公开来源，商用前请确认上游条款；不是各评测机构的官方客户端。
+当前后端注册 **26 个榜单**，来自 **5 个独立抓取来源**：ModelSage/Arena 相关 12 个、LiveBench 8 个、SWE-bench 3 个、Aider Polyglot 1 个、EvalPlus HumanEval+ 与 MBPP+ 2 个。新增三榜均在“代码”分类中，可切换来源查看，不混合原始分数排序。数据来自公开来源，不是各评测机构的官方客户端。Aider、EvalPlus 的数据可能不包含最新模型，抓取日期不代表评测发布日期；商用前仍请确认上游条款。
 
 **榜单数据更新**与**应用版本升级**是两条独立通道：
 
@@ -62,7 +64,7 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 ### 如何阅读榜单与变化
 
 - 分数只在同一榜单、同一评测版本下比较，不将 Arena 分、LiveBench 分与其他能力指数相加生成“统一总分”；缺失成绩显示为未知，而不是 0 分。
-- 榜单说明区提供原始来源、指标含义和评测版本。未采集到的上游更新时间或版本明确显示为未知；LiveBench 的配置版本不是本站抓取日期。
+- 榜单页默认仅显示紧凑的来源、抓取日期和必要状态；完整说明通过网页展开入口或 Android“详情”打开，不再常驻占据榜单首屏。说明中保留原始来源、指标含义和评测版本。未采集到的上游更新时间或版本明确显示为未知；LiveBench 的配置版本不是本站抓取日期。
 - 抓取数据超过 48 小时会提示可能陈旧，含义是本站缓存年龄，不代表上游 48 小时没有更新；部分来源抓取失败时保留此前可用成绩并展示失败状态。若所有来源均失败，发布流程保留整份旧快照，因此客户端只能看到上次发布状态与缓存年龄，无法显示这一轮失败。
 - 新版导出快照带有可选健康信息和成功抓取历史。历史从实际采集开始积累，每榜最多保留 12 次、每次前 100 个模型；旧快照没有历史时不推算历史，首次采集不显示升降。
 - 历史名次变化只比较同榜且相同已知评测版本；版本未知或发生切换时仅展示抓取记录，不推断能力提升。大幅模型数或名次变化属于复核提示，不等同于数据错误。

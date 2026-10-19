@@ -250,7 +250,7 @@ function render() {
 
 function renderDataMeta() {
   const generated = formatDate(state.snapshot.generatedAt);
-  document.getElementById("data-meta").textContent = `快照生成：${generated}（不代表上游评测更新） · 来源：ModelSage / Arena / LiveBench / SWE-bench`;
+  document.getElementById("data-meta").textContent = `快照生成：${generated} · 来源：${(state.snapshot.sources || []).map(x => x.name || x.id).filter(Boolean).join(" / ") || state.snapshot.source?.name || "见各榜单"}`;
 }
 
 function vendorIcon(vendor) {
@@ -321,54 +321,8 @@ function leaderboardTemplate() {
         <h1>模型排行</h1>
         <p>按能力、价格和发布状态对比 ${formatNumber(entries.length)} 个模型</p>
       </div>
-      <div class="freshness">快照生成<strong>${generated}</strong>${livebenchRelease ? `<span>LiveBench release ${escapeHtml(livebenchRelease)}</span>` : ""}</div>
+      <div class="freshness compact-freshness">快照生成 ${generated}</div>
     </div>
-    <p class="trust-note">各榜指标、版本和评测条件不同，跨榜分数不可直接比较；本应用不计算跨榜综合分。</p>
-    <div class="metric-grid">
-      ${overview.cards.map((item) => `
-        <article class="metric-card" style="--metric-color:${item.color}">
-          <span>${item.label}</span>
-          <strong>${item.value}</strong>
-          <small>${item.detail}</small>
-        </article>
-      `).join("")}
-    </div>
-    <div class="insight-grid">
-      <section class="panel chart-panel">
-        <div class="panel-head">
-          <div>
-            <h2>价格分布</h2>
-            <p class="panel-sub">按综合榜混合价分层</p>
-          </div>
-        </div>
-        <div class="panel-body">
-          ${priceDistribution(overview.priced)}
-        </div>
-      </section>
-      <section class="panel chart-panel">
-        <div class="panel-head">
-          <div>
-            <h2>厂商集中度</h2>
-            <p class="panel-sub">上榜模型数量前 8 名</p>
-          </div>
-        </div>
-        <div class="panel-body">
-          ${vendorDistribution(overview.vendorCounts)}
-        </div>
-      </section>
-      <section class="panel chart-panel">
-        <div class="panel-head">
-          <div>
-            <h2>能力分布</h2>
-            <p class="panel-sub">综合榜分数按 20 分一段分层</p>
-          </div>
-        </div>
-        <div class="panel-body">
-          ${scoreDistribution(overview.scored)}
-        </div>
-      </section>
-    </div>
-    ${livebenchMatrix()}
     <div class="dimension-tabs" role="tablist" aria-label="榜单维度">
       ${DIMENSIONS.map((dimension) => `
         <button class="chip ${dimension.slug === state.dimension ? "active" : ""}" type="button" data-dimension="${dimension.slug}">
@@ -421,8 +375,55 @@ function leaderboardTemplate() {
       </div>
       ${entries.length ? "" : `<div class="empty-state">没有符合条件的模型。</div>`}
     </div>
-    <p class="muted">归属按开发者厂商别名识别，不代表 API 部署位置；未识别厂商保留为未知。价格仅作估算，USD 暂按 7.2 换算人民币。</p>
+    ${disclosure("筛选与价格说明", "归属按开发者厂商别名识别，不代表 API 部署位置；未识别厂商保留为未知。价格仅作估算，USD 暂按 7.2 换算人民币。")}
     ${historyTemplate(state.board)}
+    <details class="overview-disclosure"><summary>概览图表与 LiveBench 能力矩阵</summary>
+    <div class="metric-grid">
+      ${overview.cards.map((item) => `
+        <article class="metric-card" style="--metric-color:${item.color}">
+          <span>${item.label}</span>
+          <strong>${item.value}</strong>
+          <small>${item.detail}</small>
+        </article>
+      `).join("")}
+    </div>
+    <div class="insight-grid">
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>价格分布</h2>
+            <p class="panel-sub">按综合榜混合价分层</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${priceDistribution(overview.priced)}
+        </div>
+      </section>
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>厂商集中度</h2>
+            <p class="panel-sub">上榜模型数量前 8 名</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${vendorDistribution(overview.vendorCounts)}
+        </div>
+      </section>
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>能力分布</h2>
+            <p class="panel-sub">综合榜分数按 20 分一段分层</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${scoreDistribution(overview.scored)}
+        </div>
+      </section>
+    </div>
+    ${livebenchMatrix()}
+    </details>
   `;
 }
 
@@ -692,7 +693,7 @@ function trendsTemplate() {
     <div class="view-header">
       <div>
         <h1>行业趋势</h1>
-        <p>来源报告的网关用量与模型评测资讯；不代表全行业用量</p>
+        <p>网关用量与评测资讯</p>
       </div>
       <div class="freshness">用量记录生成时间<strong>${formatDate(usage?.generatedAt)}</strong></div>
     </div>
@@ -789,7 +790,7 @@ function selectTemplate() {
         <div class="panel-head">
           <div>
             <h2>性价比首选</h2>
-            <p class="panel-sub">仅综合榜内的分数/价格启发式排序，价格分母最低按 ¥0.5；非官方性价比指标，不代表实际任务效果。</p>
+            ${disclosure("估算规则", "仅综合榜内的分数/价格启发式排序，价格分母最低按 ¥0.5；非官方性价比指标，不代表实际任务效果。")}
           </div>
         </div>
         <div class="panel-body">
@@ -893,6 +894,14 @@ function bindLeaderboard() {
   const sortSelect = document.getElementById("sort-select");
   const vendorSelect = document.getElementById("vendor-select");
   const licenseSelect = document.getElementById("license-select");
+  // Adjust only the tab strip: scrollIntoView can also move the document.
+  document.querySelectorAll(".dimension-tabs .chip.active").forEach(node => {
+    const strip = node.parentElement;
+    const itemRect = node.getBoundingClientRect();
+    const stripRect = strip.getBoundingClientRect();
+    if (itemRect.left < stripRect.left) strip.scrollLeft -= stripRect.left - itemRect.left;
+    else if (itemRect.right > stripRect.right) strip.scrollLeft += itemRect.right - stripRect.right;
+  });
 
   document.querySelectorAll("[data-dimension]").forEach((node) => {
     node.addEventListener("click", () => {
@@ -1008,7 +1017,7 @@ function scatterChart(metric, baseEntries) {
   const scoreLines = [scoreMin, (scoreMin + scoreMax) / 2, scoreMax];
 
   return `
-    <p class="muted">评分来源：${escapeHtml(boards[0]?.name || "未提供")}；仅该榜内比较，价格为综合榜记录。气泡速度来自独立速度榜，不参与评分。</p>
+    ${disclosure(`评分来源：${boards[0]?.name || "未提供"}`, "仅该榜内比较，价格为综合榜记录。气泡速度来自独立速度榜，不参与评分。")}
     <div class="scatter-wrap">
       <svg viewBox="0 0 920 330" role="img" aria-label="能力价格散点图" data-scatter-chart>
         <defs>
@@ -1110,7 +1119,7 @@ function detailTemplate({ model, scores }) {
   const radar = radarScores.length >= 3 ? radarChart(radarScores) : "";
   return `
     ${modelActions(model.slug)}
-    <p class="trust-note">各榜成绩不是统一量尺，不可直接比较；雷达仅展示各榜样本内 min-max 相对位置，不是百分位或综合能力。</p>
+    ${disclosure("成绩与雷达说明", "各榜成绩不是统一量尺，不可直接比较；雷达仅展示各榜样本内 min-max 相对位置，不是百分位或综合能力。")}
     <div class="detail-grid">
       <div class="detail-stat"><span>综合名次</span><strong>${overall ? `#${overall.rank}` : "—"}</strong><small>${topPercentile(overall?.rank, overallScoredCount) || "—"}</small></div>
       <div class="detail-stat"><span>综合分数</span><strong>${overall?.score == null ? "—" : overall.score.toFixed(1)}</strong>${scoreMeter(overall?.score)}</div>
@@ -1409,15 +1418,19 @@ function boardInfo(slug) {
   const evaluation = board.evaluation || {};
   const version = evaluation.version || board.release;
   const noEntries = !(state.snapshot.entriesByBoard[slug] || []).length;
-  return `<section class="panel board-info" aria-label="数据来源与状态">
-    <h2>${escapeHtml(board.name || slug)} · ${sourceLink(board.url || board.source?.url, "查看原始榜单")}</h2>
+  const source = board.source || (state.snapshot.sources || []).find(x => x.id === board.sourceId) || {};
+  const badges = [noEntries && "数据缺失", stale && "缓存过期", missing && "抓取时间未知", (health.error || health.latestAttemptStatus === "error") && "抓取失败", health.anomalies?.length && "变化提醒"].filter(Boolean);
+  return `<details class="board-info" aria-label="数据来源与状态">
+    <summary><span class="provenance-label">${escapeHtml(source.name || board.sourceId || board.name || slug)}</span><span class="provenance-time">抓取 ${escapeHtml(success ? formatDate(success) : "时间未知")}</span>${badges.map(x => `<span class="status-badge">${escapeHtml(x)}</span>`).join("")}<span class="disclosure-label">来源与指标说明</span></summary>
+    <div class="disclosure-body"><h2>${escapeHtml(board.name || slug)} · ${sourceLink(board.url || source.url, "查看原始榜单")}</h2>
+    <p class="muted">跨榜分数不可直接比较，本应用不计算跨榜综合分。</p>
     <p>${escapeHtml(metricExplanation(board))}</p>
     <dl class="time-grid"><div><dt>快照生成时间</dt><dd>${escapeHtml(fullTime(state.snapshot.generatedAt))}</dd></div><div><dt>本榜成功抓取时间</dt><dd>${escapeHtml(fullTime(success))}</dd></div><div><dt>上游评测版本 / 更新时间</dt><dd>${escapeHtml(version || "版本未提供")} / ${escapeHtml(fullTime(evaluation.upstreamUpdatedAt))}</dd></div></dl>
     <p class="${stale || missing || noEntries ? "warning" : "muted"}">${noEntries ? "本榜数据缺失。" : ""}${missing ? "成功抓取时间缺失，无法判断缓存年龄。" : stale ? `抓取缓存已超过 ${health.staleAfterHours || 48} 小时，可能过期。` : "抓取缓存未超过过期阈值。"} 抓取成功不等于上游更新；版本号不是抓取时间。</p>
     ${health.latestAttemptAt ? `<p class="muted">最近尝试：${escapeHtml(fullTime(health.latestAttemptAt))} · ${escapeHtml(health.latestAttemptStatus || "未知")}</p>` : ""}
     ${health.error ? `<p class="warning">抓取异常：${escapeHtml(health.error)}；保留已有可用数据。</p>` : ""}
     ${(health.anomalies || []).map(x => `<p class="warning">变化提示：${escapeHtml(x.message || x.code || "未知异常")}（不代表已确认的数据错误）</p>`).join("")}
-  </section>`;
+  </div></details>`;
 }
 function modelActions(slug) {
   const favorite = favorites.has(slug), selected = state.comparison.includes(slug);
@@ -1450,7 +1463,7 @@ function comparisonTemplate() {
   if (!board) return `<div class="empty-state">暂无可对比榜单</div>`;
   state.compareBoard = board.slug;
   const columns = comparableEntries(state.snapshot.entriesByBoard, board.slug, state.comparison);
-  return `<div class="view-header"><div><h1>独立模型对比</h1><p>最多 4 个模型；选定同一榜单比较原始成绩，不计算跨榜综合分。</p></div><a href="#/">返回榜单添加模型</a></div>
+  return `<div class="view-header"><div><h1>独立模型对比</h1><p>最多 4 个模型 · 同榜原始成绩对比</p></div><a href="#/">返回榜单添加模型</a></div>
     <p role="status" class="warning">${escapeHtml(state.notice)}</p>
     <label class="compare-selector">对比榜单 <select id="compare-board">${state.snapshot.boards.map(x => `<option value="${escapeAttr(x.slug)}" ${x.slug === board.slug ? "selected" : ""}>${escapeHtml(x.name)}</option>`).join("")}</select></label>
     ${boardInfo(board.slug)}
@@ -1462,7 +1475,7 @@ function comparisonTemplate() {
       ["上下文", x => x?.contextWindow || "未提供"],
       ["模型发布日期", x => x?.releaseDate || "未提供"],
     ].map(([label, value]) => `<tr><th scope="row">${label}</th>${columns.map(({entry}) => `<td>${escapeHtml(value(entry))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<div class="empty-state">尚未选择模型。回到排行榜点击“加入对比”。</div>`}
-    <p class="muted">价格按 (输入 ×3 + 输出) ÷4 估算，USD 固定按 7.2 换算；缺失项不作为免费或零分。不同模型配置仍可能影响可比性。</p>`;
+    ${disclosure("价格与可比性说明", "价格按 (输入 ×3 + 输出) ÷4 估算，USD 固定按 7.2 换算；缺失项不作为免费或零分。不同模型配置仍可能影响可比性。")}`;
 }
 function bindComparison() {
   document.getElementById("compare-board")?.addEventListener("change", event => { state.compareBoard = event.target.value; render(); });
@@ -1479,8 +1492,13 @@ function historyTemplate(slug) {
     if (!old || (old.rank === entry.rank && old.score === entry.score)) return [];
     return [{ entry, old }];
   }) : [];
-  return `<section class="panel history-panel"><h2>本榜历史变化与异常</h2><p class="muted">仅展示真实成功抓取记录；抓取时间不是上游评测发布时间，评测版本变化可能导致成绩不可比。历史可能只保留 Top 100，缺失模型不推断为退榜。</p>
+  if (!history.length) return "";
+  return `<details class="history-panel"><summary>历史变化 · ${history.length} 次记录${canCompare && changes.length ? ` · ${changes.length} 项变化` : ""}</summary><div class="disclosure-body"><p class="muted">仅展示真实成功抓取记录；抓取时间不是上游评测发布时间，评测版本变化可能导致成绩不可比。历史可能只保留 Top 100，缺失模型不推断为退榜。</p>
     ${history.length ? `<details><summary>${history.length} 次抓取记录（点击展开时间线）</summary><ul>${history.map(x => `<li>${escapeHtml(fullTime(x.fetchedAt))} · ${escapeHtml(x.modelCount ?? "未知")} 个模型 · 评测版本 ${escapeHtml(x.evaluationVersion || "未知")}${x.truncated ? " · 仅保留部分记录" : ""}</li>`).join("")}</ul></details>` : `<p>暂无历史记录（旧快照可能不含历史），不生成虚构趋势。</p>`}
     ${previous ? `<h3>最近两次抓取的变化</h3><p class="muted">${escapeHtml(fullTime(previous.fetchedAt))} → ${escapeHtml(fullTime(latest.fetchedAt))}</p>${!canCompare ? "<p>评测版本未知或发生变化，不推断名次/成绩升降；请查看采集记录。</p>" : changes.length ? `<ul>${changes.slice(0,20).map(({entry,old}) => `<li>${escapeHtml(entry.display_name || entry.slug)}：名次 ${escapeHtml(old.rank ?? "未提供")} → ${escapeHtml(entry.rank ?? "未提供")}；原始成绩 ${escapeHtml(old.score ?? "未提供")} → ${escapeHtml(entry.score ?? "未提供")}</li>`).join("")}</ul>` : "<p>共同保留的模型中未发现名次或成绩变化。</p>"}` : history.length ? "<p>只有一次记录，尚不能计算历史变化。</p>" : ""}
-  </section>`;
+  </div></details>`;
+}
+
+function disclosure(label, text) {
+  return `<details class="inline-disclosure"><summary>${escapeHtml(label)}</summary><p>${escapeHtml(text)}</p></details>`;
 }
