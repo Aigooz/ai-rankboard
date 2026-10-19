@@ -15,6 +15,7 @@ from .boards import BOARD_BY_SLUG, LIVEBENCH
 from .db import get_conn
 from .store import HISTORY_LIMIT, HISTORY_ENTRY_LIMIT
 from .trust import health_info, metric_info
+from .benchmark_references import HLE_REFERENCE
 
 SCHEMA_VERSION = 3
 # 受众以国内为主，时间戳直接使用东八区，便于 App 端直接展示日期。
@@ -25,6 +26,7 @@ SOURCE = {
     "url": "https://modelsage.cn",
 }
 SOURCES = [
+    {"id": "hle", "name": "CAIS / Scale AI", "url": "https://lastexam.ai/"},
     SOURCE,
     {"id": "livebench", "name": "LiveBench", "url": "https://livebench.ai/leaderboard"},
     {"id": "swebench", "name": "SWE-bench", "url": "https://www.swebench.com"},
@@ -43,6 +45,8 @@ def build_snapshot() -> dict:
         "swe_bench": "swebench",
         "aider_polyglot": "aider",
         "evalplus": "evalplus",
+        "hle": "hle",
+        "hle_diamond": "hle",
     }
     with get_conn() as conn:
         boards = [
@@ -192,6 +196,7 @@ def build_snapshot() -> dict:
         "entriesByBoard": dict(entries),
         "historyByBoard": history,
         "models": models,
+        "benchmarkReferences": {"hle": HLE_REFERENCE},
         "benchmarkMeta": {
             "livebench": {
                 "release": next(

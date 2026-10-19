@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import * as core from '../ranking-core.mjs';
-const source = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8').replace(/^import .*?;\r?\n/, '').replace('\ninit();', '\n/* test initialization disabled */');
+const source = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8').replace(/^import .*?;\r?\n/gm, '').replace('\ninit();', '\n/* test initialization disabled */');
 function ui(snapshot) {
   const element = { textContent:'', innerHTML:'', hidden:true, style:{}, querySelectorAll:()=>[], querySelector:()=>null };
-  const context = vm.createContext({ ...core, URL, console, Intl, Date, document:{getElementById:()=>element,querySelectorAll:()=>[]}, window:{}, location:{hash:'#/'}, Set, Map });
+  const context = vm.createContext({ ...core, createTranslator:()=>async()=>[], URL, console, Intl, Date, document:{getElementById:()=>element,querySelectorAll:()=>[]}, window:{}, location:{hash:'#/'}, Set, Map });
   vm.runInContext(source, context);
   context.fixture = snapshot;
   vm.runInContext('state.snapshot = normalizeSnapshot(fixture); state.loading = false;', context);
@@ -111,4 +111,18 @@ test('native reader escapes snapshot paragraphs and supports missing content', (
   assert.match(run('articleContentTemplate({content:null})'), /正文未获取/);
   assert.match(run('articleContentTemplate({content:"   "})'), /正文未获取/);
   assert.match(run('articleContentTemplate({content:{bad:true}})'), /正文未获取/);
+});
+
+test('HLE reference stays closed, limited to one public text example with no answer', () => {
+  const data = structuredClone(old);
+  data.boards.push({slug:'hle-official-2025-04',name:'HLE',dimension:'reasoning',kind:'hle',score_type:'hle',release:'2025-04-03'});
+  data.benchmarkReferences = {hle:{name:'HLE',publisher:'CAIS',description:'Original vs Diamond',trainingWarning:'NO TRAINING',canary:'test-canary',licenseNotice:'Do not redistribute',examples:[{modality:'text',category:'Ecology',question:'Public <question>',author:'Author',sourceUrl:'https://lastexam.ai',answer:'DO-NOT-SHOW'}, {modality:'text',question:'SECOND-DO-NOT-SHOW'}]}};
+  const run = ui(data), html = run('benchmarkReferenceTemplate("hle-official-2025-04")');
+  assert.match(html, /^<details class=/); assert.doesNotMatch(html.split('<summary>')[0], /open/);
+  assert.match(html, /Public &lt;question&gt;/); assert.match(html, /NO TRAINING/); assert.match(html, /test-canary/);
+  assert.match(html, /题集版本日期不等于/); assert.match(html, /Do not redistribute/);
+  assert.doesNotMatch(html, /DO-NOT-SHOW/);
+  assert.equal(run('benchmarkReferenceTemplate("overall")'), '');
+  run('state.snapshot.benchmarkReferences = undefined');
+  assert.equal(run('benchmarkReferenceTemplate("hle-official-2025-04")'), '');
 });

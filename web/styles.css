@@ -1713,6 +1713,9 @@ summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; 
 .reader-panel h2 { flex: 1; font-size: 16px; }
 .reader-source { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; }
 .reader-note { margin: 0; padding: 8px 16px; font-size: 12px; color: var(--muted); background: var(--surface-container); }
+.reader-translation { display: flex; gap: 10px; align-items: center; padding: 6px 16px; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.reader-translation button { flex-shrink: 0; min-height: 40px; color: var(--primary); }
+.reader-translation button:disabled { opacity: .55; cursor: wait; }
 .reader-content { flex: 1; min-height: 0; overflow: auto; padding: 24px clamp(18px, 5vw, 72px); line-height: 1.85; overflow-wrap: anywhere; }
 .reader-content > * { max-width: 72ch; margin-inline: auto; }
 .reader-content p { margin-block: 0 1.25em; white-space: pre-line; }
@@ -1724,3 +1727,10 @@ summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; 
   .reader-panel .modal-header { gap: 8px; padding: 10px; }
   .reader-panel h2 { font-size: 14px; max-height: 44px; overflow: auto; }
 }
+.benchmark-reference .disclosure-body { font-size: 13px; line-height: 1.7; }
+.benchmark-reference h2 { font-size: 16px; }
+.benchmark-reference code { overflow-wrap: anywhere; }
+.public-example { border-top: 1px solid var(--outline); margin-top: 12px; padding-top: 12px; }
+.public-example h3 { font-size: 14px; }
+.public-example p { white-space: pre-line; }
+.training-warning { font-weight: 650; color: var(--tertiary); }

@@ -410,6 +410,14 @@ async def fetch_swe_bench_board(board: dict) -> list:
 
 
 async def fetch_board(board: dict) -> list:
+    if board.get("kind") == "hle":
+        from .public_sources import HLE_URL, parse_hle_official
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            return parse_hle_official(await fetch_html(client, HLE_URL))
+    if board.get("kind") == "hle_diamond":
+        from .public_sources import HLE_DIAMOND_URL, parse_hle_diamond
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            return parse_hle_diamond(await fetch_html(client, HLE_DIAMOND_URL))
     if board.get("kind") in {"aider_polyglot", "evalplus"}:
         from .public_sources import AIDER_DATA_URL, EVALPLUS_DATA_URL, parse_aider_polyglot, parse_evalplus
         async with httpx.AsyncClient(follow_redirects=True) as client:

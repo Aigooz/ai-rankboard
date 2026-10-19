@@ -19,6 +19,18 @@ data class Snapshot(
     val usageRanking: UsageRankingDto? = null,
     val news: NewsDto? = null,
     val historyByBoard: Map<String, List<BoardHistoryDto>>? = null,
+    val benchmarkReferences: Map<String, BenchmarkReferenceDto>? = null,
+)
+
+data class BenchmarkReferenceDto(
+    val id: String? = null, val name: String? = null, val publisher: String? = null,
+    val description: String? = null, val sourceUrl: String? = null, val datasetUrl: String? = null,
+    val paperUrl: String? = null, val licenseNotice: String? = null, val canary: String? = null,
+    val trainingWarning: String? = null, val examples: List<BenchmarkExampleDto>? = null,
+)
+data class BenchmarkExampleDto(
+    val id: String? = null, val category: String? = null, val question: String? = null,
+    val sourceUrl: String? = null, val author: String? = null, val modality: String? = null, val note: String? = null,
 )
 
 data class UsageRankingDto(

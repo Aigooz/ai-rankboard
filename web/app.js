@@ -1,3 +1,4 @@
+import { createTranslator } from "./translation.mjs";
 import { articleUrl, loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
 let storage;
 try { storage = window.localStorage; } catch { /* private mode / policy */ }
@@ -342,6 +343,7 @@ function leaderboardTemplate() {
       </div>
     ` : ""}
     ${boardInfo(state.board)}
+    ${benchmarkReferenceTemplate(state.board)}
     ${selectionToolbar()}
     <div class="control-panel">
       <label class="search-field">
@@ -1507,8 +1509,13 @@ function disclosure(label, text) {
 }
 
 let readerTrigger = null;
+let readerArticle = null;
+let translationController = null;
+let translatedArticle = null;
+const translateArticleText = createTranslator();
 function initReader() {
   const reader = document.getElementById("news-reader");
+  reader.querySelector("#reader-translate").addEventListener("click", translateReader);
   reader.querySelectorAll("[data-close-reader]").forEach(node => node.addEventListener("click", closeReader));
   reader.addEventListener("keydown", event => {
     if (event.key === "Escape") { event.preventDefault(); closeReader(); }
@@ -1530,6 +1537,11 @@ function openReader(url) {
   if (!article) return;
   const reader = document.getElementById("news-reader");
   readerTrigger = document.activeElement;
+  readerArticle = article; translatedArticle = null;
+  const translateButton = document.getElementById("reader-translate");
+  translateButton.disabled = !article.content?.trim();
+  translateButton.textContent = "翻译为中文";
+  document.getElementById("reader-translation-status").textContent = "按需机翻，将文章文本发送至 MyMemory（第三方）。";
   document.getElementById("reader-title").textContent = "资讯阅读";
   reader.querySelector("[data-reader-source]").href = safe;
   const content = document.getElementById("reader-content");
@@ -1543,10 +1555,67 @@ function openReader(url) {
 function closeReader() {
   const reader = document.getElementById("news-reader");
   if (!reader || reader.hidden) return;
+  translationController?.abort(); translationController = null;
+  readerArticle = null; translatedArticle = null;
   reader.hidden = true;
   document.getElementById("reader-content").replaceChildren();
   document.querySelectorAll(".app-header, #app, .app-footer").forEach(node => { node.inert = false; });
   document.body.style.overflow = "";
   if (readerTrigger?.isConnected) readerTrigger.focus({ preventScroll: true });
   readerTrigger = null;
+}
+
+async function translateReader() {
+  if (!readerArticle?.content?.trim()) return;
+  const article = readerArticle;
+  const button = document.getElementById("reader-translate");
+  const status = document.getElementById("reader-translation-status");
+  const content = document.getElementById("reader-content");
+  if (translatedArticle) {
+    const chinese = button.dataset.view !== "chinese";
+    content.innerHTML = articleContentTemplate(chinese ? translatedArticle : article);
+    button.dataset.view = chinese ? "chinese" : "original";
+    button.textContent = chinese ? "查看原文" : "查看译文";
+    content.scrollTop = 0;
+    return;
+  }
+  const controller = new AbortController(); translationController = controller;
+  button.disabled = true;
+  status.textContent = "正在翻译… 机器翻译，仅供参考。";
+  try {
+    const source = [article.title || "资讯阅读", ...article.content.trim().slice(0,8000).split(/\n\s*\n/).filter(Boolean)];
+    const result = await translateArticleText(source, {signal:controller.signal, onProgress:(done,total) => {
+      if (translationController === controller) status.textContent = `正在翻译 ${done}/${total} · 机器翻译，仅供参考`;
+    }});
+    if (translationController !== controller) return;
+    translatedArticle = {...article, title:result[0], content:result.slice(1).join("\n\n")};
+    content.innerHTML = articleContentTemplate(translatedArticle);
+    content.scrollTop = 0;
+    button.dataset.view = "chinese"; button.textContent = "查看原文";
+    status.textContent = "机器翻译，仅供参考 · MyMemory 提供，可切换查看原文。";
+  } catch (error) {
+    if (translationController !== controller) return;
+    status.textContent = "翻译失败，请重试（可能网络异常或免费额度限制）。原文仍可阅读。";
+    button.textContent = "重试翻译";
+  } finally {
+    if (translationController === controller) { button.disabled = false; translationController = null; }
+  }
+}
+
+function benchmarkReferenceTemplate(slug) {
+  const board = state.snapshot.boards.find(item => item.slug === slug);
+  const reference = state.snapshot.benchmarkReferences?.hle;
+  if (!reference || !board || !["hle", "hle_diamond"].includes(board.kind || board.scoreType)) return "";
+  // The reference is one publisher-public example, not permission to mirror the dataset.
+  const example = (Array.isArray(reference.examples) ? reference.examples : []).find(item => item?.modality === "text" && typeof item.question === "string");
+  return `<details class="benchmark-reference inline-disclosure"><summary>测评说明与公开示例</summary><div class="disclosure-body">
+    <h2>${escapeHtml(reference.name || "HLE")} · ${escapeHtml(reference.publisher || "")}</h2>
+    <p>${escapeHtml(reference.description || "")}</p>
+    <p>当前题集版本：${escapeHtml(board.evaluation?.version || board.release || "未提供")}。题集版本日期不等于每个模型成绩发布日期；原版 HLE 与 HLE-Diamond、不同工具与推理配置不能直接混比。</p>
+    <p>${sourceLink(reference.sourceUrl, "官方说明")} · ${sourceLink(reference.datasetUrl, "数据集访问条件")} · ${sourceLink(reference.paperUrl, "论文")}</p>
+    <p class="warning">${escapeHtml(reference.licenseNotice || "仅引用官网公开示例，不提供完整题库。")}</p>
+    ${reference.trainingWarning ? `<p class="training-warning">${escapeHtml(reference.trainingWarning)}</p>` : ""}
+    ${reference.canary ? `<p class="muted">Benchmark canary：<code>${escapeHtml(reference.canary)}</code></p>` : ""}
+    ${example ? `<article class="public-example"><h3>官网公开示例 · ${escapeHtml(example.category || "")}</h3><p>${escapeHtml(example.question)}</p><p class="muted">作者：${escapeHtml(example.author || "未提供")} · ${sourceLink(example.sourceUrl, "题目原始出处")}</p><p>${escapeHtml(example.note || "仅官网公开单题，不代表完整题集。")}</p><p class="muted">不提供答案或答题入口，不下载或镜像受限题库。</p></article>` : `<p>暂无获准公开的示例题。</p>`}
+  </div></details>`;
 }
