@@ -126,3 +126,17 @@ test('HLE reference stays closed, limited to one public text example with no ans
   run('state.snapshot.benchmarkReferences = undefined');
   assert.equal(run('benchmarkReferenceTemplate("hle-official-2025-04")'), '');
 });
+
+test('reasoning entry is early and defaults to HLE Diamond ahead of other reasoning boards', () => {
+  const data = structuredClone(old);
+  data.boards.push({slug:'other-reasoning',dimension:'reasoning',name:'Other'}, {slug:'hle-official-2025-04',dimension:'reasoning',name:'HLE original'}, {slug:'hle-diamond-no-tools-high',dimension:'reasoning',name:'HLE Diamond'});
+  const run = ui(data);
+  assert.equal(run('DIMENSIONS[2].slug'), 'reasoning');
+  assert.match(run('DIMENSIONS[2].name'), /HLE/);
+  assert.equal(run('boardsForDimension("reasoning").map(x=>x.slug).join(",")'), 'hle-diamond-no-tools-high,hle-official-2025-04,other-reasoning');
+  run('state.dimension="reasoning"; state.board="overall"; leaderboardTemplate()');
+  assert.equal(run('state.board'),'hle-diamond-no-tools-high');
+  assert.equal(run('state.snapshot.boards.at(-1).slug'),'hle-diamond-no-tools-high');
+  run('state.snapshot.boards=state.snapshot.boards.filter(x=>!x.slug.startsWith("hle"))');
+  assert.equal(run('boardsForDimension("reasoning")[0].slug'),'other-reasoning');
+});

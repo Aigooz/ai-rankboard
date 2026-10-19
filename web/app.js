@@ -15,12 +15,12 @@ const SNAPSHOT_URLS = [
 const DIMENSIONS = [
   { slug: "overall", name: "综合" },
   { slug: "coding", name: "代码" },
+  { slug: "reasoning", name: "推理 · HLE" },
   { slug: "agent", name: "Agent" },
   { slug: "writing", name: "写作" },
   { slug: "multimodal", name: "多模态" },
   { slug: "search", name: "搜索" },
   { slug: "math", name: "数学" },
-  { slug: "reasoning", name: "推理" },
   { slug: "instruction", name: "指令遵循" },
   { slug: "analysis", name: "数据分析" },
   { slug: "speed", name: "速度" },
@@ -1310,7 +1310,11 @@ function licenseOptions() {
 }
 
 function boardsForDimension(dimension) {
-  return state.snapshot.boards.filter((board) => board.dimension === dimension);
+  const boards = state.snapshot.boards.filter((board) => board.dimension === dimension);
+  if (dimension !== "reasoning") return boards;
+  const priority = ["hle-diamond-no-tools-high", "hle-official-2025-04"];
+  const order = slug => { const index = priority.indexOf(slug); return index < 0 ? priority.length : index; };
+  return boards.sort((a, b) => order(a.slug) - order(b.slug));
 }
 
 function findModel(slug) {

@@ -31,6 +31,7 @@ fun collectionAgeMessage(value: String?, now: Instant = Instant.now()): String {
 }
 
 fun metricExplanation(scoreType: String?): String = when (scoreType?.lowercase()) {
+    "hle", "hle_diamond" -> "HLE与HLE-Diamond题集不同，准确率不能混比；题集版本不代表模型发布日期，官网历史结果不代表实时榜单。"
     "elo", "arena_elo" -> "Elo 为对战相对评分，受参赛模型、投票与统计区间影响，不是正确率。"
     "aider_polyglot" -> "Aider Polyglot 为多语言编程任务通过率，受编辑格式、运行设置影响；只在同一榜单条件内比较。"
     "evalplus" -> "EvalPlus 为指定HumanEval+/MBPP+任务集的通过率；任务集与运行条件不同，不能与其他代码榜原始分数混排。"

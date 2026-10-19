@@ -67,6 +67,8 @@ data class HomeUiState(
     val offline: Boolean = false,
     val snapshotInfo: SnapshotInfo? = null,
     val updateMessage: String = "",
+    val hleReference: com.ai.rankboard.data.BenchmarkReferenceDto? = null,
+    val hleShortcutBoard: BoardDto? = null,
 )
 
 class HomeViewModel(
@@ -82,7 +84,7 @@ class HomeViewModel(
     private var loadKey: Triple<String, String, ModelRegion>? = null
 
     init {
-        _state.update { it.copy(snapshotInfo = repository.snapshotInfo()) }
+        _state.update { it.copy(snapshotInfo = repository.snapshotInfo(), hleReference = repository.benchmarkReference("hle"), hleShortcutBoard = hleShortcut(repository.boards())) }
         loadBoardsForTab(initialTab)
         viewModelScope.launch {
             val recent = runCatching { repository.recentlyReleasedModels() }.getOrDefault(emptyList())
@@ -108,6 +110,17 @@ class HomeViewModel(
             )
         }
         loadBoardsForTab(dimension)
+    }
+
+    fun openHle() {
+        val board = hleShortcut(repository.boards()) ?: return
+        _state.update { it.copy(
+            tab = "reasoning", sourceFilter = null, selectedBoard = "", allBoardsForTab = emptyList(),
+            boardsForTab = emptyList(), entries = emptyList(), total = 0, period = null,
+            periodOptions = emptyList(), query = "", vendorFilter = emptySet(), licenseFilter = emptySet(),
+            regionFilter = ModelRegion.ALL, loading = true,
+        ) }
+        loadBoardsForTab("reasoning", board.slug)
     }
 
     fun selectBoard(slug: String) {
@@ -212,6 +225,8 @@ class HomeViewModel(
             _state.update {
                 it.copy(
                     snapshotInfo = repository.snapshotInfo(),
+                    hleReference = repository.benchmarkReference("hle"),
+                    hleShortcutBoard = hleShortcut(repository.boards()),
                     updateMessage = updateResult?.message.orEmpty(),
                 )
             }
@@ -235,7 +250,7 @@ class HomeViewModel(
         }
     }
 
-    private fun loadBoardsForTab(dimension: String) {
+    private fun loadBoardsForTab(dimension: String, preferredBoard: String? = null) {
         viewModelScope.launch {
             if (dimension in Periods.supported) {
                 val options = runCatching { repository.periodOptions(dimension) }
@@ -278,9 +293,7 @@ class HomeViewModel(
                 null -> allBoards
                 else -> filtered
             }
-            val sortedBoards = displayedBoards.sortedWith(
-                compareByDescending { it.sourceId.equals("modelsage", ignoreCase = true) },
-            )
+            val sortedBoards = prioritizeBoards(displayedBoards, dimension)
             _state.update {
                 it.copy(
                     allBoardsForTab = allBoards,
@@ -289,8 +302,8 @@ class HomeViewModel(
                     loading = false,
                 )
             }
-            if (sortedBoards.isNotEmpty() && _state.value.selectedBoard.isEmpty()) {
-                selectBoard(sortedBoards.first().slug)
+            if (sortedBoards.isNotEmpty() && (preferredBoard != null || _state.value.selectedBoard.isEmpty())) {
+                selectBoard(sortedBoards.firstOrNull { it.slug == preferredBoard }?.slug ?: sortedBoards.first().slug)
             }
         }
     }

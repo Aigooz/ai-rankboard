@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -129,6 +131,13 @@ fun HomeScreen(
                         }
                     }
                 }
+                if (state.hleShortcutBoard != null) {
+                    AssistChip(
+                        onClick = vm::openHle,
+                        label = { Text("⭐ HLE 官网公开结果 · 查看评分", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    )
+                }
                 FilterSummaryBar(
                     activeCount = state.activeFilterCount(),
                     snapshotDate = state.snapshotInfo?.generatedAt?.take(10).orEmpty(),
@@ -157,6 +166,9 @@ fun HomeScreen(
                             state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard },
                             state.snapshotInfo?.generatedAt,
                         )
+                        com.ai.rankboard.ui.common.HleReferenceEntry(
+                            state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }, state.hleReference,
+                        )
                         Text(
                             when {
                                 state.offline -> "无网络且无本地缓存，请联网后下拉刷新"
@@ -180,6 +192,9 @@ fun HomeScreen(
                                 state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
                                     ?: state.boardsForTab.firstOrNull { it.slug == state.selectedBoard },
                                 state.snapshotInfo?.generatedAt,
+                            )
+                            com.ai.rankboard.ui.common.HleReferenceEntry(
+                                state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }, state.hleReference,
                             )
                         }
                         if (state.offline) {
@@ -657,7 +672,7 @@ private fun FilterSheet(
                     FilterChip(
                         selected = state.selectedBoard == board.slug,
                         onClick = { onSelectBoard(board.slug) },
-                        label = { Text(board.name, maxLines = 1) },
+                        label = { Text(board.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 250.dp)) },
                     )
                 }
             }

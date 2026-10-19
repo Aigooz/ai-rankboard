@@ -39,7 +39,6 @@ enum class AppUpdateStatus {
     ERROR,
 }
 
-private class SlowDownloadException(message: String) : Exception(message)
 
 data class AppUpdateResult(
     val status: AppUpdateStatus,
@@ -345,7 +344,6 @@ object AppUpdater {
             var bytesRead = 0L
             var lastProgressBytes = 0L
             var lastProgressAt = System.currentTimeMillis()
-            val startTime = lastProgressAt
             target.delete()
 
             BufferedInputStream(body.byteStream()).use { input ->
@@ -363,10 +361,7 @@ object AppUpdater {
                         if (now - lastProgressAt >= 200L) {
                             val elapsed = (now - lastProgressAt).coerceAtLeast(1L)
                             val bytesPerSecond = (bytesRead - lastProgressBytes) * 1_000L / elapsed
-                            val elapsedSinceStart = now - startTime
-                            if (elapsedSinceStart > 4_000L && bytesPerSecond < 64 * 1024L) {
-                                throw SlowDownloadException("下载源过慢")
-                            }
+                            // Speed is informational only. A flowing slow stream must be allowed to finish.
                             onProgress(DownloadProgress(bytesRead, totalBytes, bytesPerSecond))
                             lastProgressAt = now
                             lastProgressBytes = bytesRead

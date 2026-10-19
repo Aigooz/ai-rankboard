@@ -21,6 +21,8 @@ class LeaderboardRepository(
 
     fun news(): NewsDto? = local.news()
 
+    fun benchmarkReference(id: String): BenchmarkReferenceDto? = local.benchmarkReference(id)
+
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
 
     fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> =

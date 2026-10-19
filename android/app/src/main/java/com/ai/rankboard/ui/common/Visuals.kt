@@ -38,6 +38,7 @@ fun sourceVisual(sourceId: String): SourceVisual {
     return when {
         id == "modelsage" -> SourceVisual("ModelSage", "MS", Color(0xFF6366F1))
         id == "aider" -> SourceVisual("Aider", "AI", Color(0xFF047857))
+        id == "hle" -> SourceVisual("CAIS / Scale AI", "HLE", Color(0xFFB45309))
         id == "evalplus" -> SourceVisual("EvalPlus", "EP", Color(0xFF9333EA))
         id == "livebench" -> SourceVisual("LiveBench", "LB", Color(0xFF14B8A6))
         id == "swebench" || id == "swe-bench" -> SourceVisual("SWE-bench", "SB", Color(0xFF2563EB))
@@ -51,6 +52,7 @@ fun sourceVisual(sourceId: String): SourceVisual {
 }
 
 fun boardSourceId(boardSlug: String, fallback: String = "modelsage"): String = when {
+    boardSlug.startsWith("hle-") -> "hle"
     boardSlug.startsWith("aider-") -> "aider"
     boardSlug.startsWith("evalplus-") -> "evalplus"
     boardSlug.startsWith("livebench") -> "livebench"

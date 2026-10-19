@@ -34,6 +34,8 @@ class LocalSnapshotDataSource private constructor(
 
     fun news(): NewsDto? = snapshot.news
 
+    fun benchmarkReference(id: String): BenchmarkReferenceDto? = snapshot.benchmarkReferences?.get(id)
+
     fun info(): SnapshotInfo = infoProvider()
 
     fun boardsForDimension(dimension: String): List<BoardDto> =
