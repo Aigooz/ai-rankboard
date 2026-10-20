@@ -3,11 +3,11 @@ import logging
 
 from .boards import BOARDS, BOARD_BY_SLUG
 from .db import get_conn, init_db, now_iso
-from .scraper import fetch_aa_articles, fetch_board, fetch_model_release_dates, fetch_usage_trend
+from .scraper import fetch_aa_articles, fetch_board, fetch_missing_model_dates, fetch_usage_trend
 from .store import (
     mark_board_error,
     save_board_data,
-    save_model_release_dates,
+    save_model_dates_by_slug,
     save_news_articles,
     save_usage_trend,
     upsert_board_meta,
@@ -71,11 +71,9 @@ async def refresh_missing_release_dates() -> int:
     with get_conn() as conn:
         rows = conn.execute(
             """
-            SELECT DISTINCT source_url FROM models
-            WHERE source_url LIKE 'https://modelsage.cn/model/%'
-              AND (release_date IS NULL OR release_date = '')
+            SELECT slug, source_url FROM models
+            WHERE release_date IS NULL OR release_date = ''
             """
         ).fetchall()
-    urls = [row["source_url"] for row in rows if row["source_url"]]
-    dates = await fetch_model_release_dates(urls)
-    return save_model_release_dates(dates)
+    dates = await fetch_missing_model_dates([dict(row) for row in rows])
+    return save_model_dates_by_slug(dates)

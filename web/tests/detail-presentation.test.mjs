@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {estimateBlendedPrice,rawPriceLabel,mergeModelMetadata,sameVendorModels,detailDate,parameterLabel,selectPriceRecord,scoreUnit} from '../detail-presentation.mjs';
+import {estimateBlendedPrice,rawPriceLabel,mergeModelMetadata,sameVendorModels,detailDate,parameterLabel,selectPriceRecord,scoreUnit,primaryDetailScore} from '../detail-presentation.mjs';
 test('blended price rejects incomplete invalid and unknown currency; explicit zeros remain zero',()=>{
  for(const entry of [{priceIn:1},{priceIn:1,priceOut:2},{priceIn:1,priceOut:2,currency:'EUR'},{priceIn:-1,priceOut:2,currency:'CNY'},{priceIn:Infinity,priceOut:2,currency:'USD'},{priceIn:'1',priceOut:2,currency:'CNY'}])assert.equal(estimateBlendedPrice(entry),null);
  assert.equal(estimateBlendedPrice({priceIn:0,priceOut:0,currency:'USD'}),0);
@@ -18,6 +18,13 @@ test('related models exclude self duplicates unknown vendors and unrelated vendo
 test('release params and score unit preserve absent and source-specific metadata',()=>{
  assert.equal(detailDate('2026-02-31'),'未获取');assert.equal(detailDate(null),'未获取');assert.equal(detailDate('2026-10-19'),'2026-10-19');
  assert.equal(parameterLabel(-1),'未获取');assert.equal(parameterLabel(0),'未获取');assert.equal(scoreUnit({score_type:'arena_elo'}),'Elo');assert.equal(scoreUnit({metric:{unit:'%'}}),'%');assert.equal(scoreUnit({}),null);
+});
+
+test('primary score prefers valid overall not highest cross-board score',()=>{
+ const overall={boardSlug:'overall',score:0},a={boardSlug:'a',score:9},z={boardSlug:'z',score:999};
+ assert.equal(primaryDetailScore([z,a,overall]),overall);
+ assert.equal(primaryDetailScore([z,a,{boardSlug:'overall',score:null}]),a);
+ assert.equal(primaryDetailScore([{boardSlug:'overall',score:NaN}]),null);
 });
 
 test('representative pricing prefers overall then board slug without joining halves',()=>{

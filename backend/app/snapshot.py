@@ -106,12 +106,13 @@ def build_snapshot() -> dict:
                 "context_window": row["context_window"],
                 "source_url": row["source_url"],
                 "release_date": row["release_date"],
+                "release_date_source_url": row["release_date_source_url"],
                 "updated_at": row["updated_at"],
             }
             for row in conn.execute(
                 """
                 SELECT slug, display_name, vendor, params_b, license, context_window,
-                       source_url, release_date, updated_at
+                       source_url, release_date, release_date_source_url, updated_at
                 FROM models
                 WHERE slug IN (
                     SELECT s.model_slug FROM scores s JOIN boards b ON b.slug=s.board_slug

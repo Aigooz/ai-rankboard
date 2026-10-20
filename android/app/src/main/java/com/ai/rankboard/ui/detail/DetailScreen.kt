@@ -73,6 +73,9 @@ fun DetailScreen(
     var outputMillions by remember(slug) { mutableStateOf("1") }
     var calculatorOpen by remember(slug) { mutableStateOf(false) }
     var radarOpen by remember(slug) { mutableStateOf(false) }
+    var specsOpen by remember(slug) { mutableStateOf(false) }
+    var scoresOpen by remember(slug) { mutableStateOf(false) }
+    var relatedOpen by remember(slug) { mutableStateOf(false) }
     val context = LocalContext.current
 
     Scaffold(
@@ -152,17 +155,30 @@ fun DetailScreen(
                                 )
                             }
                         }
-                        listOf(
-                            "参数" to (model.paramsB?.let { "${formatNum(it)} B" } ?: "未获取"),
-                            "上下文" to (model.contextWindow?.takeIf { it.isNotBlank() } ?: "未获取"),
-                            "许可" to (model.license?.takeIf { it.isNotBlank() } ?: "未获取"),
-                            "发布日期" to (model.releaseDate?.takeIf { it.isNotBlank() } ?: "未获取"),
-                            "价格" to (representativePricing?.let(::formatModelPrice) ?: "未获取"),
-                        ).forEach { (label, value) ->
-                            Text("$label：$value", style = MaterialTheme.typography.bodyMedium)
+                        val primary = primaryDetailScore(state.scores)
+                        if (primary != null) {
+                            Text(primary.boardName, style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(primary.score?.let { String.format(Locale.US, "%.1f", it) } ?: "成绩未获取",
+                                style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text(detailRankLabel(primary.rank), style = MaterialTheme.typography.labelMedium)
+                        } else Text("暂无榜单成绩", style = MaterialTheme.typography.titleMedium)
+                        representativePricing?.let { Text(formatModelPrice(it), style = MaterialTheme.typography.bodyMedium) }
+                        val specs = detailSpecifications(model)
+                        specs.filter { it.second != null }.forEach { (label, value) ->
+                            Text("$label：$value", style = MaterialTheme.typography.bodySmall)
                         }
-                        representativePricing?.let { price ->
-                            Text("价格来源：${price.boardName}；抓取 ${price.fetchedAt.takeIf { it.isNotBlank() } ?: "未获取"}。价格非实时且未换汇。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { specsOpen = !specsOpen }) { Text(if (specsOpen) "收起资料与价格来源" else "更多资料与价格来源") }
+                        if (specsOpen) {
+                            specs.filter { it.second == null }.forEach { (label, _) ->
+                                Text("$label：未获取", style = MaterialTheme.typography.bodySmall)
+                            }
+                            model.releaseDateSourceUrl?.takeIf { it.startsWith("https://") }?.let { dateSource ->
+                                TextButton(onClick = { openUrl(context, dateSource) }) { Text("发布日期出处") }
+                            }
+                            representativePricing?.let { price ->
+                                Text("价格记录：${price.boardName} · ${price.fetchedAt.ifBlank { "时间未获取" }}；非实时价格、未换汇。", style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -194,11 +210,14 @@ fun DetailScreen(
                 }
             }
             item {
-                com.ai.rankboard.ui.common.CrossBoardNotice()
-                SectionHeader(title = "各榜单真实成绩")
-                if (state.scores.isEmpty()) Text("快照中暂无该模型的榜单成绩；未上榜不等于零分。")
+                TextButton(onClick = { scoresOpen = !scoresOpen }) {
+                    Text(if (scoresOpen) "收起各榜成绩" else "查看全部 ${state.scores.size} 个榜单成绩")
+                }
+                if (scoresOpen) com.ai.rankboard.ui.common.CrossBoardNotice()
             }
-            items(state.scores.size) { index -> ScoreCard(state.scores[index], state.generatedAt) }
+            if (scoresOpen) {
+                items(state.scores.size) { index -> ScoreCard(state.scores[index], state.generatedAt) }
+            }
             item {
                 val priced = representativePricing
                 if (priced != null) {
@@ -220,7 +239,7 @@ fun DetailScreen(
                                     contentDescription = if (calculatorOpen) "收起价格计算器" else "展开价格计算器",
                                 )
                             }
-                            Text(
+                            if (calculatorOpen) Text(
                                 text = estimatePrice(priced, inputMillions, outputMillions),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -259,18 +278,19 @@ fun DetailScreen(
                     }
                 }
             }
-            item {
-                TextButton(onClick = { radarOpen = !radarOpen }) { Text(if (radarOpen) "收起相对位置雷达" else "展开相对位置雷达（非统一能力分数）") }
+            if (selectRadarScores(state.scores).size >= 3) item {
+                TextButton(onClick = { radarOpen = !radarOpen }) { Text(if (radarOpen) "收起相对位置雷达" else "相对位置雷达") }
                 if (radarOpen) {
-                    Text("各轴仅为各榜内min-max相对位置，不是百分位或统一能力总分；不同评测条件不可直接横比。", style = MaterialTheme.typography.bodySmall)
+                    Text("仅展示各榜内相对位置，不是统一能力分数。", style = MaterialTheme.typography.bodySmall)
                     ScoreRadarChart(state.scores, Modifier.fillMaxWidth().height(280.dp))
                 }
             }
-            item {
-                SectionHeader(title = "同厂商模型")
-                if (state.relatedModels.isEmpty()) Text(if (model.vendor.isNullOrBlank()) "厂商未获取，无法匹配同厂商模型。" else "快照中暂无其他同厂商模型。")
+            if (state.relatedModels.isNotEmpty()) item {
+                TextButton(onClick = { relatedOpen = !relatedOpen }) {
+                    Text(if (relatedOpen) "收起同厂商模型" else "同厂商其他模型 · ${state.relatedModels.size}")
+                }
             }
-            items(state.relatedModels.size) { index ->
+            if (relatedOpen) items(state.relatedModels.size) { index ->
                 val related = state.relatedModels[index]
                 TextButton(onClick = { onOpenModel(related.slug) }, modifier = Modifier.fillMaxWidth()) {
                     Text(related.displayName, modifier = Modifier.fillMaxWidth())
@@ -317,9 +337,7 @@ private fun ScoreCard(
                     color = scoreColor(score.score, score.scoreMin, score.scoreMax),
                 )
             }
-            Text("来源：${com.ai.rankboard.data.boardSourceLabel(score.board)}", style = MaterialTheme.typography.bodySmall)
-            Text("成绩抓取：${score.fetchedAt.takeIf { it.isNotBlank() } ?: "未获取"}", style = MaterialTheme.typography.bodySmall)
-            Text(com.ai.rankboard.data.metricExplanation(score.scoreType), style = MaterialTheme.typography.bodySmall)
+            Text("抓取 ${score.fetchedAt.take(10).ifBlank { "未获取" }}", style = MaterialTheme.typography.labelSmall)
             com.ai.rankboard.ui.common.BoardTrustCard(score.board, generatedAt = generatedAt)
             ScoreBar(
                 score = score.score,

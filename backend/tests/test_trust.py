@@ -105,6 +105,80 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(build_snapshot()["historyByBoard"][self.board["slug"]], [])
         self.assertIsNone(build_snapshot()["boards"][0]["health"]["latestAttemptAt"])
 
+    def test_restore_baseline_restores_release_date_evidence_on_fresh_database(self):
+        rows = self.rows()
+        rows[0]["release_date"] = "2026-01-01"
+        save_board_data(self.board, rows, "2026-01-02T00:00:00+00:00")
+        snapshot = build_snapshot()
+        evidence = "https://example.com/models/model-0#release"
+        snapshot["models"]["model-0"]["release_date_source_url"] = evidence
+        path = db.DATA_DIR / "date-baseline.json"
+        path.write_text(json.dumps(snapshot), encoding="utf-8")
+        db.DB_PATH = db.DATA_DIR / "date-fresh.db"
+        restore_baseline(path)
+        restored = build_snapshot()["models"]["model-0"]
+        self.assertEqual(restored["release_date"], "2026-01-01")
+        self.assertEqual(restored["release_date_source_url"], evidence)
+
+    def test_restore_baseline_fills_missing_date_from_model_metadata(self):
+        save_board_data(self.board, self.rows(1), "2026-01-02T00:00:00+00:00")
+        snapshot = build_snapshot()
+        snapshot["models"]["model-0"].update(
+            release_date="2026-01-01",
+            release_date_source_url="https://example.com/release",
+        )
+        path = db.DATA_DIR / "date-baseline.json"
+        path.write_text(json.dumps(snapshot), encoding="utf-8")
+        db.DB_PATH = db.DATA_DIR / "metadata-date-fresh.db"
+        restore_baseline(path)
+        restored = build_snapshot()["models"]["model-0"]
+        self.assertEqual(restored["release_date"], "2026-01-01")
+        self.assertEqual(restored["release_date_source_url"], "https://example.com/release")
+
+    def test_restore_baseline_does_not_replace_local_date_or_evidence(self):
+        rows = self.rows()
+        for row in rows:
+            row["release_date"] = "2026-01-01"
+        save_board_data(self.board, rows, "2026-01-02T00:00:00+00:00")
+        snapshot = build_snapshot()
+        for model in snapshot["models"].values():
+            model["release_date_source_url"] = "https://example.com/baseline"
+        path = db.DATA_DIR / "date-baseline.json"
+        path.write_text(json.dumps(snapshot), encoding="utf-8")
+        with db.get_conn() as conn:
+            conn.execute("UPDATE models SET release_date='2026-01-03' WHERE slug='model-0'")
+            conn.execute("UPDATE models SET release_date_source_url='https://example.com/local' WHERE slug='model-1'")
+        restore_baseline(path)
+        restored = build_snapshot()["models"]
+        self.assertEqual(restored["model-0"]["release_date"], "2026-01-03")
+        self.assertIsNone(restored["model-0"]["release_date_source_url"])
+        self.assertEqual(restored["model-1"]["release_date_source_url"], "https://example.com/local")
+
+    def test_restore_baseline_ignores_invalid_release_date_evidence(self):
+        cases = [
+            ("2026-02-30", "https://example.com/release"),
+            ("20260101", "https://example.com/release"),
+            ("2026-01-01T00:00:00Z", "https://example.com/release"),
+            ("2026-01-01", "javascript:alert(1)"),
+            ("2026-01-01", "https:///release"),
+            ("2026-01-01", "https://user:password@example.com/release"),
+            ("2026-01-01", "https://example.com/bad path"),
+            ("2026-01-01", 123),
+        ]
+        for index, (release_date, source_url) in enumerate(cases):
+            with self.subTest(release_date=release_date, source_url=source_url):
+                db.DB_PATH = db.DATA_DIR / f"invalid-{index}.db"
+                db.init_db()
+                rows = self.rows(1)
+                rows[0]["release_date"] = release_date
+                save_board_data(self.board, rows, "2026-01-02T00:00:00+00:00")
+                snapshot = build_snapshot()
+                snapshot["models"]["model-0"]["release_date_source_url"] = source_url
+                path = db.DATA_DIR / "date-baseline.json"
+                path.write_text(json.dumps(snapshot), encoding="utf-8")
+                restore_baseline(path)
+                self.assertIsNone(build_snapshot()["models"]["model-0"]["release_date_source_url"])
+
     def test_publish_all_failed_keeps_file_partial_success_keeps_cached_board(self):
         from app.publish import main
         save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")

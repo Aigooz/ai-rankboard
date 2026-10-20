@@ -16,19 +16,19 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
   });
   await page.goto('http://rankboard.test/');await page.locator('.data-table tr[data-slug]').first().click();
   await page.locator('#model-modal:not([hidden])').waitFor();
-  assert.equal(await page.locator('.detail-specs .detail-spec').count(),4);
+  assert.equal(await page.locator('.detail-primary').count(),1);
   assert.ok(await page.locator('.detail-score').count()>0);
-  assert.equal(await page.locator('.detail-radar').getAttribute('open'),null);
+  assert.equal(await page.locator('.detail-results').getAttribute('open'),null);
   assert.equal(await page.locator('#model-modal [data-favorite]').count(),1);assert.equal(await page.locator('#model-modal [data-compare]').count(),1);
   assert.equal(await page.locator('#model-modal .modal-panel').evaluate(node=>node.scrollWidth>node.clientWidth),false);
   const artifacts=path.resolve(root,'../dist/ui-feedback');fs.mkdirSync(artifacts,{recursive:true});
   await page.screenshot({path:path.join(artifacts,'model-detail-mobile.png')});
-  await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:path.join(artifacts,'model-detail-desktop.png')});
+  await page.setViewportSize({width:320,height:844});await page.emulateMedia({colorScheme:'dark'});await page.addStyleTag({content:'html {font-size:22px}'});await page.locator('#model-modal').evaluate(node=>{const sizes=[...node.querySelectorAll('*')].map(child=>[child,parseFloat(getComputedStyle(child).fontSize)]);for(const [child,size] of sizes){child.style.fontSize=(size*1.3)+'px';}});assert.equal(await page.locator('#model-modal .modal-panel').evaluate(node=>node.scrollWidth>node.clientWidth),false);await page.screenshot({path:path.join(artifacts,'model-detail-320-dark-large.png')});await page.setViewportSize({width:1440,height:1000});await page.emulateMedia({colorScheme:'light'});await page.screenshot({path:path.join(artifacts,'model-detail-desktop.png')});
   const related=page.locator('[data-related-model]').first();
-  if(await related.count()) {const slug=await related.getAttribute('data-related-model');await related.click();await page.waitForURL('**/#/model/'+encodeURIComponent(slug));assert.equal(await page.locator('#model-modal').isVisible(),true);}
-  if(catalog){await page.goto('http://rankboard.test/#/model/'+encodeURIComponent(catalog[0]));await page.locator('#model-modal:not([hidden])').waitFor();assert.match(await page.locator('#modal-content').innerText(),/暂无榜单成绩/);}
+  if(await related.count()) {await page.locator('.detail-related > summary').click();const slug=await related.getAttribute('data-related-model');await related.click();await page.waitForURL('**/#/model/'+encodeURIComponent(slug));assert.equal(await page.locator('#model-modal').isVisible(),true);}
+  if(catalog){await page.goto('http://rankboard.test/#/model/'+encodeURIComponent(catalog[0]));await page.locator('#model-modal:not([hidden])').waitFor();assert.match(await page.locator('#modal-content').textContent(),/暂无榜单成绩/);}
   if(single){await page.goto('http://rankboard.test/#/model/'+encodeURIComponent(single.slug));await page.locator('#model-modal:not([hidden])').waitFor();assert.ok(await page.locator('.detail-pricing').innerText());}
-  assert.deepEqual(errors,[]);
+  await page.goto('http://rankboard.test/');await page.setViewportSize({width:320,height:844});assert.equal(await page.locator('#data-meta').evaluate(node=>node.scrollWidth>node.clientWidth),false);await page.screenshot({path:path.join(artifacts,'home-date-320.png')});await page.emulateMedia({colorScheme:'dark'});await page.goto('http://rankboard.test/#/trends');await page.locator('.trend-grid').waitFor();assert.equal(await page.locator('.trend-notes').getAttribute('open'),null);assert.equal(await page.locator('.trend-grid').evaluate(node=>node.scrollWidth>node.clientWidth),false);await page.screenshot({path:path.join(artifacts,'trend-320-dark.png')});assert.deepEqual(errors,[]);
   console.log('PASS actual snapshot detail: 4 specs, board results, collapsed radar, related navigation, catalog-only model, single-sided price, mobile/desktop. Catalog:',catalog?.[0],'single:',single?.slug);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

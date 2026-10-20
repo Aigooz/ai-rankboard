@@ -192,20 +192,73 @@ def parse_board(board: dict, html: str) -> list:
 
 
 def parse_release_date(html: str) -> str | None:
+    """Only explicit model releaseDate; never datePublished/modified/created."""
+    from datetime import date
+
+    def dates(payload):
+        if isinstance(payload, list):
+            for item in payload:
+                yield from dates(item)
+        elif isinstance(payload, dict):
+            value = payload.get("releaseDate")
+            if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                try:
+                    date.fromisoformat(value)
+                except ValueError:
+                    pass
+                else:
+                    yield value
+            if "@graph" in payload:
+                yield from dates(payload["@graph"])
+
     soup = BeautifulSoup(html, "html.parser")
+    found = set()
     for tag in soup.find_all("script", type="application/ld+json"):
         try:
-            payloads = json.loads(tag.string or "")
+            found.update(dates(json.loads(tag.string or "")))
         except (json.JSONDecodeError, TypeError):
             continue
-        if not isinstance(payloads, list):
-            payloads = [payloads]
-        for payload in payloads:
-            if isinstance(payload, dict) and payload.get("releaseDate"):
-                value = str(payload["releaseDate"])
-                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-                    return value
-    return None
+    return next(iter(found)) if len(found) == 1 else None
+
+
+async def fetch_missing_model_dates(models: list[dict]) -> dict[str, dict[str, str]]:
+    """Resolve canonical identities through actual ModelSage links, not guessed URLs.
+
+    Later sources can replace a model's source_url with its vendor website. Read
+    public ModelSage board links again so this does not disable date enrichment.
+    """
+    from .boards import BOARDS
+    from .model_identity import canonical_model_slug
+
+    wanted = {model["slug"] for model in models}
+    candidates: dict[str, set[str]] = {slug: set() for slug in wanted}
+    for model in models:
+        url = model.get("source_url") or ""
+        if url.startswith("https://modelsage.cn/model/"):
+            candidates[model["slug"]].add(url)
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        for board in BOARDS:
+            if not board.get("path"):
+                continue
+            try:
+                html = await fetch_html(client, BASE_URL + board["path"])
+                rows = parse_board(board, html)
+                for row in rows:
+                    slug = canonical_model_slug(row["name"], row["slug"])
+                    url = row.get("source_url") or ""
+                    if slug in wanted and url.startswith("https://modelsage.cn/model/"):
+                        candidates[slug].add(url)
+            except Exception as exc:  # noqa: BLE001
+                print(f"release date identity discovery failed: {board['slug']}: {type(exc).__name__}")
+    dates = await fetch_model_release_dates(sorted({url for urls in candidates.values() for url in urls}))
+    result = {}
+    for slug, urls in candidates.items():
+        resolved = [(dates[url], url) for url in sorted(urls) if url in dates]
+        # Conflicting evidence is left missing, not resolved by picking a date.
+        if resolved and len({item[0] for item in resolved}) == 1:
+            value, source = resolved[0]
+            result[slug] = {"release_date": value, "source_url": source}
+    return result
 
 
 async def fetch_model_release_dates(urls: list[str]) -> dict[str, str]:

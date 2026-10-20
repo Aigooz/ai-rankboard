@@ -421,12 +421,14 @@ private fun LeaderboardOverview(
                     value = state.allBoardsForTab.size.toString(),
                     modifier = Modifier.weight(1f),
                 )
-                MetricTile(
-                    label = "快照生成",
-                    value = state.snapshotInfo?.generatedAt?.take(10).orEmpty().ifBlank { "-" },
-                    modifier = Modifier.weight(1f),
-                )
+
             }
+            Text(
+                text = "快照生成：${state.snapshotInfo?.generatedAt?.take(10).orEmpty().ifBlank { "未获取" }}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -569,8 +571,11 @@ private fun FilterSummaryBar(
             .fillMaxWidth()
             .clickable(onClick = onClick),
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+        Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
@@ -587,12 +592,12 @@ private fun FilterSummaryBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+        }
             if (snapshotDate.isNotBlank()) {
                 Text(
                     text = "快照 $snapshotDate",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
                 )
             }
         }

@@ -128,6 +128,19 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
     return len(deduped)
 
 
+def save_model_dates_by_slug(dates: dict[str, dict[str, str]]) -> int:
+    changed = 0
+    with get_conn() as conn:
+        for slug, evidence in dates.items():
+            cursor = conn.execute(
+                "UPDATE models SET release_date=?, release_date_source_url=? "
+                "WHERE slug=? AND (release_date IS NULL OR release_date='')",
+                (evidence["release_date"], evidence["source_url"], slug),
+            )
+            changed += cursor.rowcount
+    return changed
+
+
 def save_model_release_dates(dates: dict[str, str]) -> int:
     if not dates:
         return 0

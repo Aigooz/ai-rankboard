@@ -115,3 +115,5 @@ def init_db() -> None:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(models)")}
         if "release_date" not in columns:
             conn.execute("ALTER TABLE models ADD COLUMN release_date TEXT")
+        if "release_date_source_url" not in columns:
+            conn.execute("ALTER TABLE models ADD COLUMN release_date_source_url TEXT")

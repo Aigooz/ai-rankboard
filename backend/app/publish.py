@@ -8,6 +8,8 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from datetime import date
+from urllib.parse import urlsplit
 
 from .service import refresh_all
 from .snapshot import write_snapshot
@@ -72,6 +74,32 @@ def restore_baseline(output: Path) -> None:
                  safe_fetch_error("") if status == "error" else None, slug),
             )
 
+    with get_conn() as conn:
+        for model_slug, model in previous.get("models", {}).items():
+            release_date = model.get("release_date")
+            source_url = model.get("release_date_source_url")
+            if not isinstance(release_date, str) or not isinstance(source_url, str):
+                continue
+            try:
+                # Require the canonical day, not timestamps, approximate dates,
+                # or Python's accepted compact ISO form.
+                if date.fromisoformat(release_date).isoformat() != release_date:
+                    continue
+                url = urlsplit(source_url)
+                if (url.scheme not in ("http", "https") or not url.hostname
+                        or url.username is not None or url.password is not None
+                        or any(char.isspace() for char in source_url)):
+                    continue
+            except ValueError:
+                continue
+            # Evidence belongs to this exact date. Fill an absent baseline date,
+            # but never replace a different local date or existing evidence.
+            conn.execute(
+                "UPDATE models SET release_date=?, release_date_source_url=? "
+                "WHERE slug=? AND (release_date IS NULL OR release_date='' OR release_date=?) "
+                "AND (release_date_source_url IS NULL OR release_date_source_url='')",
+                (release_date, source_url, model_slug, release_date),
+            )
 
 
 def main() -> None:

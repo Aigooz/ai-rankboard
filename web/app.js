@@ -1,4 +1,4 @@
-import { estimateBlendedPrice, rawPriceLabel, parameterLabel, textMetadata, detailDate, mergeModelMetadata, selectPriceRecord, scoreUnit, sameVendorModels } from "./detail-presentation.mjs";
+import { estimateBlendedPrice, rawPriceLabel, parameterLabel, textMetadata, detailDate, mergeModelMetadata, selectPriceRecord, scoreUnit, sameVendorModels, primaryDetailScore } from "./detail-presentation.mjs";
 import { createTranslator } from "./translation.mjs";
 import { articleUrl, loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
 let storage;
@@ -214,6 +214,7 @@ function normalizeModel(model) {
     sourceUrl: model.source_url,
     fetchedAt: model.fetched_at,
     releaseDate: model.release_date,
+    releaseDateSourceUrl: model.release_date_source_url,
     priceIn: model.price_in ?? model.priceIn,
     priceOut: model.price_out ?? model.priceOut,
   };
@@ -701,7 +702,6 @@ function trendsTemplate() {
     <div class="view-header">
       <div>
         <h1>行业趋势</h1>
-        <p>网关用量与评测资讯</p>
       </div>
       <div class="freshness">用量记录生成时间<strong>${formatDate(usage?.generatedAt)}</strong></div>
     </div>
@@ -749,6 +749,7 @@ function trendsTemplate() {
         </div>
       </section>
     </div>
+    <details class="trend-notes"><summary>数据来源与历史记录</summary><div class="disclosure-body"><p>用量仅统计 OpenRouter 聚合网关，由 ModelSage 提供，不代表全球调用量。资讯来自 Artificial Analysis。</p>${state.snapshot.boards.map(board => historyTemplate(board.slug)).filter(Boolean).join("") || "<p>暂无可用历史记录。</p>"}</div></details>
   `;
 }
 
@@ -1118,32 +1119,33 @@ function closeModal() {
 }
 
 function detailTemplate({ model, scores }) {
+  const primary = primaryDetailScore(scores);
   const radarScores = selectRadarScores(scores);
   const related = sameVendorModels(model, [...Object.values(state.snapshot.models), ...Object.values(state.snapshot.entriesByBoard).flat().map(entry => ({...mergeModelMetadata(entry, state.snapshot.models[entry.slug]), slug:entry.slug}))]);
   const stat = (label, value) => `<div class="detail-spec"><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`;
-  const estimate = blendedPrice(model);
+  const specs = [["上下文", textMetadata(model.contextWindow)], ["参数量", parameterLabel(model.paramsB)], ["许可", textMetadata(model.license)], ["发布日期", detailDate(model.releaseDate)]];
+  const known = specs.filter(([,value]) => value !== "未获取");
+  const missing = specs.filter(([,value]) => value === "未获取");
+  const valueText = score => Number.isFinite(score.score) ? `${score.score}${score.unit ? ` ${score.unit}` : ""}` : "成绩未获取";
+  const rankText = score => Number.isInteger(score.rank) && score.rank > 0 ? `#${score.rank}` : "名次未获取";
   return `
     <div class="detail-intro"><span>${escapeHtml(textMetadata(model.vendor))}</span><span>${scores.length} 个榜单记录</span></div>
+    <section class="detail-primary" aria-label="主要榜单成绩">${primary ? `<div><span>${escapeHtml(primary.boardName)}</span><strong>${escapeHtml(valueText(primary))}</strong><small>${rankText(primary)} · 仅此榜排名</small></div><p>${sourceLink(primary.sourceUrl, "成绩来源")} · 抓取 ${escapeHtml(detailDate(primary.fetchedAt))}</p>` : `<p>暂无可展示的榜单成绩</p>`}</section>
     ${modelActions(model.slug)}
-    <dl class="detail-specs" aria-label="模型规格">
-      ${stat("上下文", textMetadata(model.contextWindow))}${stat("参数量", parameterLabel(model.paramsB))}${stat("许可", textMetadata(model.license))}${stat("发布日期", detailDate(model.releaseDate))}
-    </dl>
-    <p class="detail-source">${sourceLink(model.sourceUrl, "模型记录来源（非必然官网）")}</p>
-    <section class="detail-pricing" aria-label="模型价格"><h3>价格记录</h3><dl class="detail-price-grid">${stat("输入价", rawPriceLabel(model.priceIn, model.currency))}${stat("输出价", rawPriceLabel(model.priceOut, model.currency))}</dl>
-      <p>${estimate == null ? "混合价未获取（需完整有效双侧价格和已知币种）" : `估算混合价 ${formatPrice(estimate)} / 1M tokens`}</p>
-      <p class="detail-price-source">价格记录：${escapeHtml(model.priceBoardName)} · 抓取 ${escapeHtml(fullTime(model.priceFetchedAt))}</p><details class="inline-disclosure"><summary>估算口径与价格来源</summary><p>(输入 ×3 + 输出) ÷4；USD 固定按 7.2 换算 CNY，仅供估算。缺失不补零；单侧价只展示已知项，不作为完整总价。${sourceLink(model.priceSourceUrl, "价格记录来源（非必然官网）")}</p></details>
-    </section>
-    <section class="detail-results" aria-label="各榜真实成绩"><h2 class="section-title">各榜成绩</h2><p class="detail-caution">逐榜原始记录，跨榜分数不能直接比较，不计算综合能力。</p>
-    ${scores.length ? `<div class="detail-score-list">${scores.map(score => {
-      const rank = Number.isInteger(score.rank) && score.rank > 0 ? `#${score.rank}` : "名次未获取";
-      const value = Number.isFinite(score.score) ? `${score.score}${score.unit ? ` ${score.unit}` : "（单位未提供）"}` : "成绩未获取";
-      return `<article class="detail-score"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(value)}</strong><span>${rank}</span></div><p>${sourceLink(score.sourceUrl, "榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p></article>`;
-    }).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}</section>
-    <details class="detail-radar"><summary>相对位置雷达（可选）</summary><p class="muted">各榜样本内 min-max 相对位置，不是百分位，不跨榜汇总；每维取快照顺序首个有效榜，全部原始记录见上方。同分范围不绘制。</p>${radarScores.length >= 3 ? radarChart(radarScores) : `<p class="muted">有效维度不足 3 个，暂不绘制雷达。</p>`}</details>
-    <section class="detail-related"><h2 class="section-title">同厂商模型</h2>${related.length ? `<div class="related-model-list">${related.map(item => `<button type="button" class="chip" data-related-model="${escapeAttr(item.slug)}">${escapeHtml(item.displayName || item.slug)}</button>`).join("")}</div>` : `<p class="muted">${textMetadata(model.vendor) === "未获取" ? "厂商未获取，暂不关联模型。" : "暂无可确认的同厂商其他模型。"}</p>`}</section>
+    ${known.length ? `<dl class="detail-specs" aria-label="已知模型规格">${known.map(([label,value]) => stat(label,value)).join("")}</dl>` : ""}
+    <section class="detail-pricing" aria-label="模型价格"><h3>每百万 tokens 价格</h3><dl class="detail-price-grid">${stat("输入", rawPriceLabel(model.priceIn,model.currency))}${stat("输出",rawPriceLabel(model.priceOut,model.currency))}</dl></section>
+    <details class="detail-extra"><summary>资料与价格出处${missing.length ? ` · ${missing.length} 项资料未获取` : ""}</summary><div class="disclosure-body">
+      ${missing.length ? `<p>${missing.map(([label]) => label).join("、")}：未获取，不用抓取日期代替发布日期。</p>` : ""}
+      ${model.releaseDateSourceUrl ? `<p>${sourceLink(model.releaseDateSourceUrl,"发布日期出处")}</p>` : ""}
+      <p>${sourceLink(model.sourceUrl,"模型记录来源（非必然官网）")}</p><p>价格记录：${escapeHtml(model.priceBoardName)} · 抓取 ${escapeHtml(fullTime(model.priceFetchedAt))}</p><p>${sourceLink(model.priceSourceUrl,"价格来源")}。原币种展示，不混合不同来源价格；缺失不按零计算。</p>
+    </div></details>
+    <details class="detail-results"><summary>全部榜单成绩 · ${scores.length} 条</summary><div class="disclosure-body"><p class="detail-caution">不同榜单不是统一量尺，请逐榜查看。</p>
+      ${scores.length ? `<div class="detail-score-list">${scores.map(score => `<article class="detail-score"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(valueText(score))}</strong><span>${rankText(score)}</span></div><details><summary>来源与评测说明</summary><p>${sourceLink(score.sourceUrl,"榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p></details></article>`).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}
+    </div></details>
+    ${radarScores.length >= 3 ? `<details class="detail-radar"><summary>相对位置雷达</summary><p class="muted">各榜内 min-max 相对位置，不是统一能力分数；每维取首个有效榜，不跨榜汇总。</p>${radarChart(radarScores)}</details>` : ""}
+    ${related.length ? `<details class="detail-related"><summary>同厂商其他模型 · ${related.length}</summary><div class="related-model-list">${related.map(item => `<button type="button" class="chip" data-related-model="${escapeAttr(item.slug)}">${escapeHtml(item.displayName || item.slug)}</button>`).join("")}</div></details>` : ""}
   `;
 }
-
 function selectRadarScores(scores) {
   const priority = ["overall", "coding", "writing", "multimodal", "agent", "math", "search", "speed", "value"];
   const groups = scores

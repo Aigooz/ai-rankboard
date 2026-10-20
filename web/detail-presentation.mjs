@@ -60,6 +60,11 @@ export function vendorKey(value) {
   const key = typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g,' ') : '';
   return ['','unknown','unknown vendor','未知','未知厂商','未获取','n/a','na','-','—'].includes(key) ? '' : key;
 }
+export function primaryDetailScore(scores = []) {
+  const valid = scores.filter(item => Number.isFinite(item.score));
+  return valid.find(item => item.boardSlug === 'overall')
+    || valid.slice().sort((a,b) => a.boardSlug.localeCompare(b.boardSlug))[0] || null;
+}
 export function sameVendorModels(model, models, limit = 8) {
   const key = vendorKey(model.vendor);
   if (!key) return [];

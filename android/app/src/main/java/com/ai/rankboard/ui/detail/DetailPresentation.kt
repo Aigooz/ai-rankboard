@@ -35,3 +35,15 @@ internal fun estimatePrice(score: ScoreDto, inputText: String, outputText: Strin
     if (!cost.isFinite()) return "计算结果超出范围，请减小用量"
     return "约 ${String.format(Locale.US, "%.4f", cost)} ${currencyLabel(score.currency)}（仅按此来源单价估算）"
 }
+
+/** Stable reference, not the numerically largest result across unrelated benchmarks. */
+internal fun primaryDetailScore(scores: List<ScoreDto>): ScoreDto? =
+    scores.firstOrNull { it.boardSlug == "overall" && it.score?.isFinite() == true }
+        ?: scores.firstOrNull { it.score?.isFinite() == true }
+
+internal fun detailSpecifications(model: ModelDetailDto): List<Pair<String, String?>> = listOf(
+    "上下文" to model.contextWindow?.takeIf { it.isNotBlank() },
+    "参数" to model.paramsB?.takeIf { it.isFinite() && it > 0 }?.let { "$it B" },
+    "许可" to model.license?.takeIf { it.isNotBlank() },
+    "发布日期" to model.releaseDate?.takeIf { it.isNotBlank() },
+)

@@ -25,7 +25,7 @@ test('old schema3 renders leaderboard comparison selection and missing history w
   assert.match(run('selectTemplate()'), /Arena/);
   run('state.comparison = ["a", "missing"]');
   assert.match(run('comparisonTemplate()'), /本榜未收录/);
-  assert.match(run('detailTemplate(modelDetail("a"))'), /不是百分位/);
+  assert.match(run('detailTemplate(modelDetail("a"))'), /主要榜单成绩/);
 });
 test('optional health anomalies and versioned history are escaped and shown independently', () => {
   const data=structuredClone(old);
@@ -151,8 +151,10 @@ test('detail supports catalog-only peers and exact pricing provenance without be
  assert.match(html,/data-related-model="catalog"/);assert.match(html,/https:\/\/example.com\/exact-price/);
  assert.match(html,/2026/);assert.match(html,/1400 Elo/);
  assert.doesNotMatch(html,/综合名次|最佳/);
- assert.ok(html.indexOf('各榜成绩')<html.indexOf('class="detail-radar"'));
- assert.match(html,/<details class="detail-radar"><summary>/);
+ assert.ok(html.indexOf('class="detail-primary"')<html.indexOf('class="detail-pricing"'));
+ assert.match(html,/<details class="detail-results"><summary>全部榜单成绩/);
+ assert.doesNotMatch(html,/<details class="detail-results" open/);
+ assert.doesNotMatch(html,/class="detail-radar"/);
 });
 test('detail invalid rank and absent metadata are not represented as zero or undefined',()=>{
  const data=structuredClone(old);data.entriesByBoard.overall[0].rank=0;data.entriesByBoard.overall[0].score=null;

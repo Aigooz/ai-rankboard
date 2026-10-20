@@ -66,6 +66,7 @@ fun TrendScreen(
 ) {
     val state by vm.state.collectAsState()
     var selectedArticle by remember { mutableStateOf<NewsArticleDto?>(null) }
+    var historyOpen by remember { mutableStateOf(false) }
     selectedArticle?.let { ArticleReaderSheet(it, onDismiss = { selectedArticle = null }) }
 
     Scaffold(
@@ -101,24 +102,6 @@ fun TrendScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (state.boardChanges.isNotEmpty()) {
-                        item(key = "history-explanation") {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("榜单历史观测", style = MaterialTheme.typography.titleSmall)
-                                com.ai.rankboard.ui.common.CrossBoardNotice()
-                            }
-                        }
-                    }
-                    state.boardChanges.forEach { (name, lines) ->
-                        item(key = "history-$name") {
-                            AppCard(Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(name, style = MaterialTheme.typography.titleSmall)
-                                    lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-                                }
-                            }
-                        }
-                    }
                     if (usage != null) {
                     item(key = "header") {
                         AppCard(Modifier.fillMaxWidth()) {
@@ -214,6 +197,25 @@ fun TrendScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 8.dp),
                             )
+                        }
+                    }
+                    if (state.boardChanges.isNotEmpty()) {
+                        item(key = "history-toggle") {
+                            androidx.compose.material3.TextButton(onClick = { historyOpen = !historyOpen }) {
+                                Text(if (historyOpen) "收起榜单历史观测" else "榜单历史观测（${state.boardChanges.size} 个榜单）")
+                            }
+                        }
+                        if (historyOpen) {
+                    state.boardChanges.forEach { (name, lines) ->
+                        item(key = "history-$name") {
+                            AppCard(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(name, style = MaterialTheme.typography.titleSmall)
+                                    lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                                }
+                            }
+                        }
+                    }
                         }
                     }
                 }

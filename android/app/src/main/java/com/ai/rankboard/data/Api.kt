@@ -161,6 +161,7 @@ data class ModelDetailDto(
     @SerializedName("context_window") val contextWindow: String? = null,
     @SerializedName("source_url") val sourceUrl: String? = null,
     @SerializedName("release_date") val releaseDate: String? = null,
+    @SerializedName("release_date_source_url") val releaseDateSourceUrl: String? = null,
 )
 
 data class ModelDetailResponse(val model: ModelDetailDto, val scores: List<ScoreDto> = emptyList())
