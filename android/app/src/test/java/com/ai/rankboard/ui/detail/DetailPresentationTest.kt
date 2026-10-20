@@ -24,14 +24,13 @@ class DetailPresentationTest {
         val path = java.io.File("src/main/assets/leaderboards.json").takeIf { it.isFile }
             ?: java.io.File("app/src/main/assets/leaderboards.json")
         val snapshot = com.google.gson.Gson().fromJson(path.readText(), Snapshot::class.java)
-        val entrySlugs = snapshot.entriesByBoard.values.flatten().map { it.slug }.toSet()
-        val metadataOnly = snapshot.models.values.filter { it.slug !in entrySlugs }
-        assertTrue(metadataOnly.isNotEmpty())
-        val local = LocalSnapshotDataSource(snapshot)
-        metadataOnly.forEach {
-            assertEquals(it, local.modelDetail(it.slug)!!.model)
-            assertTrue(local.modelDetail(it.slug)!!.scores.isEmpty())
-        }
+        val model = snapshot.models.values.first()
+        val metadataOnlySnapshot = snapshot.copy(entriesByBoard = snapshot.entriesByBoard.mapValues { (_, entries) ->
+            entries.filterNot { it.slug == model.slug }
+        })
+        val local = LocalSnapshotDataSource(metadataOnlySnapshot)
+        assertEquals(model, local.modelDetail(model.slug)!!.model)
+        assertTrue(local.modelDetail(model.slug)!!.scores.isEmpty())
     }
 
     @Test fun modelOnlyMetadataAndFullVendorPoolAreUsable() {
