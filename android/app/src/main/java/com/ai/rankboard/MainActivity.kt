@@ -227,6 +227,7 @@ class MainActivity : ComponentActivity() {
                         composable("model/{slug}") { entry ->
                             DetailScreen(
                                 slug = entry.arguments?.getString("slug").orEmpty(),
+                                onOpenModel = { slug -> navController.navigate("model/${android.net.Uri.encode(slug)}") },
                                 onBack = { navController.popBackStack() },
                             )
                         }

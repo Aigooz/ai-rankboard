@@ -26,10 +26,11 @@ class RadarChartTest {
     }
 
     @Test
-    fun `uses rank as percentile fallback when range is unavailable`() {
+    fun `does not invent minmax position without range and preserves zero`() {
         val score = score("coding", "coding", null, 3, entryCount = 10)
-
-        assertEquals(0.8f, radarRatio(score))
+        assertEquals(null, radarRatio(score))
+        assertEquals(0f, radarRatio(score.copy(score = 0.0, scoreMin = 0.0, scoreMax = 100.0)))
+        assertEquals(0.01f, radarRatio(score.copy(score = 1.0, scoreMin = 0.0, scoreMax = 100.0)))
     }
 
     private fun score(

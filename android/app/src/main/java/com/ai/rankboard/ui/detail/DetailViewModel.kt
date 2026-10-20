@@ -24,6 +24,8 @@ data class DetailUiState(
     val failed: Boolean = false,
     val model: ModelDetailDto? = null,
     val scores: List<ScoreDto> = emptyList(),
+    val relatedModels: List<ModelDetailDto> = emptyList(),
+    val generatedAt: String? = null,
 )
 
 class DetailViewModel(
@@ -57,6 +59,8 @@ class DetailViewModel(
                     failed = detail == null,
                     model = detail?.model,
                     scores = detail?.scores ?: emptyList(),
+                    relatedModels = detail?.model?.let(repository::vendorModels).orEmpty(),
+                    generatedAt = repository.snapshotInfo()?.generatedAt,
                 )
             }
             backfillFavoriteName(detail?.model?.displayName)

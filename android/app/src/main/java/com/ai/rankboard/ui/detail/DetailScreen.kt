@@ -57,6 +57,7 @@ import java.util.Locale
 fun DetailScreen(
     slug: String,
     onBack: () -> Unit,
+    onOpenModel: (String) -> Unit,
     vm: DetailViewModel = viewModel(
         key = slug,
         factory = DetailViewModel.factory(
@@ -68,9 +69,10 @@ fun DetailScreen(
     val state by vm.state.collectAsState()
     val favoriteSlugs by vm.favoriteSlugs.collectAsState(initial = emptyList())
     val isFavorite = slug in favoriteSlugs.toSet()
-    var inputMillions by remember { mutableStateOf("1") }
-    var outputMillions by remember { mutableStateOf("1") }
-    var calculatorOpen by remember { mutableStateOf(false) }
+    var inputMillions by remember(slug) { mutableStateOf("1") }
+    var outputMillions by remember(slug) { mutableStateOf("1") }
+    var calculatorOpen by remember(slug) { mutableStateOf(false) }
+    var radarOpen by remember(slug) { mutableStateOf(false) }
     val context = LocalContext.current
 
     Scaffold(
@@ -141,34 +143,26 @@ fun DetailScreen(
                                 Text(
                                     model.displayName,
                                     style = MaterialTheme.typography.titleLarge,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
-                                    model.vendor ?: "-",
+                                    model.vendor?.takeIf { it.isNotBlank() } ?: "厂商未获取",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
                         }
-                        val specs = buildList {
-                            model.paramsB?.let { add("参数 ${formatNum(it)}B") }
-                            model.license?.let { add(it) }
-                            model.contextWindow?.let { add("上下文 $it") }
-                            model.releaseDate?.takeIf { it.isNotBlank() }?.let {
-                                add("发布 ${it.take(10)}")
-                            }
-                            representativePricing?.let { add(formatModelPrice(it)) }
+                        listOf(
+                            "参数" to (model.paramsB?.let { "${formatNum(it)} B" } ?: "未获取"),
+                            "上下文" to (model.contextWindow?.takeIf { it.isNotBlank() } ?: "未获取"),
+                            "许可" to (model.license?.takeIf { it.isNotBlank() } ?: "未获取"),
+                            "发布日期" to (model.releaseDate?.takeIf { it.isNotBlank() } ?: "未获取"),
+                            "价格" to (representativePricing?.let(::formatModelPrice) ?: "未获取"),
+                        ).forEach { (label, value) ->
+                            Text("$label：$value", style = MaterialTheme.typography.bodyMedium)
                         }
-                        if (specs.isNotEmpty()) {
-                            Text(
-                                specs.joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                        representativePricing?.let { price ->
+                            Text("价格来源：${price.boardName}；抓取 ${price.fetchedAt.takeIf { it.isNotBlank() } ?: "未获取"}。价格非实时且未换汇。", style = MaterialTheme.typography.bodySmall)
                         }
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -178,12 +172,6 @@ fun DetailScreen(
                                 label = "上榜",
                                 value = "${state.scores.size}",
                             )
-                            state.scores.minOfOrNull { it.rank }?.let { bestRank ->
-                                StatChip(
-                                    label = "最佳",
-                                    value = "#$bestRank",
-                                )
-                            }
                             model.sourceUrl?.takeIf { it.isNotBlank() }?.let {
                                 TextButton(
                                     onClick = { openUrl(context, it) },
@@ -195,7 +183,7 @@ fun DetailScreen(
                                         modifier = Modifier.size(14.dp),
                                     )
                                     Text(
-                                        "官网",
+                                        "模型来源记录",
                                         style = MaterialTheme.typography.labelMedium,
                                         modifier = Modifier.padding(start = 4.dp),
                                     )
@@ -207,19 +195,10 @@ fun DetailScreen(
             }
             item {
                 com.ai.rankboard.ui.common.CrossBoardNotice()
-                SectionHeader(title = "能力雷达")
+                SectionHeader(title = "各榜单真实成绩")
+                if (state.scores.isEmpty()) Text("快照中暂无该模型的榜单成绩；未上榜不等于零分。")
             }
-            item {
-                ScoreRadarChart(
-                    scores = state.scores,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(280.dp),
-                )
-            }
-            item {
-                SectionHeader(title = "各榜单成绩")
-            }
+            items(state.scores.size) { index -> ScoreCard(state.scores[index], state.generatedAt) }
             item {
                 val priced = representativePricing
                 if (priced != null) {
@@ -241,18 +220,8 @@ fun DetailScreen(
                                     contentDescription = if (calculatorOpen) "收起价格计算器" else "展开价格计算器",
                                 )
                             }
-                            val input = inputMillions.toDoubleOrNull()
-                            val output = outputMillions.toDoubleOrNull()
-                            val inputCost = priced.priceIn?.let { it * (input ?: 0.0) }
-                            val outputCost = priced.priceOut?.let { it * (output ?: 0.0) }
-                            val symbol = if (priced.currency == "USD") "$" else "¥"
-                            val cost = listOfNotNull(inputCost, outputCost).sum()
                             Text(
-                                text = if (inputCost == null && outputCost == null) {
-                                    "该模型暂无价格字段"
-                                } else {
-                                    "约 $symbol${String.format(Locale.US, "%.4f", cost)}"
-                                },
+                                text = estimatePrice(priced, inputMillions, outputMillions),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 5.dp),
@@ -280,7 +249,7 @@ fun DetailScreen(
                                     )
                                 }
                                 Text(
-                                    "1 = 100 万 tokens",
+                                    "1 = 100 万 tokens；${priced.boardName}。${formatModelPrice(priced)}。非实时账单，不含缓存/阶梯/税费。",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 6.dp),
@@ -290,9 +259,22 @@ fun DetailScreen(
                     }
                 }
             }
-            items(state.scores.size) { i ->
-                val s = state.scores[i]
-                ScoreCard(score = s)
+            item {
+                TextButton(onClick = { radarOpen = !radarOpen }) { Text(if (radarOpen) "收起相对位置雷达" else "展开相对位置雷达（非统一能力分数）") }
+                if (radarOpen) {
+                    Text("各轴仅为各榜内min-max相对位置，不是百分位或统一能力总分；不同评测条件不可直接横比。", style = MaterialTheme.typography.bodySmall)
+                    ScoreRadarChart(state.scores, Modifier.fillMaxWidth().height(280.dp))
+                }
+            }
+            item {
+                SectionHeader(title = "同厂商模型")
+                if (state.relatedModels.isEmpty()) Text(if (model.vendor.isNullOrBlank()) "厂商未获取，无法匹配同厂商模型。" else "快照中暂无其他同厂商模型。")
+            }
+            items(state.relatedModels.size) { index ->
+                val related = state.relatedModels[index]
+                TextButton(onClick = { onOpenModel(related.slug) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(related.displayName, modifier = Modifier.fillMaxWidth())
+                }
             }
         }
     }
@@ -301,6 +283,7 @@ fun DetailScreen(
 @Composable
 private fun ScoreCard(
     score: com.ai.rankboard.data.ScoreDto,
+    generatedAt: String?,
 ) {
     AppCard(Modifier.fillMaxWidth()) {
         Column(
@@ -312,12 +295,10 @@ private fun ScoreCard(
                     Text(
                         score.boardName,
                         style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = listOfNotNull(
-                            "#${score.rank}",
+                            detailRankLabel(score.rank),
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -330,13 +311,16 @@ private fun ScoreCard(
                     text = score.score?.let {
                         String.format(Locale.US, "%.1f", it) +
                             if (score.scoreCi != null) " ±${score.scoreCi}" else ""
-                    } ?: "-",
+                    } ?: "未获取",
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
                     color = scoreColor(score.score, score.scoreMin, score.scoreMax),
                 )
             }
-            com.ai.rankboard.ui.common.BoardTrustCard(score.board, generatedAt = null)
+            Text("来源：${com.ai.rankboard.data.boardSourceLabel(score.board)}", style = MaterialTheme.typography.bodySmall)
+            Text("成绩抓取：${score.fetchedAt.takeIf { it.isNotBlank() } ?: "未获取"}", style = MaterialTheme.typography.bodySmall)
+            Text(com.ai.rankboard.data.metricExplanation(score.scoreType), style = MaterialTheme.typography.bodySmall)
+            com.ai.rankboard.ui.common.BoardTrustCard(score.board, generatedAt = generatedAt)
             ScoreBar(
                 score = score.score,
                 minScore = score.scoreMin,
@@ -345,23 +329,6 @@ private fun ScoreCard(
             )
         }
     }
-}
-
-private fun representativePricedScore(scores: List<com.ai.rankboard.data.ScoreDto>) =
-    scores
-        .filter { it.priceIn != null || it.priceOut != null }
-        .minWithOrNull(
-            compareBy(
-                { it.boardSlug != "overall" },
-                { it.rank },
-            ),
-        )
-
-private fun formatModelPrice(score: com.ai.rankboard.data.ScoreDto): String {
-    val symbol = if (score.currency == "USD") "$" else "¥"
-    val input = score.priceIn?.let { symbol + String.format(Locale.US, "%.2f", it) }
-    val output = score.priceOut?.let { symbol + String.format(Locale.US, "%.2f", it) }
-    return listOfNotNull(input, output).joinToString(" → ") + " /1M"
 }
 
 @Composable

@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import * as core from '../ranking-core.mjs';
+import * as presentation from '../detail-presentation.mjs';
 const source = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8').replace(/^import .*?;\r?\n/gm, '').replace('\ninit();', '\n/* test initialization disabled */');
 function ui(snapshot) {
   const element = { textContent:'', innerHTML:'', hidden:true, style:{}, querySelectorAll:()=>[], querySelector:()=>null };
-  const context = vm.createContext({ ...core, createTranslator:()=>async()=>[], URL, console, Intl, Date, document:{getElementById:()=>element,querySelectorAll:()=>[]}, window:{}, location:{hash:'#/'}, Set, Map });
+  const context = vm.createContext({ ...core, ...presentation, createTranslator:()=>async()=>[], URL, console, Intl, Date, document:{getElementById:()=>element,querySelectorAll:()=>[]}, window:{}, location:{hash:'#/'}, Set, Map });
   vm.runInContext(source, context);
   context.fixture = snapshot;
   vm.runInContext('state.snapshot = normalizeSnapshot(fixture); state.loading = false;', context);
@@ -69,7 +70,7 @@ test('Aider and EvalPlus coding boards appear without a hardcoded source allowli
 test('incomplete price and unknown currency do not become free or CNY', () => {
   const run = ui(old);
   assert.equal(run('blendedPrice({priceIn:1})'), null);
-  assert.equal(run('blendedPrice({priceIn:0,priceOut:0})'), 0);
+  assert.equal(run('blendedPrice({priceIn:0,priceOut:0,currency:"CNY"})'), 0);
   assert.equal(run('blendedPrice({priceIn:1,priceOut:1,currency:"EUR"})'), null);
   assert.ok(Math.abs(run('blendedPrice({priceIn:1,priceOut:1,currency:"USD"})') - 7.2) < 0.0001);
 });
@@ -136,4 +137,24 @@ test('reasoning uses snapshot order and defaults to LiveBench without HLE scorin
   assert.equal(run('boardsForDimension("reasoning").map(x=>x.slug).join(",")'), 'livebench-reasoning,other-reasoning');
   run('state.dimension="reasoning"; state.board="overall"; leaderboardTemplate()');
   assert.equal(run('state.board'),'livebench-reasoning');
+});
+
+test('detail supports catalog-only peers and exact pricing provenance without best-rank summary', () => {
+ const data=structuredClone(old);
+ data.models={catalog:{slug:'catalog',display_name:'Catalog model',vendor:'OpenAI',context_window:'128K',source_url:'https://example.com/catalog-specs'}};
+ data.entriesByBoard.overall[0].currency='USD';data.entriesByBoard.overall[0].fetched_at='2026-10-19T00:00:00Z';data.entriesByBoard.overall[0].source_url='https://example.com/exact-price';
+ const run=ui(data);
+ assert.equal(run('findModel("catalog")'),true);
+ assert.equal(run('modelDetail("catalog").scores.length'),0);
+ const catalog=run('detailTemplate(modelDetail("catalog"))');assert.match(catalog,/暂无榜单成绩/);assert.match(catalog,/128K/);assert.match(catalog,/https:\/\/example.com\/catalog-specs/);
+ const html=run('detailTemplate(modelDetail("a"))');
+ assert.match(html,/data-related-model="catalog"/);assert.match(html,/https:\/\/example.com\/exact-price/);
+ assert.match(html,/2026/);assert.match(html,/1400 Elo/);
+ assert.doesNotMatch(html,/综合名次|最佳/);
+ assert.ok(html.indexOf('各榜成绩')<html.indexOf('class="detail-radar"'));
+ assert.match(html,/<details class="detail-radar"><summary>/);
+});
+test('detail invalid rank and absent metadata are not represented as zero or undefined',()=>{
+ const data=structuredClone(old);data.entriesByBoard.overall[0].rank=0;data.entriesByBoard.overall[0].score=null;
+ const run=ui(data),html=run('detailTemplate(modelDetail("a"))');assert.match(html,/名次未获取/);assert.match(html,/成绩未获取/);assert.match(html,/未获取/);assert.doesNotMatch(html,/#0|undefined/);
 });

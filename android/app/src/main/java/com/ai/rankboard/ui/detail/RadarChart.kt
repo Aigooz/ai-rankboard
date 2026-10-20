@@ -81,7 +81,7 @@ fun ScoreRadarChart(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "榜单内归一化百分位",
+                        "榜单内 min-max 相对位置，非统一分数",
                         style = MaterialTheme.typography.labelSmall,
                         color = onSurfaceVariant,
                     )
@@ -93,12 +93,6 @@ fun ScoreRadarChart(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
                         color = primary,
-                    )
-                    Text(
-                        "均值 ${averagePercent(radarScores)}%",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = onSurfaceVariant,
                     )
                 }
             }
@@ -154,7 +148,7 @@ fun ScoreRadarChart(
 
                 val dataPath = Path()
                 radarScores.forEachIndexed { index, score ->
-                    val target = point(index, (radarRatio(score) ?: 0f).coerceIn(0.12f, 1f))
+                    val target = point(index, (radarRatio(score) ?: 0f).coerceIn(0f, 1f))
                     if (index == 0) dataPath.moveTo(target.x, target.y) else dataPath.lineTo(target.x, target.y)
                 }
                 dataPath.close()
@@ -169,7 +163,7 @@ fun ScoreRadarChart(
                 drawPath(dataPath, primary, style = Stroke(2.2.dp.toPx()))
 
                 radarScores.forEachIndexed { index, score ->
-                    val target = point(index, (radarRatio(score) ?: 0f).coerceIn(0.12f, 1f))
+                    val target = point(index, (radarRatio(score) ?: 0f).coerceIn(0f, 1f))
                     drawCircle(Color.White, 5.dp.toPx(), target)
                     drawCircle(primary, 3.4.dp.toPx(), target)
                 }
@@ -237,10 +231,10 @@ internal fun selectRadarScores(scores: List<ScoreDto>): List<ScoreDto> {
         "agent", "math", "analysis", "search", "speed", "value",
     )
     return scores
-        .filter { it.score != null }
+        .filter { radarRatio(it) != null }
         .groupBy { it.dimension }
         .map { (_, values) ->
-            values.maxByOrNull { score -> radarRatio(score) ?: -1.0f }
+            values.minWithOrNull(compareBy<ScoreDto> { it.boardSlug != it.dimension }.thenBy { it.boardSlug })
         }
         .filterNotNull()
         .sortedWith(
@@ -252,20 +246,11 @@ internal fun selectRadarScores(scores: List<ScoreDto>): List<ScoreDto> {
 }
 
 internal fun radarRatio(score: ScoreDto): Float? {
-    normalizedScoreRatio(score.score, score.scoreMin, score.scoreMax)?.let { return it }
-    val rank = score.rank.takeIf { it > 0 } ?: return null
-    val count = score.entryCount.takeIf { it >= rank } ?: return null
-    return (count - rank + 1).toFloat() / count
+    return normalizedScoreRatio(score.score, score.scoreMin, score.scoreMax)
 }
 
 private fun radarPercent(score: ScoreDto): Int =
     radarRatio(score)?.times(100)?.roundToInt() ?: 0
-
-private fun averagePercent(scores: List<ScoreDto>): Int {
-    val values = scores.mapNotNull(::radarRatio)
-    if (values.isEmpty()) return 0
-    return (values.average() * 100).roundToInt()
-}
 
 private fun axisLabel(score: ScoreDto): String = when (score.dimension) {
     "overall" -> "综合"

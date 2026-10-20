@@ -1,3 +1,4 @@
+import { estimateBlendedPrice, rawPriceLabel, parameterLabel, textMetadata, detailDate, mergeModelMetadata, selectPriceRecord, scoreUnit, sameVendorModels } from "./detail-presentation.mjs";
 import { createTranslator } from "./translation.mjs";
 import { articleUrl, loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
 let storage;
@@ -211,7 +212,10 @@ function normalizeModel(model) {
     paramsB: model.params_b,
     contextWindow: model.context_window,
     sourceUrl: model.source_url,
+    fetchedAt: model.fetched_at,
     releaseDate: model.release_date,
+    priceIn: model.price_in ?? model.priceIn,
+    priceOut: model.price_out ?? model.priceOut,
   };
 }
 
@@ -1097,6 +1101,11 @@ function openModal(slug) {
   modalTitle.textContent = detail.model.displayName;
   modalContent.innerHTML = detailTemplate(detail);
   bindActions(modalContent);
+  modalContent.querySelectorAll("[data-related-model]").forEach(node => node.addEventListener("click", () => {
+    location.hash = `#/model/${encodeURIComponent(node.dataset.relatedModel)}`;
+    openModal(node.dataset.relatedModel);
+  }));
+  modalContent.scrollTop = 0;
   modal.hidden = false;
   document.body.style.overflow = "hidden";
   modal.querySelector("[data-close-modal].icon-button")?.focus();
@@ -1109,64 +1118,39 @@ function closeModal() {
 }
 
 function detailTemplate({ model, scores }) {
-  const overall = scores.find((score) => score.boardSlug === "overall");
-  const bestRank = scores.length ? Math.min(...scores.map((score) => score.rank || 999)) : null;
-  const overallScoredCount = overall
-    ? (state.snapshot.entriesByBoard[overall.boardSlug] || []).filter((entry) => entry.score != null).length
-    : 0;
-  const boardScoreCounts = Object.fromEntries(
-    Object.entries(state.snapshot.entriesByBoard).map(([slug, entries]) => [
-      slug,
-      entries.filter((entry) => entry.score != null).length,
-    ]),
-  );
   const radarScores = selectRadarScores(scores);
-  const radar = radarScores.length >= 3 ? radarChart(radarScores) : "";
+  const related = sameVendorModels(model, [...Object.values(state.snapshot.models), ...Object.values(state.snapshot.entriesByBoard).flat().map(entry => ({...mergeModelMetadata(entry, state.snapshot.models[entry.slug]), slug:entry.slug}))]);
+  const stat = (label, value) => `<div class="detail-spec"><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`;
+  const estimate = blendedPrice(model);
   return `
+    <div class="detail-intro"><span>${escapeHtml(textMetadata(model.vendor))}</span><span>${scores.length} 个榜单记录</span></div>
     ${modelActions(model.slug)}
-    ${disclosure("成绩与雷达说明", "各榜成绩不是统一量尺，不可直接比较；雷达仅展示各榜样本内 min-max 相对位置，不是百分位或综合能力。")}
-    <div class="detail-grid">
-      <div class="detail-stat"><span>综合名次</span><strong>${overall ? `#${overall.rank}` : "—"}</strong><small>${topPercentile(overall?.rank, overallScoredCount) || "—"}</small></div>
-      <div class="detail-stat"><span>综合分数</span><strong>${overall?.score == null ? "—" : overall.score.toFixed(1)}</strong>${scoreMeter(overall?.score)}</div>
-      <div class="detail-stat"><span>混合价</span><strong>${formatPrice(blendedPrice(model))}</strong></div>
-      <div class="detail-stat"><span>发布日期</span><strong>${formatDate(model.releaseDate)}</strong></div>
-    </div>
-    <div class="detail-chips">
-      <span class="detail-chip">上榜 <strong>${scores.length}</strong></span>
-      <span class="detail-chip">最佳 <strong>${bestRank && bestRank < 999 ? `#${bestRank}` : "—"}</strong></span>
-      <span class="detail-chip">${escapeHtml(model.license || "许可未知")}</span>
-      <span class="detail-chip">上下文 <strong>${escapeHtml(model.contextWindow || "—")}</strong></span>
-      <span class="detail-chip">参数 <strong>${model.paramsB == null ? "—" : `${model.paramsB}B`}</strong></span>
-    </div>
-    <p class="detail-source">
-      ${escapeHtml(model.vendor || "未知厂商")}
-      ${sourceLink(model.sourceUrl, "模型记录来源（非必然厂商官网）")}
-    </p>
-    ${radar}
-    <h2 class="section-title">各榜成绩</h2>
-    ${scores.length ? `
-      <div class="score-list">
-        ${scores.map((score) => `
-          <div class="score-row" style="--score-color:${scoreColor(score.score, score.scoreMin, score.scoreMax)};--score-ratio:${scoreRatio(score.score, score.scoreMin, score.scoreMax) * 100}%;--score-ratio-number:${scoreRatio(score.score, score.scoreMin, score.scoreMax)}">
-            <div class="score-row-name">${escapeHtml(score.boardName)} ${sourceLink(state.snapshot.boards.find(x => x.slug === score.boardSlug)?.url, "来源")}</div>
-            <div class="score-row-rank"><strong>#${score.rank}</strong><span>${topPercentile(score.rank, boardScoreCounts[score.boardSlug])}</span></div>
-            <div class="score-row-score">${score.score == null ? "—" : score.score.toFixed(1)}</div>
-            <div class="score-bar"><span></span></div>
-          </div>
-        `).join("")}
-      </div>
-    ` : `<div class="muted">暂无跨榜成绩。</div>`}
+    <dl class="detail-specs" aria-label="模型规格">
+      ${stat("上下文", textMetadata(model.contextWindow))}${stat("参数量", parameterLabel(model.paramsB))}${stat("许可", textMetadata(model.license))}${stat("发布日期", detailDate(model.releaseDate))}
+    </dl>
+    <p class="detail-source">${sourceLink(model.sourceUrl, "模型记录来源（非必然官网）")}</p>
+    <section class="detail-pricing" aria-label="模型价格"><h3>价格记录</h3><dl class="detail-price-grid">${stat("输入价", rawPriceLabel(model.priceIn, model.currency))}${stat("输出价", rawPriceLabel(model.priceOut, model.currency))}</dl>
+      <p>${estimate == null ? "混合价未获取（需完整有效双侧价格和已知币种）" : `估算混合价 ${formatPrice(estimate)} / 1M tokens`}</p>
+      <p class="detail-price-source">价格记录：${escapeHtml(model.priceBoardName)} · 抓取 ${escapeHtml(fullTime(model.priceFetchedAt))}</p><details class="inline-disclosure"><summary>估算口径与价格来源</summary><p>(输入 ×3 + 输出) ÷4；USD 固定按 7.2 换算 CNY，仅供估算。缺失不补零；单侧价只展示已知项，不作为完整总价。${sourceLink(model.priceSourceUrl, "价格记录来源（非必然官网）")}</p></details>
+    </section>
+    <section class="detail-results" aria-label="各榜真实成绩"><h2 class="section-title">各榜成绩</h2><p class="detail-caution">逐榜原始记录，跨榜分数不能直接比较，不计算综合能力。</p>
+    ${scores.length ? `<div class="detail-score-list">${scores.map(score => {
+      const rank = Number.isInteger(score.rank) && score.rank > 0 ? `#${score.rank}` : "名次未获取";
+      const value = Number.isFinite(score.score) ? `${score.score}${score.unit ? ` ${score.unit}` : "（单位未提供）"}` : "成绩未获取";
+      return `<article class="detail-score"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(value)}</strong><span>${rank}</span></div><p>${sourceLink(score.sourceUrl, "榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p></article>`;
+    }).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}</section>
+    <details class="detail-radar"><summary>相对位置雷达（可选）</summary><p class="muted">各榜样本内 min-max 相对位置，不是百分位，不跨榜汇总；每维取快照顺序首个有效榜，全部原始记录见上方。同分范围不绘制。</p>${radarScores.length >= 3 ? radarChart(radarScores) : `<p class="muted">有效维度不足 3 个，暂不绘制雷达。</p>`}</details>
+    <section class="detail-related"><h2 class="section-title">同厂商模型</h2>${related.length ? `<div class="related-model-list">${related.map(item => `<button type="button" class="chip" data-related-model="${escapeAttr(item.slug)}">${escapeHtml(item.displayName || item.slug)}</button>`).join("")}</div>` : `<p class="muted">${textMetadata(model.vendor) === "未获取" ? "厂商未获取，暂不关联模型。" : "暂无可确认的同厂商其他模型。"}</p>`}</section>
   `;
 }
 
 function selectRadarScores(scores) {
   const priority = ["overall", "coding", "writing", "multimodal", "agent", "math", "search", "speed", "value"];
   const groups = scores
-    .filter((score) => score.score != null)
+    .filter((score) => Number.isFinite(score.score) && Number.isFinite(score.scoreMin) && Number.isFinite(score.scoreMax) && score.scoreMax > score.scoreMin)
     .reduce((groups, score) => {
       const dimension = score.dimension || score.boardSlug;
-      const existing = groups.get(dimension);
-      if (!existing || radarRatio(score) > radarRatio(existing)) groups.set(dimension, score);
+      if (!groups.has(dimension)) groups.set(dimension, score);
       return groups;
     }, new Map());
   return Array.from(groups.values())
@@ -1202,7 +1186,7 @@ function radarChart(scores) {
     const point = pointFor(index, ratio);
     return `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
   }).join(" ") + " Z";
-  const dataPoints = scores.map((score, index) => pointFor(index, Math.max(radarRatio(score), .12)));
+  const dataPoints = scores.map((score, index) => pointFor(index, radarRatio(score)));
   const dataPath = dataPoints.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ") + " Z";
 
   return `
@@ -1314,27 +1298,38 @@ function boardsForDimension(dimension) {
 }
 
 function findModel(slug) {
-  return Object.values(state.snapshot.entriesByBoard)
+  return !!state.snapshot.models[slug] || Object.values(state.snapshot.entriesByBoard)
     .some((entries) => entries.some((entry) => entry.slug === slug));
 }
 
 function modelDetail(slug) {
   const entries = Object.values(state.snapshot.entriesByBoard).flat();
   const firstEntry = entries.find((entry) => entry.slug === slug);
-  if (!firstEntry) return null;
-  const stored = state.snapshot.models[slug] || {};
-  const model = { ...firstEntry, ...stored, slug };
+  const stored = state.snapshot.models[slug];
+  if (!firstEntry && !stored) return null;
+  const selectedPrice = selectPriceRecord(state.snapshot.entriesByBoard, slug);
+  const priceRecord = selectedPrice?.entry || (stored?.priceIn != null || stored?.priceOut != null ? stored : null);
+  const priceBoard = selectedPrice?.boardSlug;
+  const model = { ...mergeModelMetadata(firstEntry, stored), priceIn:priceRecord?.priceIn, priceOut:priceRecord?.priceOut, currency:priceRecord?.currency, slug,
+    priceBoardName: state.snapshot.boards.find(board => board.slug === priceBoard)?.name || "模型元数据记录",
+    priceFetchedAt: priceRecord?.fetchedAt,
+    priceSourceUrl: priceRecord?.sourceUrl || state.snapshot.boards.find(board => board.slug === priceBoard)?.url,
+  };
   const scores = Object.entries(state.snapshot.entriesByBoard).flatMap(([boardSlug, boardEntries]) => {
     const entry = boardEntries.find((item) => item.slug === slug);
     if (!entry) return [];
     const board = state.snapshot.boards.find((item) => item.slug === boardSlug);
-    const boardScores = boardEntries.map((item) => item.score).filter((score) => score != null && !Number.isNaN(score));
+    const boardScores = boardEntries.map((item) => item.score).filter(Number.isFinite);
     return [{
       boardSlug,
       dimension: board?.dimension || boardSlug,
       boardName: board?.name || boardSlug,
       rank: entry.rank,
-      score: entry.score,
+      score: Number.isFinite(entry.score) ? entry.score : null,
+      board,
+      sourceUrl: entry.sourceUrl || board?.url || board?.source?.url,
+      fetchedAt: entry.fetchedAt || board?.health?.lastSuccessAt || board?.lastSuccessAt,
+      unit: scoreUnit(board),
       scoreMin: boardScores.length ? Math.min(...boardScores) : null,
       scoreMax: boardScores.length ? Math.max(...boardScores) : null,
     }];
@@ -1377,12 +1372,7 @@ function tierPicks(entries) {
 }
 
 function blendedPrice(entry) {
-  if (!Number.isFinite(entry.priceIn) || !Number.isFinite(entry.priceOut)) return null;
-  if (entry.priceIn < 0 || entry.priceOut < 0 || !["USD", "CNY", "RMB", "", undefined, null].includes(entry.currency)) return null;
-  const rate = entry.currency === "USD" ? 7.2 : 1;
-  const priceIn = (entry.priceIn || 0) * rate;
-  const priceOut = (entry.priceOut || 0) * rate;
-  return (priceIn * 3 + priceOut) / 4;
+  return estimateBlendedPrice(entry);
 }
 
 function formatPrice(price) {

@@ -137,18 +137,12 @@ class LocalSnapshotDataSource private constructor(
     }
 
     fun modelDetail(slug: String): ModelDetailResponse? {
-        val firstEntry = snapshot.entriesByBoard.values.flatten().firstOrNull { it.slug == slug }
-            ?: return null
-        val model = snapshot.models[slug] ?: ModelDetailDto(
-            slug = firstEntry.slug,
-            displayName = firstEntry.displayName,
-            vendor = firstEntry.vendor,
-            paramsB = firstEntry.paramsB,
-                license = firstEntry.license,
-                contextWindow = firstEntry.contextWindow,
-                sourceUrl = firstEntry.sourceUrl,
-                releaseDate = firstEntry.releaseDate,
-        )
+        val model = snapshot.models[slug] ?: snapshot.entriesByBoard.values.asSequence().flatten()
+            .firstOrNull { it.slug == slug }?.let { entry -> ModelDetailDto(
+                slug = entry.slug, displayName = entry.displayName, vendor = entry.vendor,
+                paramsB = entry.paramsB, license = entry.license, contextWindow = entry.contextWindow,
+                sourceUrl = entry.sourceUrl, releaseDate = entry.releaseDate,
+            ) } ?: return null
         val scores = snapshot.boards.mapNotNull { board ->
             val entry = snapshot.entriesByBoard[board.slug]?.firstOrNull { it.slug == slug }
                 ?: return@mapNotNull null
@@ -198,6 +192,13 @@ class LocalSnapshotDataSource private constructor(
         }
             .sortedByDescending { it.releaseDate }
             .take(limit)
+    }
+
+    fun vendorModels(model: ModelDetailDto): List<ModelDetailDto> {
+        val vendor = realVendorKey(model.vendor) ?: return emptyList()
+        return snapshot.models.values.filter {
+            it.slug != model.slug && realVendorKey(it.vendor) == vendor
+        }.distinctBy { it.slug }.sortedBy { it.displayName }.take(8)
     }
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> {
