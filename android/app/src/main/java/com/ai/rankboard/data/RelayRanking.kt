@@ -2,9 +2,12 @@ package com.ai.rankboard.data
 
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.concurrent.TimeUnit
 
 enum class RelayMatchQuality(val label: String) {
@@ -66,14 +69,24 @@ class RelayModelClient(
         withContext(Dispatchers.IO) {
             val endpoints = endpointCandidates(url)
             var lastError: Exception? = null
+            var authenticationRequired = false
             for (endpoint in endpoints) {
+                coroutineContext.ensureActive()
                 try {
                     val models = execute(endpoint)
                     if (models.isNotEmpty()) return@withContext models
                     lastError = IllegalStateException("接口返回成功，但没有找到模型列表")
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: RelayHttpException) {
+                    authenticationRequired = authenticationRequired || error.status == 401 || error.status == 403
+                    lastError = error
                 } catch (error: Exception) {
                     lastError = error
                 }
+            }
+            if (authenticationRequired) {
+                throw IllegalStateException("该站接口需要密钥或登录，且未读到公开模型列表。请确认模型广场是否对外开放；本功能不发送访问密钥。")
             }
             throw lastError ?: IllegalStateException("无法读取模型列表")
         }
@@ -86,7 +99,7 @@ class RelayModelClient(
 
         client.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("HTTP ${response.code}，请确认地址是否可访问")
+                throw RelayHttpException(response.code)
             }
             val body = response.body?.string().orEmpty()
             return parseModels(body).ifEmpty {
@@ -96,54 +109,54 @@ class RelayModelClient(
     }
 
     internal fun endpointCandidates(rawUrl: String): List<String> {
-        val normalized = rawUrl.trim().removeSuffix("/")
+        val normalized = rawUrl.trim()
         val withScheme = if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
             normalized
         } else {
             "https://$normalized"
         }
-        if (!withScheme.startsWith("https://")) {
+        val parsed = withScheme.toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("请输入有效的中转站地址")
+        if (parsed.scheme != "https") {
             throw IllegalArgumentException("中转站地址必须使用 HTTPS")
         }
+        if (parsed.username.isNotEmpty() || parsed.password.isNotEmpty()) {
+            throw IllegalArgumentException("地址不能包含用户名或密码")
+        }
         val candidates = LinkedHashSet<String>()
-        candidates += withScheme
-        val path = withScheme.toPath()
-        val origin = withScheme.toOrigin()
-        val plaza = "$origin/api/v1/model-plaza"
-        val openAiModels = "$origin/v1/models"
+        candidates += parsed.toString()
+        val path = parsed.encodedPath.trimEnd('/')
+        val origin = parsed.newBuilder().encodedPath("/").query(null).fragment(null).build()
+        fun endpoint(path: String) = origin.newBuilder().encodedPath(path).build().toString()
+        val plaza = endpoint("/api/v1/model-plaza")
+        val openAiModels = endpoint("/v1/models")
         when {
-            path.endsWith("/api/v1/model-plaza") -> Unit
-            path.isBlank() || path == "/" || path.endsWith("/model-plaza") -> {
+            path.isBlank() || path.endsWith("/model-plaza") -> {
                 candidates += plaza
-                candidates += openAiModels
             }
-            path.endsWith("/v1") -> candidates += "$withScheme/models"
-            path.endsWith("/models") && !path.contains("/v1/") ->
-                candidates += openAiModels
-            !path.contains("/v1/models") -> {
-                candidates += openAiModels
-                candidates += plaza
+            path.endsWith("/v1") -> {
+                candidates += parsed.newBuilder().encodedPath("$path/models")
+                    .query(null).fragment(null).build().toString()
             }
         }
+        // New API sites expose a public catalogue even when /v1/models needs a token.
+        candidates += endpoint("/api/pricing")
+        candidates += plaza
+        candidates += openAiModels
         return candidates.toList()
     }
 
-    private fun String.toPath(): String = try {
-        java.net.URI(this).path.orEmpty()
-    } catch (_: Exception) {
-        substringAfter("://", "").substringAfter('/', "")
-    }
-
-    private fun String.toOrigin(): String {
-        val schemeEnd = indexOf("://") + 3
-        val pathStart = indexOf('/', schemeEnd)
-        return if (schemeEnd > 2 && pathStart >= 0) take(pathStart) else this
-    }
+    private class RelayHttpException(val status: Int) :
+        IllegalStateException("HTTP $status，未能读取公开模型列表")
 
     companion object {
         fun parseModels(text: String): List<RelayRemoteModel> = runCatching {
             val root = JsonParser.parseString(text)
             if (root.isJsonObject) {
+                val obj = root.asJsonObject
+                if (obj.has("error") || obj.get("success")?.let { it.isJsonPrimitive && it.asString == "false" } == true) {
+                    return emptyList()
+                }
                 parsePlaza(root.asJsonObject).takeIf { it.isNotEmpty() }?.let { return it }
             }
 
@@ -155,14 +168,15 @@ class RelayModelClient(
 
             array.mapNotNull { item ->
                 when {
-                    item.isJsonPrimitive -> item.asJsonPrimitive.asString
+                    item.isJsonPrimitive && item.asJsonPrimitive.isString -> item.asString
                     item.isJsonObject -> item.asJsonObject.get(
                         listOf("id", "model", "model_id", "model_name", "name"),
                     )?.takeIf { it.isJsonPrimitive }?.asString
                     else -> null
                 }?.takeIf { it.isNotBlank() }?.let { id ->
                     val owner = if (item.isJsonObject) {
-                        item.asJsonObject.get("owned_by")?.takeIf { it.isJsonPrimitive }?.asString
+                        item.asJsonObject.get(listOf("owned_by", "owner_by"))
+                            ?.takeIf { it.isJsonPrimitive }?.asString
                     } else {
                         null
                     }
@@ -247,11 +261,10 @@ class RelayModelClient(
 
             val direct = obj.get("data") ?: obj.get("models") ?: obj.get("model_list")
                 ?: obj.get("result") ?: obj.get("items")
-            direct?.asJsonArray?.let { return it }
-            direct?.asJsonObject?.get("models")?.asJsonArray?.let { return it }
-            obj.entrySet().firstNotNullOfOrNull { (_, value) ->
-                value.takeIf { it.isJsonArray }?.asJsonArray
-            }?.let { return it }
+            direct?.takeIf { it.isJsonArray }?.asJsonArray?.let { return it }
+            direct?.takeIf { it.isJsonObject }?.asJsonObject?.let { nested ->
+                return modelArray(nested)
+            }
             return null
         }
 

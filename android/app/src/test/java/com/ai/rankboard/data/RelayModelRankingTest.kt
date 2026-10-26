@@ -3,6 +3,11 @@ package com.ai.rankboard.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 class RelayModelRankingTest {
     private val snapshot = Snapshot(
@@ -127,6 +132,82 @@ class RelayModelRankingTest {
 
         assertEquals("https://gzjy.me/api/v1/model-plaza", candidates[1])
         assertTrue("https://gzjy.me/v1/models" in candidates)
+    }
+
+    @Test
+    fun `v1 addresses also try public pricing without carrying query credentials`() {
+        val candidates = RelayModelClient().endpointCandidates("https://example.com:8443/v1/?token=private#models")
+        assertEquals("https://example.com:8443/v1/models", candidates[1])
+        assertTrue("https://example.com:8443/api/pricing" in candidates)
+        assertTrue(candidates.drop(1).none { it.contains("private") || it.contains("#") })
+        assertTrue(RelayModelClient().endpointCandidates("example.com/v1/models").contains("https://example.com/api/pricing"))
+    }
+
+    @Test
+    fun `public pricing parses model names but does not invent token prices`() {
+        val json = """
+            {"success":true,"auto_groups":["default"],"data":[
+              {"model_name":"gpt-5.5","quota_type":0,"model_ratio":2.5,"completion_ratio":6,"owner_by":"openai","billing_mode":"tiered_expr"},
+              {"model_name":"claude-opus","quota_type":1,"model_price":0.1},
+              {"model_name":"GPT-5.5"}
+            ],"group_ratio":{"default":1}}
+        """.trimIndent()
+        val models = RelayModelClient.parseModels(json)
+        assertEquals(listOf("gpt-5.5", "claude-opus"), models.map { it.id })
+        assertEquals("openai", models.first().ownedBy)
+        assertTrue(models.all { it.actualPrice == null && it.rateMultiplier == null })
+    }
+
+    @Test
+    fun `nested model lists are supported and unrelated arrays are not model lists`() {
+        assertEquals(listOf("model-a"), RelayModelClient.parseModels("""{"data":{"models":[{"id":"model-a"}]}}""").map { it.id })
+        for (json in listOf(
+            """{"success":false,"data":[{"id":"not-available"}]}""",
+            """{"auto_groups":["default"],"vendors":[{"name":"OpenAI"}]}""",
+            """{"error":{"message":"Invalid token"}}""",
+            "<html>Login</html>",
+        )) {
+            assertTrue(RelayModelClient.parseModels(json).isEmpty())
+        }
+    }
+
+    @Test
+    fun `protected models endpoint falls back to public catalogue without authentication`() = runBlocking {
+        val requests = mutableListOf<String>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            requests += request.url.encodedPath
+            assertEquals(null, request.header("Authorization"))
+            val public = request.url.encodedPath == "/api/pricing"
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+                .code(if (public) 200 else 401).message(if (public) "OK" else "Unauthorized")
+                .body((if (public) """{"success":true,"data":[{"model_name":"gpt-5.5"}]}""" else "{}").toResponseBody())
+                .build()
+        }.build()
+        assertEquals("gpt-5.5", RelayModelClient(client).fetchModels("https://example.com/v1").single().id)
+        assertEquals(listOf("/v1", "/v1/models", "/api/pricing"), requests)
+    }
+
+    @Test
+    fun `authentication failure is not hidden by later missing endpoints`() = runBlocking {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+                .code(if (request.url.encodedPath.endsWith("/models")) 401 else 404)
+                .message("Unavailable").body("{}".toResponseBody()).build()
+        }.build()
+        val error = runCatching { RelayModelClient(client).fetchModels("https://example.com/v1/models") }.exceptionOrNull()
+        assertTrue(error?.message.orEmpty().contains("需要密钥或登录"))
+    }
+
+    @Test
+    fun `optional live relay catalogue smoke test`() = runBlocking {
+        val url = System.getenv("RELAY_LIVE_URL").orEmpty()
+        org.junit.Assume.assumeTrue("Set RELAY_LIVE_URL to test a real public catalogue", url.isNotBlank())
+        val models = RelayModelClient().fetchModels(url)
+        assertTrue(models.isNotEmpty())
+        assertTrue(models.all { it.id.isNotBlank() })
+        println("Live public relay catalogue: ${models.size} models")
     }
 
     @Test

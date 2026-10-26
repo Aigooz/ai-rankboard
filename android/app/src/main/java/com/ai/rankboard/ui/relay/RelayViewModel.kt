@@ -92,6 +92,8 @@ class RelayViewModel(
             val clearedCurrent = it.url == url
             it.copy(
                 url = if (clearedCurrent) "" else it.url,
+                ranking = if (clearedCurrent) null else it.ranking,
+                error = "",
                 relayUrls = settingsStore.settings.value.relayUrls,
             )
         }
@@ -104,7 +106,7 @@ class RelayViewModel(
     fun fetch() {
         val url = _state.value.url.trim()
         if (url.isBlank() || _state.value.loading) return
-        _state.update { it.copy(loading = true, error = "") }
+        _state.update { it.copy(loading = true, ranking = null, error = "") }
         viewModelScope.launch {
             runCatching {
                 repository.relayRanking(url)
