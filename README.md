@@ -11,7 +11,7 @@
 
 | 平台 | 入口与要求 |
 | --- | --- |
-| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.25** |
+| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.26** |
 | 网页 | [GitHub Pages](https://aigooz.github.io/ai-rankboard/)，现代浏览器直接使用 |
 | iOS | 提供 [源码](ios/) 和 [构建工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/ios.yml)，iOS 17+；产物未签名，不是可直接安装的正式版 |
 
@@ -20,6 +20,8 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 安装时选择 `app-release.apk`，不是 GitHub 自动生成的 **Source code (zip)**。首次安装需要 Android 的“允许安装未知应用”授权。官方新版沿用原签名，可覆盖升级，无需先卸载旧版。
 
 ### 最近更新
+
+- **0.20.26**：榜单同步先校验再下载，未变化时秒级完成；官方源改为无限流地址并自动切换镜像，连接超时缩短，失败可快速重试。
 
 - **0.20.25**：修复中转站 401 后无法读取公开模型列表，兼容 New API 定价目录，无需访问密钥。
 

@@ -292,14 +292,16 @@ fun SettingsScreen(
 
             item {
                 SettingsGroup(title = "榜单数据", icon = Icons.Filled.Dataset) {
+                    val syncProgress by app.snapshotStore.progress.collectAsState()
                     UpdateSummary(
                         headline = if (snapshotCheck.checking) "正在同步榜单…" else "${snapshot.models.size} 个模型 · ${snapshot.boards.size} 个榜单",
                         detail = "数据时间 ${snapshot.generatedAt.take(19).replace("T", " ")}\n" +
                             "${snapshot.sources.size} 个数据源 · " +
-                            if (officialSnapshot) "官方数据源" else "自定义数据源",
+                            if (officialSnapshot) "官方数据源（自动切换镜像）" else "自定义数据源",
                         checkedAt = snapshotCheck.checkedAt,
                         message = snapshotCheck.result?.message,
                         isError = snapshotCheck.result?.status == SnapshotUpdateStatus.ERROR,
+                        progress = if (snapshotCheck.checking) syncProgress?.let { formatSyncProgress(it) } ?: "正在连接数据源…" else null,
                     )
                     UpdateAction(
                         label = if (snapshotCheck.checking) "同步中" else "立即同步",
@@ -540,6 +542,19 @@ private fun SettingsGroup(
     }
 }
 
+/** 同步过程反馈：让"慢"变成可感知的进度，而不是一个转圈的按钮。 */
+private fun formatSyncProgress(progress: com.ai.rankboard.data.SnapshotSyncProgress): String {
+    val source = progress.sourceLabel.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+    return when (progress.phase) {
+        com.ai.rankboard.data.SnapshotSyncPhase.CONNECTING -> "正在连接数据源$source"
+        com.ai.rankboard.data.SnapshotSyncPhase.DOWNLOADING -> {
+            val mb = progress.downloadedBytes / 1024.0 / 1024.0
+            String.format(Locale.US, "正在下载榜单数据 %.1f MB%s", mb, source)
+        }
+        com.ai.rankboard.data.SnapshotSyncPhase.PARSING -> "正在校验并解析$source"
+    }
+}
+
 @Composable
 private fun UpdateSummary(
     headline: String,
@@ -547,6 +562,7 @@ private fun UpdateSummary(
     checkedAt: Long,
     message: String?,
     isError: Boolean = false,
+    progress: String? = null,
 ) {
     val formatter = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
     Column(
@@ -555,6 +571,13 @@ private fun UpdateSummary(
     ) {
         Text(headline, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!progress.isNullOrBlank()) {
+            Text(
+                progress,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         Text(
             if (checkedAt > 0) "上次检查 ${formatter.format(checkedAt)}" else "尚未完成检查",
             style = MaterialTheme.typography.labelSmall,

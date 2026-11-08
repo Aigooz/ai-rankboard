@@ -7,11 +7,14 @@ const favorites = loadFavorites(storage);
 
 const SNAPSHOT_URLS = [
   "./leaderboards.json",
-  "https://api.github.com/repos/Aigooz/ai-rankboard/contents/leaderboards.json?ref=main",
-  "https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/leaderboards.json",
+  "https://cdn.jsdelivr.net/gh/Aigooz/ai-rankboard@main/leaderboards.json",
+  "https://gh-proxy.com/https://raw.githubusercontent.com/Aigooz/ai-rankboard/main/leaderboards.json",
+  "https://ghfast.top/https://raw.githubusercontent.com/Aigooz/ai-rankboard/main/leaderboards.json",
   "https://raw.githubusercontent.com/Aigooz/ai-rankboard/main/leaderboards.json",
-  "https://ghfast.top/https://raw.githubusercontent.com/Aigooz/ai-rankboard-updates/main/leaderboards.json",
+  "https://api.github.com/repos/Aigooz/ai-rankboard/contents/leaderboards.json?ref=main",
 ];
+
+const SNAPSHOT_TIMEOUT_MS = 12000;
 
 const DIMENSIONS = [
   { slug: "overall", name: "综合" },
@@ -126,10 +129,14 @@ async function init() {
 async function loadSnapshot() {
   let lastError = null;
   for (const url of SNAPSHOT_URLS) {
+    // 单个源卡住时不能拖垮整页：超时即切下一个源。
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SNAPSHOT_TIMEOUT_MS);
     try {
       const response = await fetch(url, {
-        cache: "no-store",
+        cache: url.startsWith("./") ? "default" : "no-store",
         headers: { Accept: "application/vnd.github.raw+json" },
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const snapshot = await response.json();
@@ -137,6 +144,8 @@ async function loadSnapshot() {
       return normalizeSnapshot(snapshot);
     } catch (error) {
       lastError = error;
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw lastError || new Error("无法加载榜单数据");

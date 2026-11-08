@@ -40,14 +40,14 @@ class RankboardApp : Application() {
         val settings = settingsStore.settings.value
         snapshotStore.scheduleDailyUpdate(
             settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
-            settings.snapshotFrequency.days,
+            settings.snapshotFrequency.hours,
         )
 
         // WorkManager 会被系统合并或延后；打开 App 时补一次到期检查，保证数据尽早更新。
         settingsScope.launch(Dispatchers.IO) {
             snapshotStore.refreshIfDue(
                 settings.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL },
-                settings.snapshotFrequency.days,
+                settings.snapshotFrequency.hours,
             )
         }
 
@@ -65,7 +65,7 @@ class RankboardApp : Application() {
             settingsStore.settings
                 .map { it.snapshotFrequency to it.snapshotUrl.ifBlank { BuildConfig.SNAPSHOT_URL } }
                 .distinctUntilChanged()
-                .collect { (frequency, url) -> snapshotStore.scheduleDailyUpdate(url, frequency.days) }
+                .collect { (frequency, url) -> snapshotStore.scheduleDailyUpdate(url, frequency.hours) }
         }
     }
 }
