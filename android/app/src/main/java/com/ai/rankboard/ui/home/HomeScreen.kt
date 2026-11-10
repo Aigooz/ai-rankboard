@@ -98,7 +98,7 @@ fun HomeScreen(
                     .background(MaterialTheme.colorScheme.background)
                     .statusBarsPadding()
                     .padding(horizontal = 16.dp)
-                    .padding(top = 6.dp, bottom = 10.dp),
+                    .padding(top = 10.dp, bottom = 12.dp),
             ) {
                 SearchField(
                     value = state.query,
@@ -112,8 +112,8 @@ fun HomeScreen(
                     items(HOME_TABS, key = { it.dimension }) { tab ->
                         val selected = state.tab == tab.dimension
                         Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = if (selected) MaterialTheme.colorScheme.primary
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.48f),
                             modifier = Modifier.clickable { vm.selectTab(tab.dimension) },
                         ) {
@@ -121,7 +121,7 @@ fun HomeScreen(
                                 text = tab.label,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -345,14 +345,14 @@ private fun LeaderboardOverview(
     AppCard(Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SectionHeader(
-                title = "榜单速览",
+                title = "本榜前三",
                 trailing = {
                     if (state.offline) {
                         Surface(
-                            shape = RoundedCornerShape(999.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = MaterialTheme.colorScheme.tertiaryContainer,
                         ) {
                             Text(
@@ -366,15 +366,14 @@ private fun LeaderboardOverview(
                 },
             )
             if (topModels.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
                     topModels.forEachIndexed { index, entry ->
                         TopModelCard(
                             entry = entry,
-                            accent = when (index) {
-                                0 -> Color(0xFFD97706)
-                                1 -> Color(0xFF64748B)
-                                else -> Color(0xFFB45309)
-                            },
+                            position = index,
                             onClick = { onOpenModel(entry.slug) },
                             modifier = Modifier.weight(1f),
                             scoreMin = scoreMin,
@@ -436,7 +435,7 @@ private fun LeaderboardOverview(
 @Composable
 private fun RecentModelChip(entry: EntryDto, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
         modifier = Modifier.clickable(onClick = onClick),
     ) {
@@ -472,36 +471,47 @@ private fun RecentModelChip(entry: EntryDto, onClick: () -> Unit) {
 @Composable
 private fun TopModelCard(
     entry: EntryDto,
-    accent: Color,
+    position: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     scoreMin: Double?,
     scoreMax: Double?,
 ) {
+    val accent = when (position) {
+        0 -> Color(0xFFB7791F)
+        1 -> Color(0xFF62758A)
+        else -> Color(0xFF9A6546)
+    }
+    val isFirst = position == 0
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = accent.copy(alpha = 0.08f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.16f)),
+        shape = RoundedCornerShape(9.dp),
+        color = if (isFirst) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.52f)
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isFirst) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        ),
         modifier = modifier.clickable(onClick = onClick),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = 7.dp, vertical = if (isFirst) 13.dp else 9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = "#${entry.rank}",
-                style = MaterialTheme.typography.labelMedium,
+                text = when (position) { 0 -> "01 · TOP"; 1 -> "02"; else -> "03" },
+                style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 color = accent,
             )
-            VendorIcon(vendor = entry.vendor, size = 26.dp)
+            VendorIcon(vendor = entry.vendor, size = if (isFirst) 30.dp else 25.dp)
             Text(
                 text = parseModelStrength(entry.displayName).first,
-                style = MaterialTheme.typography.labelMedium,
+                style = if (isFirst) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 minLines = 2,
@@ -510,7 +520,7 @@ private fun TopModelCard(
             )
             Text(
                 text = entry.score?.let { String.format(Locale.US, "%.1f", it) } ?: "-",
-                style = MaterialTheme.typography.titleSmall,
+                style = if (isFirst) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
                 fontFamily = FontFamily.Monospace,
                 color = scoreColor(entry.score, scoreMin, scoreMax),
             )
@@ -561,7 +571,7 @@ private fun FilterSummaryBar(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(9.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,

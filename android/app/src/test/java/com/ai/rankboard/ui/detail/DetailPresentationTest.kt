@@ -48,4 +48,51 @@ class DetailPresentationTest {
         }
         assertNull(local.modelDetail("absent"))
     }
+
+    @Test fun detailScoresKeepEachBoardsOwnRangeAndMetadataOnlyModels() {
+        val boards = listOf(
+            BoardDto("overall", "Overall", "overall"),
+            BoardDto("arena", "Arena", "chat"),
+            BoardDto("empty", "Empty", "coding"),
+        )
+        val snapshot = Snapshot(
+            boards = boards,
+            entriesByBoard = mapOf(
+                "overall" to listOf(
+                    EntryDto("target", "Target", rank = 2, score = 70.0),
+                    EntryDto("other", "Other", rank = 1, score = 90.0),
+                    EntryDto("no-score", "No score"),
+                ),
+                "arena" to listOf(EntryDto("target", "Target", rank = 1, score = 1500.0)),
+            ),
+            models = mapOf("target" to ModelDetailDto("target", "Target")),
+        )
+        val result = LocalSnapshotDataSource(snapshot).modelDetail("target")!!
+        assertEquals(listOf("overall", "arena"), result.scores.map { it.boardSlug })
+        assertEquals(70.0, result.scores[0].score)
+        assertEquals(70.0, result.scores[0].scoreMin)
+        assertEquals(90.0, result.scores[0].scoreMax)
+        assertEquals(2, result.scores[0].entryCount)
+        assertEquals(1500.0, result.scores[1].scoreMin)
+        assertEquals(1500.0, result.scores[1].scoreMax)
+        assertEquals(1, result.scores[1].entryCount)
+    }
+
+    @Test fun recentReleaseLookupUsesOverallBoardScoreWithoutRequiringBoardEntry() {
+        val released = java.time.LocalDate.now().minusDays(1).toString()
+        val models = mapOf(
+            "target" to ModelDetailDto("target", "Target", releaseDate = released),
+            "metadata" to ModelDetailDto("metadata", "Metadata", releaseDate = released),
+        )
+        val local = LocalSnapshotDataSource(Snapshot(
+            models = models,
+            entriesByBoard = mapOf("overall" to listOf(EntryDto("target", "Target", rank = 4, score = 81.5))),
+        ))
+        val recent = local.recentlyReleasedModels(days = 30)
+        assertEquals(2, recent.size)
+        val target = recent.first { it.slug == "target" }
+        assertEquals(4, target.rank)
+        assertEquals(81.5, target.score)
+        assertNull(recent.first { it.slug == "metadata" }.score)
+    }
 }

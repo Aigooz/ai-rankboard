@@ -29,8 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-private val CardShape = RoundedCornerShape(20.dp)
-private val InnerShape = RoundedCornerShape(14.dp)
+private val CardShape = RoundedCornerShape(10.dp)
+private val InnerShape = RoundedCornerShape(8.dp)
 
 @Composable
 fun AppCard(
@@ -42,7 +42,7 @@ fun AppCard(
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.34f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
         ),
         modifier = modifier,
     ) {
@@ -188,7 +188,7 @@ fun SearchField(
                 }
             }
         },
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,

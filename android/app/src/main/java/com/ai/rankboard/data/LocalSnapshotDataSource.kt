@@ -137,17 +137,24 @@ class LocalSnapshotDataSource private constructor(
     }
 
     fun modelDetail(slug: String): ModelDetailResponse? {
-        val model = snapshot.models[slug] ?: snapshot.entriesByBoard.values.asSequence().flatten()
+        val current = snapshot
+        val model = current.models[slug] ?: current.entriesByBoard.values.asSequence().flatten()
             .firstOrNull { it.slug == slug }?.let { entry -> ModelDetailDto(
                 slug = entry.slug, displayName = entry.displayName, vendor = entry.vendor,
                 paramsB = entry.paramsB, license = entry.license, contextWindow = entry.contextWindow,
                 sourceUrl = entry.sourceUrl, releaseDate = entry.releaseDate,
             ) } ?: return null
-        val scores = snapshot.boards.mapNotNull { board ->
-            val entry = snapshot.entriesByBoard[board.slug]?.firstOrNull { it.slug == slug }
-                ?: return@mapNotNull null
-            val boardScores = snapshot.entriesByBoard[board.slug].orEmpty()
-                .mapNotNull { it.score }
+        val entriesByBoard = current.boards.associate { board ->
+            board.slug to current.entriesByBoard[board.slug].orEmpty()
+        }
+        val entryIndexes = entriesByBoard.mapValues { (_, entries) -> entries.associateBy { it.slug } }
+        val scoreBounds = entriesByBoard.mapValues { (_, entries) ->
+            val scores = entries.asSequence().mapNotNull { it.score }.toList()
+            Triple(scores.minOrNull(), scores.maxOrNull(), scores.size)
+        }
+        val scores = current.boards.mapNotNull { board ->
+            val entry = entryIndexes[board.slug]?.get(slug) ?: return@mapNotNull null
+            val bounds = scoreBounds[board.slug] ?: Triple(null, null, 0)
             ScoreDto(
                 boardSlug = board.slug,
                 boardName = board.name,
@@ -161,9 +168,9 @@ class LocalSnapshotDataSource private constructor(
                 priceOut = entry.priceOut,
                 currency = entry.currency,
                 fetchedAt = entry.fetchedAt,
-                scoreMin = boardScores.minOrNull(),
-                scoreMax = boardScores.maxOrNull(),
-                entryCount = boardScores.size,
+                scoreMin = bounds.first,
+                scoreMax = bounds.second,
+                entryCount = bounds.third,
                 board = board,
             )
         }
@@ -173,11 +180,13 @@ class LocalSnapshotDataSource private constructor(
     /** 按发布日期取最近 N 天内上新的模型，附带综合榜成绩，供首页"最近上新"展示。 */
     fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> {
         val cutoff = java.time.LocalDate.now().minusDays(days.toLong())
-        return snapshot.models.values.mapNotNull { model ->
+        val current = snapshot
+        val overallBySlug = current.entriesByBoard["overall"].orEmpty().associateBy { it.slug }
+        return current.models.values.mapNotNull { model ->
             val date = model.releaseDate?.take(10)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val release = runCatching { java.time.LocalDate.parse(date) }.getOrNull() ?: return@mapNotNull null
             if (release.isBefore(cutoff)) return@mapNotNull null
-            val overall = snapshot.entriesByBoard["overall"]?.firstOrNull { it.slug == model.slug }
+            val overall = overallBySlug[model.slug]
             EntryDto(
                 slug = model.slug,
                 displayName = model.displayName,

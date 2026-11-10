@@ -1,6 +1,7 @@
 package com.ai.rankboard.ui.detail
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -135,17 +137,20 @@ fun DetailScreen(
                 AppCard(Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            VendorIcon(vendor = model.vendor, size = 46.dp)
+                            VendorIcon(vendor = model.vendor, size = 48.dp)
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     model.displayName,
                                     style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
                                     model.vendor?.takeIf { it.isNotBlank() } ?: "厂商未获取",
@@ -157,16 +162,64 @@ fun DetailScreen(
                         }
                         val primary = primaryDetailScore(state.scores)
                         if (primary != null) {
-                            Text(primary.boardName, style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(primary.score?.let { String.format(Locale.US, "%.1f", it) } ?: "成绩未获取",
-                                style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text(detailRankLabel(primary.rank), style = MaterialTheme.typography.labelMedium)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Bottom,
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(
+                                        primary.boardName,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        primary.score?.let { String.format(Locale.US, "%.1f", it) } ?: "成绩未获取",
+                                        style = MaterialTheme.typography.headlineLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = scoreColor(primary.score, primary.scoreMin, primary.scoreMax),
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(7.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                ) {
+                                    Text(
+                                        detailRankLabel(primary.rank),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    )
+                                }
+                            }
+                            ScoreBar(
+                                primary.score,
+                                primary.scoreMin,
+                                primary.scoreMax,
+                                Modifier.fillMaxWidth(),
+                                height = 8.dp,
+                            )
                         } else Text("暂无榜单成绩", style = MaterialTheme.typography.titleMedium)
-                        representativePricing?.let { Text(formatModelPrice(it), style = MaterialTheme.typography.bodyMedium) }
                         val specs = detailSpecifications(model)
-                        specs.filter { it.second != null }.forEach { (label, value) ->
-                            Text("$label：$value", style = MaterialTheme.typography.bodySmall)
+                        val knownSpecs = specs.filter { it.second != null }
+                        if (knownSpecs.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                knownSpecs.take(3).forEach { (label, value) ->
+                                    SpecTag(label, value.orEmpty(), Modifier.weight(1f))
+                                }
+                            }
+                        }
+                        representativePricing?.let {
+                            Text(formatModelPrice(it), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         TextButton(onClick = { specsOpen = !specsOpen }) { Text(if (specsOpen) "收起资料与价格来源" else "更多资料与价格来源") }
                         if (specsOpen) {
@@ -216,7 +269,28 @@ fun DetailScreen(
                 if (scoresOpen) com.ai.rankboard.ui.common.CrossBoardNotice()
             }
             if (scoresOpen) {
-                items(state.scores.size) { index -> ScoreCard(state.scores[index], state.generatedAt) }
+                state.scores.groupBy { it.dimension.ifBlank { "其他" } }.forEach { (dimension, scores) ->
+                    item(key = "score-dimension-$dimension") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                dimensionLabel(dimension),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatChip("榜单", scores.size.toString())
+                        }
+                    }
+                    items(scores.size, key = { index -> "score-${scores[index].boardSlug}" }) { index ->
+                        ScoreCard(scores[index], state.generatedAt)
+                    }
+                }
             }
             item {
                 val priced = representativePricing
@@ -338,6 +412,11 @@ private fun ScoreCard(
                 )
             }
             Text("抓取 ${score.fetchedAt.take(10).ifBlank { "未获取" }}", style = MaterialTheme.typography.labelSmall)
+            Text(
+                "分数范围仅用于本榜内定位，不与其他榜单横向比较",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             com.ai.rankboard.ui.common.BoardTrustCard(score.board, generatedAt = generatedAt)
             ScoreBar(
                 score = score.score,
@@ -349,13 +428,54 @@ private fun ScoreCard(
     }
 }
 
+private fun dimensionLabel(value: String): String = when (value.lowercase(Locale.ROOT)) {
+    "overall" -> "综合能力"
+    "coding", "code" -> "编程"
+    "reasoning" -> "推理"
+    "math" -> "数学"
+    "knowledge" -> "知识"
+    "vision" -> "视觉"
+    "image" -> "图像生成"
+    "video" -> "视频生成"
+    "audio" -> "音频"
+    "search" -> "搜索"
+    else -> value.replaceFirstChar { it.uppercase(Locale.ROOT) }
+}
+
+@Composable
+private fun SpecTag(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                RoundedCornerShape(7.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 @Composable
 private fun StatChip(
     label: String,
     value: String,
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
     ) {
         Row(
