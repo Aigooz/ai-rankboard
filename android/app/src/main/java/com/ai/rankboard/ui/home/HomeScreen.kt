@@ -546,7 +546,7 @@ private fun DataSourceStrip(
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(
                 sources.sortedWith(
-                    compareByDescending<Pair<String, Int>> { it.first == "modelsage" }.thenBy { it.first },
+                    compareBy<Pair<String, Int>> { it.first },
                 ),
                 key = { it.first },
             ) { (sourceId, count) ->

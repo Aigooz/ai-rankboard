@@ -123,6 +123,21 @@ internal fun CompareRadarChart(
                     return path
                 }
 
+                fun segmentedPath(ratios: List<Float?>): Path {
+                    val path = Path()
+                    var drawing = false
+                    ratios.forEachIndexed { index, ratio ->
+                        if (ratio == null) {
+                            drawing = false
+                            return@forEachIndexed
+                        }
+                        val target = point(index, ratio)
+                        if (!drawing) path.moveTo(target.x, target.y) else path.lineTo(target.x, target.y)
+                        drawing = true
+                    }
+                    return path
+                }
+
                 listOf(0.25f, 0.5f, 0.75f, 1f).forEachIndexed { index, level ->
                     val ring = polygon(List(dimensions.size) { level })
                     if (index != 3) drawPath(ring, gridFill.copy(alpha = 0.42f))
@@ -143,8 +158,15 @@ internal fun CompareRadarChart(
 
                 series.forEachIndexed { modelIndex, ratios ->
                     val accent = modelAccent(modelIndex)
-                    drawPath(polygon(ratios), accent.copy(alpha = 0.10f))
-                    drawPath(polygon(ratios), accent, style = Stroke(2.dp.toPx()))
+                    if (ratios.all { it != null }) {
+                        drawPath(polygon(ratios.filterNotNull()), accent.copy(alpha = 0.10f))
+                    }
+                    drawPath(segmentedPath(ratios), accent, style = Stroke(2.dp.toPx()))
+                    ratios.forEachIndexed { index, ratio ->
+                        if (ratio != null) {
+                            drawCircle(accent, 2.8.dp.toPx(), point(index, ratio))
+                        }
+                    }
                 }
 
                 val labelRadius = radius + 16.dp.toPx()
@@ -216,14 +238,13 @@ internal fun selectCompareAxes(models: List<ModelDetailResponse>): List<String> 
         .take(6)
 }
 
-/** 模型在每条轴上的归一化比例；该维度无成绩时贴近圆心。 */
-internal fun modelAxisRatios(model: ModelDetailResponse, dimensions: List<String>): List<Float> =
+/** 模型在每条轴上的归一化比例；缺失维度返回 null，由绘制层断开折线。 */
+internal fun modelAxisRatios(model: ModelDetailResponse, dimensions: List<String>): List<Float?> =
     dimensions.map { dimension ->
         model.scores.filter { it.dimension == dimension }
             .mapNotNull { compareRadarRatio(it) }
             .maxOrNull()
             ?.coerceIn(0.12f, 1f)
-            ?: 0.12f
     }
 
 internal fun compareRadarRatio(score: ScoreDto): Float? {

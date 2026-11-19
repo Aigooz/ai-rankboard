@@ -1,6 +1,7 @@
 """Persistence: upsert parsed rows into SQLite."""
 
 import json
+import re
 
 from .db import get_conn, now_iso
 from .model_identity import canonical_model_slug
@@ -9,6 +10,7 @@ from .config import LIVEBENCH_URL, SWE_BENCH_URL
 
 HISTORY_LIMIT = 12
 HISTORY_ENTRY_LIMIT = 100
+CODE_LIKE_NAME = re.compile(r"^[a-z0-9._-]+$", re.I)
 
 
 def safe_fetch_error(error: str) -> str:
@@ -23,13 +25,37 @@ def extract_params_b(name: str):
     return float(m.group(1)) if m else None
 
 
+def choose_display_name(existing: str, incoming: str) -> str:
+    """Keep a more informative name when a later source exposes only a code id."""
+    existing = (existing or "").strip()
+    incoming = (incoming or "").strip()
+    if not existing:
+        return incoming
+    if not incoming:
+        return existing
+    if CODE_LIKE_NAME.fullmatch(incoming) and not CODE_LIKE_NAME.fullmatch(existing):
+        return existing
+    if len(existing) > len(incoming) and not CODE_LIKE_NAME.fullmatch(existing):
+        return existing
+    return incoming
+
+
 def upsert_board_meta(conn, board: dict) -> None:
     if board.get("url"):
         url = board["url"]
     elif board.get("kind") == "livebench":
-        url = f"{LIVEBENCH_URL}/leaderboard"
+        url = f"{LIVEBENCH_URL}/"
     elif board.get("kind") == "swe_bench":
         url = SWE_BENCH_URL
+    elif board.get("kind") == "bfcl":
+        url = "https://gorilla.cs.berkeley.edu/leaderboard.html"
+    elif board.get("kind") == "terminal_bench":
+        url = (
+            "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
+            "?tab=leaderboard&leaderboard=4-1-0"
+        )
+    elif board.get("kind") == "helm_classic":
+        url = "https://crfm.stanford.edu/helm/classic/latest/"
     else:
         url = "https://modelsage.cn" + board["path"]
     conn.execute(
@@ -45,22 +71,26 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
     if not rows:
         raise ValueError(f"board {board['slug']}: parsed 0 rows, refusing to wipe existing data")
 
-    # 单次解析的名次唯一：同榜同名次且同分说明是同一行的两代残留（或站点改名），
-    # 保留名字更长（信息更全）的一行。
-    by_rank: dict = {}
-    for row in rows:
-        current = by_rank.get(row["rank"])
-        if current is None or len(row["name"] or "") > len(current["name"] or ""):
-            by_rank[row["rank"]] = row
-    rows = sorted(by_rank.values(), key=lambda item: item["rank"])
-
+    # 名次可以不唯一；同一模型+配置=同一行。这样既保留官方并列，
+    # 又能折叠同一配置的重复记录（例如站点改名带来的两代残留）。
     seen: set[str] = set()
-    deduped = []
+    by_model: dict[str, dict] = {}
     for row in rows:
         model_slug = canonical_model_slug(row["name"], row["slug"])
         if model_slug in seen:
+            current = by_model[model_slug]
+            if len(row["name"] or "") > len(current["name"] or ""):
+                by_model[model_slug] = row
             continue
         seen.add(model_slug)
+        by_model[model_slug] = row
+
+    deduped = []
+    for model_slug in sorted(
+        by_model,
+        key=lambda slug: (by_model[slug]["rank"], by_model[slug]["name"].casefold()),
+    ):
+        row = by_model[model_slug]
         deduped.append((model_slug, row))
 
     with get_conn() as conn:
@@ -87,16 +117,16 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
         # 新旧两代 slug 并存出现"模型分身"。抓取失败不会走到这里，旧数据得以保留。
         conn.execute("DELETE FROM scores WHERE board_slug=?", (board["slug"],))
         for model_slug, row in deduped:
+            existing = conn.execute(
+                "SELECT display_name FROM models WHERE slug=?", (model_slug,)
+            ).fetchone()
+            existing_name = existing["display_name"] if existing else ""
+            display_name = choose_display_name(existing_name, row["name"])
             conn.execute(
                 """INSERT INTO models(slug, display_name, vendor, params_b, license, context_window, source_url, release_date, first_seen_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(slug) DO UPDATE SET
-                       display_name=CASE
-                           WHEN excluded.display_name NOT GLOB '*[^a-z0-9._-]*'
-                                AND models.display_name GLOB '*[^a-z0-9._-]*'
-                           THEN models.display_name
-                           ELSE excluded.display_name
-                       END,
+                       display_name=excluded.display_name,
                        vendor=COALESCE(excluded.vendor, models.vendor),
                        params_b=COALESCE(models.params_b, excluded.params_b),
                        license=COALESCE(excluded.license, models.license),
@@ -104,7 +134,7 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
                        source_url=COALESCE(excluded.source_url, models.source_url),
                        release_date=COALESCE(models.release_date, excluded.release_date),
                        updated_at=excluded.updated_at""",
-                (model_slug, row["name"], row["vendor"], extract_params_b(row["name"]),
+                (model_slug, display_name, row["vendor"], extract_params_b(row["name"]),
                  row["license"], row["context_window"], row["source_url"], row.get("release_date"),
                  fetched_at, fetched_at),
             )

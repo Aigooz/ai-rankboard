@@ -1,9 +1,9 @@
 """Fetch and parse modelsage.cn leaderboard pages.
 
 Two table layouts exist:
-- AA boards (overall/coding/...): Rank | Model | Provider | Score | Input | Output | value
+- AA boards: Rank | Model | Provider | Score | Input | Output | value
 - Arena boards: Rank | range | Model | vendor | License | Elo +/- CI | votes | $/M in | $/M out | context
-Columns are mapped by header text, so CSS-hidden cells do not matter.
+Columns are mapped by their localized header text, so CSS-hidden cells do not matter.
 """
 
 import asyncio
@@ -93,29 +93,73 @@ def _header_map(row) -> dict:
     return {th.get_text(strip=True): i for i, th in enumerate(row.find_all("th"))}
 
 
+_AA_HEADER_ALIASES = {
+    "rank": ("Rank", "排名"),
+    "model": ("Model", "模型"),
+    "vendor": ("Provider", "厂商"),
+    "score": ("Score", "得分"),
+    "input": ("Input", "输入"),
+    "output": ("Output", "输出"),
+}
+
+
+def _aliased_header_index(header: dict, aliases: tuple[str, ...]) -> int | None:
+    return next((header[name] for name in aliases if name in header), None)
+
+
 def parse_aa_board(html: str) -> list:
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table")
     if not table:
         raise ValueError("AA board: no table found")
-    header = _header_map(table.find("thead").find("tr"))
+    head = table.find("thead")
+    if not head or not head.find("tr"):
+        raise ValueError("AA board: missing table header")
+    header = _header_map(head.find("tr"))
+    columns = {
+        key: _aliased_header_index(header, aliases)
+        for key, aliases in _AA_HEADER_ALIASES.items()
+    }
+    missing = [
+        key
+        for key in ("rank", "model", "vendor", "score")
+        if columns[key] is None
+    ]
+    if missing:
+        raise ValueError(f"AA board: missing required columns: {', '.join(missing)}")
+
+    body = table.find("tbody")
+    if not body:
+        raise ValueError("AA board: missing table body")
     rows = []
-    for tr in table.find("tbody").find_all("tr"):
+    for tr in body.find_all("tr"):
         cells = tr.find_all("td")
-        if len(cells) < 4 or "Model" not in header:
-            continue
-        model_a = cells[header["Model"]].find("a", href=re.compile(r"^/model/"))
+        if len(cells) < 4:
+            raise ValueError("AA board: malformed row")
+        model_a = cells[columns["model"]].find("a", href=re.compile(r"^/model/"))
         if not model_a:
-            continue
+            raise ValueError("AA board: model link missing or malformed")
         # prefer the bold model-name span; ignore tier badges like "★ 前沿" inside the link
         name_span = model_a.find("span", class_=re.compile(r"font-semibold"))
         name = (name_span if name_span else model_a).get_text(strip=True)
+        if not name:
+            raise ValueError("AA board: model name is empty")
         slug = model_a["href"].rsplit("/", 1)[-1]
-        vendor = _cell_text(cells[header["Provider"]]) or None
-        score = _first_float(_cell_text(cells[header["Score"]]))
-        price_in = _first_float(_cell_text(cells[header["Input"]])) if "Input" in header else None
-        price_out = _first_float(_cell_text(cells[header["Output"]])) if "Output" in header else None
-        rank_val = _first_float(_cell_text(cells[header["Rank"]]))
+        vendor = _cell_text(cells[columns["vendor"]]) or None
+        score = _first_float(_cell_text(cells[columns["score"]]))
+        if score is None:
+            raise ValueError(f"AA board: score parse failed for {name!r}")
+        price_in = (
+            _first_float(_cell_text(cells[columns["input"]]))
+            if columns["input"] is not None
+            else None
+        )
+        price_out = (
+            _first_float(_cell_text(cells[columns["output"]]))
+            if columns["output"] is not None
+            else None
+        )
+        rank_val = _first_float(_cell_text(cells[columns["rank"]]))
         if rank_val is None:
             # rank 解析不出来时直接报错，让整榜走失败路径保留旧数据，
             # 而不是落到 rank 0 被"同名次去重"吞掉。
@@ -135,6 +179,8 @@ def parse_aa_board(html: str) -> list:
             "currency": "CNY",
             "source_url": f"{BASE_URL}/model/{slug}",
         })
+    if not rows:
+        raise ValueError("AA board: no rows parsed")
     return rows
 
 
@@ -444,10 +490,11 @@ async def fetch_livebench_board(board: dict) -> list:
     release = board.get("release", LIVEBENCH_RELEASE)
     file_release = release.replace("-", "_")
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        table = await fetch_csv(client, f"{LIVEBENCH_URL}/table_{file_release}.csv")
-        categories = await fetch_json(client, f"{LIVEBENCH_URL}/categories_{file_release}.json")
+        base = f"{LIVEBENCH_URL}/v1"
+        table = await fetch_csv(client, f"{base}/table_{file_release}.csv")
+        categories = await fetch_json(client, f"{base}/categories_{file_release}.json")
         try:
-            costs = await fetch_csv(client, f"{LIVEBENCH_URL}/cost_{file_release}.csv")
+            costs = await fetch_csv(client, f"{base}/cost_{file_release}.csv")
         except httpx.HTTPStatusError as exc:
             # 新版 LiveBench 已移除 cost_*.csv，榜单分数仍可用，价格允许为空。
             if exc.response.status_code != 404:
@@ -469,6 +516,26 @@ async def fetch_board(board: dict) -> list:
             if board["kind"] == "aider_polyglot":
                 return parse_aider_polyglot(await fetch_html(client, AIDER_DATA_URL))
             return parse_evalplus(await fetch_json(client, EVALPLUS_DATA_URL), board.get("category", "humaneval+"))
+    if board.get("kind") == "bfcl":
+        from .public_sources import BFCL_CSV_URL, parse_bfcl
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            return parse_bfcl(await fetch_csv(client, BFCL_CSV_URL))
+    if board.get("kind") == "terminal_bench":
+        from .public_sources import fetch_terminal_bench_submissions
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            return await fetch_terminal_bench_submissions(client, fetch_json)
+    if board.get("kind") == "helm_classic":
+        from .public_sources import (
+            HELM_CORE_URL,
+            HELM_SCHEMA_URL,
+            HELM_SUMMARY_URL,
+            parse_helm_classic,
+        )
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            summary = await fetch_json(client, HELM_SUMMARY_URL)
+            schema = await fetch_json(client, HELM_SCHEMA_URL)
+            tables = await fetch_json(client, HELM_CORE_URL)
+        return parse_helm_classic(summary, schema, tables)
     if board.get("kind") == "livebench":
         return await fetch_livebench_board(board)
     if board.get("kind") == "swe_bench":

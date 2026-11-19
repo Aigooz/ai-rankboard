@@ -24,9 +24,8 @@ struct RankingsView: View {
         snapshot.boards
             .filter { $0.dimension == dimension }
             .sorted {
-                if $0.sourceId == "modelsage" && $1.sourceId != "modelsage" { return true }
-                if $0.sourceId != "modelsage" && $1.sourceId == "modelsage" { return false }
-                return $0.name < $1.name
+                let nameOrder = $0.name.localizedCaseInsensitiveCompare($1.name)
+                return nameOrder == .orderedSame ? $0.slug < $1.slug : nameOrder == .orderedAscending
             }
     }
 
@@ -93,7 +92,7 @@ struct RankingsView: View {
                 }
             }
             .onChange(of: dimension) { _, newValue in
-                boardSlug = snapshot.boards.first { $0.dimension == newValue }?.slug ?? ""
+                boardSlug = boardsForDimension.first?.slug ?? ""
             }
             .onChange(of: snapshot.boards) { _, _ in
                 if boardsForDimension.first(where: { $0.slug == boardSlug }) == nil {
@@ -109,6 +108,13 @@ struct RankingsView: View {
                 HStack {
                     Text(activeBoard?.name ?? "选择榜单")
                         .font(.headline)
+                    Text(
+                        snapshot.sources.first(where: { $0.id == activeBoard?.sourceId })?.name
+                            ?? activeBoard?.sourceId
+                            ?? ""
+                    )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     if !store.message.isEmpty {
                         Text(store.message)

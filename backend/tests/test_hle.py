@@ -24,13 +24,13 @@ class HleReferenceTests(unittest.TestCase):
         self.assertIn('勿公开分享', reference['licenseNotice'])
         self.assertLess(len(json.dumps(reference)), 6000)
 
-    def test_registry_has_26_boards_and_six_reference_sources(self):
-        self.assertEqual(len(BOARDS), 26)
-        self.assertEqual(len(BOARD_BY_SLUG), 26)
+    def test_registry_has_29_boards_and_nine_source_records(self):
+        self.assertEqual(len(BOARDS), 29)
+        self.assertEqual(len(BOARD_BY_SLUG), 29)
         self.assertNotIn('hle-official-2025-04', BOARD_BY_SLUG)
         self.assertNotIn('hle-diamond-no-tools-high', BOARD_BY_SLUG)
         self.assertFalse(any(board['score_type'].startswith('hle') for board in BOARDS))
-        self.assertEqual(len(SOURCES), 6)
+        self.assertEqual(len(SOURCES), 9)
         self.assertEqual(next(source['name'] for source in SOURCES if source['id'] == 'hle'), 'CAIS / Scale AI')
 
     def test_snapshot_omits_retired_scores_from_existing_database_keeps_reference(self):
@@ -50,7 +50,7 @@ class HleReferenceTests(unittest.TestCase):
                 self.assertEqual(snapshot['historyByBoard'], {})
                 self.assertEqual(snapshot['models'], {})
                 self.assertEqual(snapshot['benchmarkReferences']['hle']['canary'], HLE_CANARY)
-                self.assertEqual(len(snapshot['sources']), 6)
+                self.assertEqual(len(snapshot['sources']), 9)
                 # Older published snapshots must not resurrect removed HLE boards.
                 snapshot['boards'] = [{'slug': 'hle-diamond-no-tools-high', 'last_success_at': '2026-01-01'}]
                 snapshot['entriesByBoard'] = {'hle-diamond-no-tools-high': [{'slug': 'old-model'}]}

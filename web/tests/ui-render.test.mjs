@@ -67,6 +67,49 @@ test('Aider and EvalPlus coding boards appear without a hardcoded source allowli
   assert.match(run('comparisonTemplate()'), /Aider coding/);
 });
 
+test('source filter keeps all source choices available and builds indexes for schema3 snapshots', () => {
+  const data = structuredClone(old);
+  data.sources = [{id:'arena',name:'Arena Source'}, {id:'other',name:'Other Source'}];
+  data.boards[0].source_id = 'arena';
+  data.boards[1].source_id = 'other';
+  data.boards[1].source = {id:'other',name:'Other Source'};
+  data.boards.push({slug:'arena-code-extra',name:'Arena Extra',dimension:'coding',source_id:'arena',score_type:'arena_elo'});
+  data.entriesByBoard['arena-code-extra'] = [{slug:'b',display_name:'B',score:60,rank:1}];
+  const run = ui(data);
+  assert.equal(run('state.snapshot.entriesByModel.a.length'), 2);
+  assert.equal(run('state.snapshot.boardBySlug.overall.slug'), 'overall');
+  assert.equal(run('state.snapshot.scoreRanges.overall.min'), 55);
+  run('state.dimension="coding"; state.sourceId="other"');
+  const html = run('leaderboardTemplate()');
+  assert.match(html, /value="arena"/);
+  assert.match(html, /value="other" selected/);
+  assert.equal(run('boardsForDimension("coding").map(board=>board.slug).join(",")'), 'arena-code');
+});
+
+test('board display is source-first and keeps its own metric context', () => {
+  const data = structuredClone(old);
+  data.boards[0].source_id = 'aider';
+  data.boards[0].source = { id: 'aider', name: 'Aider' };
+  data.boards[0].metric = { name: 'Aider pass@2', description: 'Polyglot 双轮通过率。', unit: '%' };
+  data.boards[0].evaluation = { version: 'Aider 2026.11' };
+  data.boards[0].health = { latestAttemptStatus: 'error', lastSuccessAt: '2026-11-08T00:00:00Z', stale: true, staleAfterHours: 48 };
+  data.entriesByBoard.overall[0].score_ci = 1.5;
+  const run = ui(data);
+  const html = run('leaderboardTemplate()');
+  assert.match(html, /class="board-context"/);
+  assert.match(html, /当前榜单/);
+  assert.match(html, /Polyglot 双轮通过率/);
+  assert.match(html, /Aider 2026\.11/);
+  assert.match(html, /缓存可能过期/);
+  assert.match(html, /最近抓取失败/);
+  assert.match(html, /status-badge-failed/);
+  assert.match(html, /指标口径/);
+  assert.match(html, /本榜成绩（%）/);
+  assert.match(html, /1\.5 %/);
+  assert.doesNotMatch(html, /综合榜平均分/);
+  assert.match(html, /当前榜平均成绩/);
+});
+
 test('incomplete price and unknown currency do not become free or CNY', () => {
   const run = ui(old);
   assert.equal(run('blendedPrice({priceIn:1})'), null);
@@ -128,7 +171,7 @@ test('HLE reference stays closed, limited to one public text example with no ans
   assert.equal(run('benchmarkReferenceTemplate("livebench-reasoning")'), '');
 });
 
-test('reasoning uses snapshot order and defaults to LiveBench without HLE scoring navigation', () => {
+test('reasoning uses neutral snapshot order without HLE scoring navigation', () => {
   const data = structuredClone(old);
   data.boards.push({slug:'livebench-reasoning',dimension:'reasoning',name:'LiveBench reasoning'}, {slug:'other-reasoning',dimension:'reasoning',name:'Other'});
   const run = ui(data);
@@ -137,6 +180,25 @@ test('reasoning uses snapshot order and defaults to LiveBench without HLE scorin
   assert.equal(run('boardsForDimension("reasoning").map(x=>x.slug).join(",")'), 'livebench-reasoning,other-reasoning');
   run('state.dimension="reasoning"; state.board="overall"; leaderboardTemplate()');
   assert.equal(run('state.board'),'livebench-reasoning');
+});
+
+test('dimension boards use neutral deterministic order regardless of snapshot source order', () => {
+  const data = structuredClone(old);
+  data.boards.push(
+    {slug:'zeta-first',name:'Zeta',dimension:'speed',source_id:'z-source'},
+    {slug:'beta-second',name:'Alpha',dimension:'speed',source_id:'a-source'},
+    {slug:'alpha-third',name:'Alpha',dimension:'speed',source_id:'z-source'},
+  );
+  const run = ui(data);
+  assert.equal(
+    run('boardsForDimension("speed").map(board=>board.slug).join(",")'),
+    'alpha-third,beta-second,zeta-first',
+  );
+  run('state.sourceId="z-source"');
+  assert.equal(
+    run('boardsForDimension("speed").map(board=>board.slug).join(",")'),
+    'alpha-third,zeta-first',
+  );
 });
 
 test('detail supports catalog-only peers and exact pricing provenance without best-rank summary', () => {

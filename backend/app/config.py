@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import secrets
 
 BASE_URL = "https://modelsage.cn"
 LIVEBENCH_URL = "https://livebench.ai"
@@ -18,8 +19,18 @@ REQUEST_TIMEOUT = 30.0
 MAX_RETRIES = 2
 FETCH_INTERVAL_HOURS = 6
 
-# 可选：设置后 /v1/admin/refresh 必须携带 X-Admin-Token 头；不设置则保持公开（本地使用）。
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+# Local runs get an ephemeral token so a refresh endpoint is never public by
+# accident. Set ALLOW_UNAUTHENTICATED_REFRESH only for a trusted development
+# environment.
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip() or secrets.token_urlsafe(24)
+ALLOW_UNAUTHENTICATED_REFRESH = (
+    os.getenv("ALLOW_UNAUTHENTICATED_REFRESH", "").strip().lower() in {"1", "true", "yes"}
+)
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DB_PATH = DATA_DIR / "leaderboards.db"

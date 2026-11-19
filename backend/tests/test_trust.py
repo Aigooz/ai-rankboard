@@ -37,7 +37,7 @@ class TrustTests(unittest.TestCase):
         save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
         mark_board_error(self.board, "secret https://user:password@example/x?key=TOKEN C:\\secret", "2026-01-02T00:00:00+00:00")
         snapshot = build_snapshot()
-        board = snapshot["boards"][0]
+        board = next(item for item in snapshot["boards"] if item["slug"] == self.board["slug"])
         self.assertEqual(snapshot["schemaVersion"], 3)
         self.assertEqual(board["health"]["lastSuccessAt"], "2026-01-01T00:00:00+00:00")
         self.assertEqual(board["health"]["latestAttemptAt"], "2026-01-02T00:00:00+00:00")
@@ -69,7 +69,11 @@ class TrustTests(unittest.TestCase):
             import asyncio
             with self.assertRaises(ValueError):
                 asyncio.run(refresh_board(self.board))
-        self.assertEqual(build_snapshot()["boards"][0]["health"]["latestAttemptStatus"], "error")
+        board = next(
+            item for item in build_snapshot()["boards"]
+            if item["slug"] == self.board["slug"]
+        )
+        self.assertEqual(board["health"]["latestAttemptStatus"], "error")
 
     def test_empty_health_and_unknown_version_are_honest(self):
         health = health_info({}, [], datetime.now(timezone.utc))
@@ -82,6 +86,45 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(health_info({}, [baseline, changed], datetime.now(timezone.utc))["anomalies"][0]["code"], "model_count_drop")
         changed["evaluationVersion"] = "v2"
         self.assertEqual(health_info({}, [baseline, changed], datetime.now(timezone.utc))["anomalies"], [])
+
+    def test_tied_ranks_keep_each_evaluation_configuration(self):
+        self.board = BOARD_BY_SLUG["bfcl-v4"]
+        rows = self.rows(3)
+        for index, row in enumerate(rows):
+            row["rank"] = 2
+            row["name"] = f"Model {index} [Config {index}]"
+        count = save_board_data(self.board, rows, "2026-01-01T00:00:00+00:00")
+        entries = build_snapshot()["entriesByBoard"][self.board["slug"]]
+
+        self.assertEqual(count, 3)
+        self.assertEqual([entry["rank"] for entry in entries], [2, 2, 2])
+
+    def test_model_display_name_keeps_more_descriptive_existing_name(self):
+        first_board = BOARD_BY_SLUG["aider-polyglot"]
+        second_board = BOARD_BY_SLUG["evalplus-humaneval-plus"]
+        save_board_data(
+            first_board,
+            [{
+                **self.rows(1)[0],
+                "name": "Shared Model",
+            }],
+            "2026-01-01T00:00:00+00:00",
+        )
+        save_board_data(
+            second_board,
+            [{
+                **self.rows(1)[0],
+                "name": "shared-model",
+            }],
+            "2026-01-02T00:00:00+00:00",
+        )
+
+        with db.get_conn() as conn:
+            display_name = conn.execute(
+                "SELECT display_name FROM models WHERE slug='shared-model'"
+            ).fetchone()["display_name"]
+
+        self.assertEqual(display_name, "Shared Model")
 
     def test_restore_baseline_preserves_history_without_inventing_it(self):
         save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
@@ -97,13 +140,20 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(len(build_snapshot()["entriesByBoard"][self.board["slug"]]), 2)
         # A legacy v3 snapshot has cache but no historical evidence.
         snapshot.pop("historyByBoard")
-        snapshot["boards"][0].pop("health")
-        snapshot["boards"][0].pop("last_attempt_at")
+        baseline_board = next(
+            item for item in snapshot["boards"] if item["slug"] == self.board["slug"]
+        )
+        baseline_board.pop("health")
+        baseline_board.pop("last_attempt_at")
         path.write_text(json.dumps(snapshot), encoding="utf-8")
         db.DB_PATH = db.DATA_DIR / "legacy.db"
         restore_baseline(path)
         self.assertEqual(build_snapshot()["historyByBoard"][self.board["slug"]], [])
-        self.assertIsNone(build_snapshot()["boards"][0]["health"]["latestAttemptAt"])
+        restored_board = next(
+            item for item in build_snapshot()["boards"]
+            if item["slug"] == self.board["slug"]
+        )
+        self.assertIsNone(restored_board["health"]["latestAttemptAt"])
 
     def test_restore_baseline_restores_release_date_evidence_on_fresh_database(self):
         rows = self.rows()
@@ -186,30 +236,187 @@ class TrustTests(unittest.TestCase):
         original = json.dumps(build_snapshot())
         path.write_text(original, encoding="utf-8")
         db.DB_PATH = db.DATA_DIR / "publish-fresh.db"
-        with patch("app.publish.sys.argv", ["publish", str(path)]), patch(
-            "app.publish.refresh_all", new=AsyncMock(return_value={self.board["slug"]: {"status": "error"}})
+        with patch(
+            "app.publish.refresh_all",
+            new=AsyncMock(return_value={self.board["slug"]: {"status": "error"}}),
         ):
-            main()
+            result = __import__("app.publish", fromlist=["publish"]).publish(path)
+        self.assertFalse(result["published"])
+        self.assertEqual(result["reason"], "all_sources_failed")
         self.assertEqual(path.read_text(encoding="utf-8"), original)
 
         async def partial():
             mark_board_error(self.board, "sensitive error")
-            return {self.board["slug"]: {"status": "error"}, "news": {"status": "ok"}}
+            return {
+                self.board["slug"]: {"status": "error"},
+                "livebench-reasoning": {"status": "ok"},
+                "news": {"status": "ok"},
+            }
 
-        with patch("app.publish.sys.argv", ["publish", str(path)]), patch("app.publish.refresh_all", new=partial):
-            main()
-        published = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(len(published["entriesByBoard"][self.board["slug"]]), 2)
-        self.assertEqual(published["boards"][0]["health"]["latestAttemptStatus"], "error")
-        self.assertEqual(len(published["historyByBoard"][self.board["slug"]]), 1)
+        with patch("app.publish.refresh_all", new=partial):
+            result = __import__("app.publish", fromlist=["publish"]).publish(path)
+        self.assertFalse(result["published"])
+        self.assertEqual(result["reason"], "incomplete_snapshot")
+        self.assertEqual(path.read_text(encoding="utf-8"), original)
+        self.assertEqual(result["health"]["failedBoards"], [self.board["slug"]])
+
+    def test_usage_and_news_success_do_not_count_as_leaderboard_success(self):
+        from app.publish import publish
+
+        path = db.DATA_DIR / "non-board-results.json"
+        previous = json.dumps({"schemaVersion": 3, "boards": [], "entriesByBoard": {}})
+        path.write_text(previous, encoding="utf-8")
+        with patch(
+            "app.publish.refresh_all",
+            new=AsyncMock(return_value={
+                "usage": {"status": "ok"},
+                "news": {"status": "ok"},
+            }),
+        ):
+            result = publish(path)
+
+        self.assertFalse(result["published"])
+        self.assertEqual(result["reason"], "all_sources_failed")
+        self.assertEqual(path.read_text(encoding="utf-8"), previous)
 
     def test_release_metadata_uses_successful_version_not_registry(self):
         save_board_data({**self.board, "release": "older-evaluation"}, self.rows(), "2026-01-01T00:00:00+00:00")
         mark_board_error(self.board, "failure")
         snapshot = build_snapshot()
-        self.assertEqual(snapshot["boards"][0]["release"], "older-evaluation")
-        self.assertEqual(snapshot["boards"][0]["evaluation"]["version"], "older-evaluation")
+        board = next(item for item in snapshot["boards"] if item["slug"] == self.board["slug"])
+        self.assertEqual(board["release"], "older-evaluation")
+        self.assertEqual(board["evaluation"]["version"], "older-evaluation")
         self.assertEqual(snapshot["benchmarkMeta"]["livebench"]["release"], "older-evaluation")
+
+    def test_publish_freshness_budget_matches_client_stale_threshold(self):
+        from app.publish import SNAPSHOT_MAX_AGE_HOURS, snapshot_health
+
+        self.assertEqual(SNAPSHOT_MAX_AGE_HOURS, 48)
+        save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
+        health = snapshot_health(Path("unused"))
+        self.assertIn("ageHours", health["sources"][0])
+        self.assertEqual(health["maxAgeHours"], 48)
+
+    def test_source_freshness_uses_oldest_current_board_success(self):
+        from app.publish import snapshot_health
+
+        newer_board = BOARD_BY_SLUG["livebench-reasoning"]
+        save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
+        save_board_data(newer_board, self.rows(), "2026-01-02T00:00:00+00:00")
+
+        health = snapshot_health(Path("unused"))
+        source = next(item for item in health["sources"] if item["sourceId"] == "livebench")
+
+        self.assertEqual(source["lastSuccessAt"], "2026-01-02T00:00:00+00:00")
+        self.assertEqual(source["oldestSuccessAt"], "2026-01-01T00:00:00+00:00")
+        self.assertGreater(source["ageHours"], 48)
+
+    def test_retired_board_rows_do_not_block_current_snapshot_health(self):
+        from app.publish import snapshot_health
+
+        save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
+        with db.get_conn() as conn:
+            conn.execute(
+                """INSERT INTO boards
+                   (slug,name,dimension,score_type,url,last_success_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    "hle-official-retired",
+                    "Retired HLE",
+                    "reasoning",
+                    "hle",
+                    "https://example.com/retired",
+                    "2020-01-01T00:00:00+00:00",
+                ),
+            )
+        health = snapshot_health(Path("unused"))
+
+        livebench = next(
+            source for source in health["sources"] if source["sourceId"] == "livebench"
+        )
+        self.assertEqual(livebench["boards"], 1)
+        self.assertNotIn("hle", {source["sourceId"] for source in health["sources"]})
+        self.assertNotIn("hle-official-retired", health["failedBoards"])
+
+    def test_failed_or_empty_current_board_blocks_publication(self):
+        from app.publish import snapshot_health
+
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        save_board_data(self.board, self.rows(), now)
+        with patch(
+            "app.publish.build_snapshot",
+            return_value={
+                "boards": [
+                    {
+                        "slug": "current",
+                        "source_id": "source",
+                        "model_count": 1,
+                        "health": {"latestAttemptStatus": "error"},
+                    },
+                    {
+                        "slug": "empty",
+                        "source_id": "source",
+                        "model_count": 0,
+                        "health": {"latestAttemptStatus": "ok"},
+                    },
+                ],
+                "dataStatus": {
+                    "sources": [{
+                        "sourceId": "source",
+                        "lastSuccessAt": now,
+                        "oldestSuccessAt": now,
+                    }]
+                },
+            },
+        ):
+            health = snapshot_health(Path("unused"))
+        self.assertEqual(health["failedBoards"], ["current"])
+        self.assertEqual(health["boardsWithoutData"], ["empty"])
+        self.assertEqual(health["staleSources"], [])
+
+        with (
+            patch(
+                "app.publish.build_snapshot",
+                return_value={
+                    "boards": [
+                        {
+                            "slug": "current",
+                            "source_id": "source",
+                            "model_count": 1,
+                            "health": {"latestAttemptStatus": "error"},
+                        },
+                        {
+                            "slug": "empty",
+                            "source_id": "source",
+                            "model_count": 0,
+                            "health": {"latestAttemptStatus": "ok"},
+                        },
+                    ],
+                    "dataStatus": {
+                        "sources": [{
+                            "sourceId": "source",
+                            "lastSuccessAt": now,
+                            "oldestSuccessAt": now,
+                        }]
+                    },
+                },
+            ),
+            patch("app.publish.write_snapshot") as write_snapshot,
+            patch(
+                "app.publish.refresh_all",
+                new=AsyncMock(return_value={
+                    "livebench-overall": {"status": "ok", "models": 1},
+                    "livebench-reasoning": {"status": "error"},
+                }),
+            ),
+            patch("app.publish.restore_baseline"),
+        ):
+            result = __import__("app.publish", fromlist=["publish"]).publish(Path("unused"))
+        self.assertFalse(result["published"])
+        self.assertEqual(result["reason"], "incomplete_snapshot")
+        self.assertEqual(result["integrityErrors"]["failedBoards"], ["current"])
+        self.assertEqual(result["integrityErrors"]["boardsWithoutData"], ["empty"])
+        write_snapshot.assert_not_called()
 
     def test_migration_does_not_invent_attempts(self):
         import sqlite3
@@ -220,7 +427,7 @@ class TrustTests(unittest.TestCase):
             conn.execute("INSERT INTO boards VALUES('old','Old','overall','elo','https://example.com','2026-01-01', 'ok', NULL)")
             conn.commit()
         db.init_db()
-        board = build_snapshot()["boards"][0]
+        board = next(item for item in build_snapshot()["boards"] if item["slug"] == "old")
         self.assertIsNone(board["health"]["latestAttemptAt"])
         self.assertIsNone(board["evaluation"]["version"])
         self.assertEqual(build_snapshot()["historyByBoard"]["old"], [])

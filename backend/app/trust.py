@@ -12,11 +12,14 @@ def metric_info(board):
         "swe_bench": ("SWE-bench 解决率", "来源榜单的任务解决率；代理框架和评测子集也会影响结果。", "%"),
         "aider_polyglot": ("Aider 双轮通过率", "Polyglot 代码编辑任务的 pass_rate_2；保留模型/推理与编辑配置，非单轮 pass@1。并列分数以名称排序不代表能力差距；公开结果可能长期未更新，不保证包含最新模型。", "%"),
         "evalplus": ("EvalPlus pass@1", "指定 HumanEval+ 或 MBPP+ 测试集的 pass@1 百分比；基础与指令模型提示方式不同。并列分数以名称排序；公开结果可能长期未更新，不保证包含最新模型。", "%"),
+        "bfcl": ("BFCL 综合准确率", "Berkeley Function Calling Leaderboard V4 的综合调用准确率；保留 FC/Prompt 等调用配置，不同调用模式的成绩不合并。", "%"),
+        "terminal_bench": ("Terminal-Bench 解决率", "Terminal-Bench 4.1 在指定 Agent、模型与推理档位下的解决率；成绩属于该完整配置，不是独立模型能力。", "%"),
+        "helm_classic": ("HELM Mean win rate", "HELM Classic Accuracy 表中的 Mean win rate：按准确率相关任务计算模型两两胜出的平均比例，再转换为百分数。它不是任务准确率，也不是跨榜统一综合分；该历史版本不针对最新模型持续重跑。", "%"),
         "aa_index": ("来源榜单指标", "保留来源榜单分数；速度、性价比与能力榜的指标定义不同，请查阅来源。", None),
     }
     name, description, unit = descriptions.get(kind, ("来源分数", "具体定义请查阅来源，不跨榜直接比较。", None))
     return {"name": name, "description": description, "unit": unit,
-            "higherIsBetter": True if kind in {"arena_elo", "livebench", "swe_bench", "aider_polyglot", "evalplus"} else None,
+            "higherIsBetter": True if kind in {"arena_elo", "livebench", "swe_bench", "aider_polyglot", "evalplus", "bfcl", "terminal_bench", "helm_classic"} else None,
             "comparableAcrossBoards": False}
 
 

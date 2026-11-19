@@ -28,8 +28,23 @@ class BoardTrustTest {
         assertTrue(metricExplanation("evalplus").contains("不能"))
         assertTrue(metricExplanation("aider_polyglot").contains("通过率"))
     }
+    @Test fun defaultBoardAndSourceOrderDoesNotPromoteOneProvider() {
+        val boards = listOf(
+            BoardDto("zeta", "Zeta Board", "coding", sourceId = "zeta"),
+            BoardDto("alpha", "Alpha Board", "coding", sourceId = "alpha"),
+            BoardDto("middle", "Middle Board", "coding", sourceId = "modelsage"),
+        )
+        assertEquals(
+            listOf("alpha", "middle", "zeta"),
+            orderedBoards(boards).map { it.slug },
+        )
+        assertEquals(
+            listOf("alpha", "middle", "zeta"),
+            orderedBoards(boards.reversed()).map { it.slug },
+        )
+    }
     @Test fun safeSourceLinksOnly() {
-        assertEquals("https://livebench.ai/leaderboard", sourceHttpUrl(" https://livebench.ai/leaderboard "))
+        assertEquals("https://livebench.ai/", sourceHttpUrl(" https://livebench.ai/ "))
         listOf(null, "", "javascript:alert(1)", "file:///etc/passwd", "https:///no-host", "/local").forEach {
             assertNull(sourceHttpUrl(it))
         }
@@ -57,6 +72,9 @@ class BoardTrustTest {
         assertTrue(metricExplanation("arena_elo").contains("不是正确率"))
         assertTrue(metricExplanation("swe_bench").contains("解决率"))
         assertTrue(metricExplanation("livebench").contains("版本"))
+        assertTrue(metricExplanation("bfcl").contains("函数调用"))
+        assertTrue(metricExplanation("terminal_bench").contains("终端任务"))
+        assertTrue(metricExplanation("helm_classic").contains("Mean win rate"))
         assertTrue(metricExplanation(null).contains("未提供"))
     }
     private fun point(at: String, version: String? = "v1", rank: Int = 2, score: Double = 50.0) =

@@ -33,10 +33,13 @@ jobs:
           cp leaderboards.json.sha256 web/leaderboards.json.sha256
           cp leaderboards.json android/app/src/main/assets/leaderboards.json
           cp leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json.sha256
+          cp leaderboards.json ios/Source/Resources/leaderboards.json
+          cp leaderboards.json.sha256 ios/Source/Resources/leaderboards.json.sha256
           git config user.name "snapshot-bot"
           git config user.email "ai-rankboard@local"
-          if [ -n "$(git status --porcelain -- leaderboards.json leaderboards.json.sha256 web/leaderboards.json web/leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json android/app/src/main/assets/leaderboards.json.sha256)" ]; then
-            git add leaderboards.json leaderboards.json.sha256 web/leaderboards.json web/leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json android/app/src/main/assets/leaderboards.json.sha256
+          SNAPSHOT_FILES="leaderboards.json leaderboards.json.sha256 web/leaderboards.json web/leaderboards.json.sha256 android/app/src/main/assets/leaderboards.json android/app/src/main/assets/leaderboards.json.sha256 ios/Source/Resources/leaderboards.json ios/Source/Resources/leaderboards.json.sha256"
+          if [ -n "$(git status --porcelain -- $SNAPSHOT_FILES)" ]; then
+            git add $SNAPSHOT_FILES
             git commit -m "chore: refresh leaderboard snapshot"
             git push origin HEAD:main
           else

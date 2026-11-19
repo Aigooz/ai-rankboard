@@ -48,8 +48,16 @@ private const val ISSUES_URL = "https://github.com/Aigooz/ai-rankboard/issues"
 private const val SOURCE_URL = "https://modelsage.cn/"
 private val FALLBACK_SOURCES = listOf(
     SnapshotSourceDto("modelsage", "ModelSage", SOURCE_URL),
-    SnapshotSourceDto("livebench", "LiveBench", "https://livebench.ai/leaderboard"),
+    SnapshotSourceDto("livebench", "LiveBench", "https://livebench.ai/"),
     SnapshotSourceDto("swebench", "SWE-bench", "https://www.swebench.com"),
+    SnapshotSourceDto("bfcl", "UC Berkeley BFCL", "https://gorilla.cs.berkeley.edu/leaderboard.html"),
+    SnapshotSourceDto(
+        "terminal_bench",
+        "Terminal-Bench",
+        "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest" +
+            "?tab=leaderboard&leaderboard=4-1-0",
+    ),
+    SnapshotSourceDto("helm", "Stanford HELM Classic", "https://crfm.stanford.edu/helm/classic/latest/"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

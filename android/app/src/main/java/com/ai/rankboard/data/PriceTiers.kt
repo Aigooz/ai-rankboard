@@ -6,16 +6,22 @@ package com.ai.rankboard.data
  */
 const val USD_TO_CNY_RATE = 7.2
 
+fun normalizeCurrency(currency: String?): String? = when (currency?.trim()?.uppercase()) {
+    "CNY", "RMB" -> "CNY"
+    "USD" -> "USD"
+    else -> null
+}
+
+/** 只有输入、输出和币种都可用时才组成混合价；单侧价格不能冒充完整价格。 */
 fun EntryDto.blendedPriceCny(): Double? {
-    val rate = if (currency.equals("USD", ignoreCase = true)) USD_TO_CNY_RATE else 1.0
-    val input = priceIn?.times(rate)
-    val output = priceOut?.times(rate)
-    return when {
-        input != null && output != null -> (input * 3.0 + output) / 4.0
-        input != null -> input
-        output != null -> output
-        else -> null
+    val rate = when (normalizeCurrency(currency)) {
+        "CNY" -> 1.0
+        "USD" -> USD_TO_CNY_RATE
+        else -> return null
     }
+    val input = priceIn?.takeIf { it.isFinite() && it >= 0 } ?: return null
+    val output = priceOut?.takeIf { it.isFinite() && it >= 0 } ?: return null
+    return (input * rate * 3.0 + output * rate) / 4.0
 }
 
 const val PRICE_FREE = "free"

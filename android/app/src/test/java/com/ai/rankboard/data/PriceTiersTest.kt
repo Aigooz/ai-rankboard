@@ -16,10 +16,11 @@ class PriceTiersTest {
     }
 
     @Test
-    fun `blended price falls back to the available side`() {
-        assertEquals(3.0, entry(priceIn = 3.0, priceOut = null).blendedPriceCny()!!, 1e-9)
-        assertEquals(8.0, entry(priceIn = null, priceOut = 8.0).blendedPriceCny()!!, 1e-9)
+    fun `blended price requires both sides and a known currency`() {
+        assertNull(entry(priceIn = 3.0, priceOut = null).blendedPriceCny())
+        assertNull(entry(priceIn = null, priceOut = 8.0).blendedPriceCny())
         assertNull(entry(priceIn = null, priceOut = null).blendedPriceCny())
+        assertNull(entry(priceIn = 1.0, priceOut = 2.0, currency = "EUR").blendedPriceCny())
     }
 
     @Test

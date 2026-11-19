@@ -3,7 +3,7 @@
 [![CI](https://github.com/Aigooz/ai-rankboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Aigooz/ai-rankboard/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Aigooz/ai-rankboard)](https://github.com/Aigooz/ai-rankboard/releases/latest)
 
-聚合 ModelSage、Arena、LiveBench 与 SWE-bench 的 AI 模型榜单，提供模型详情、能力可视化、趋势、选型与对比。Android 离线优先，网页无需安装。
+聚合 ModelSage、Arena、LiveBench、SWE-bench、BFCL、Terminal-Bench 与 Stanford HELM Classic 的 AI 模型榜单，提供模型详情、能力可视化、趋势、选型与对比。Android 离线优先，网页无需安装。
 
 **[下载 Android 安装包](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)** · **[打开网页版](https://aigooz.github.io/ai-rankboard/)** · [全部版本](https://github.com/Aigooz/ai-rankboard/releases) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/Aigooz/ai-rankboard/issues)
 
@@ -11,7 +11,7 @@
 
 | 平台 | 入口与要求 |
 | --- | --- |
-| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.26** |
+| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.28** |
 | 网页 | [GitHub Pages](https://aigooz.github.io/ai-rankboard/)，现代浏览器直接使用 |
 | iOS | 提供 [源码](ios/) 和 [构建工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/ios.yml)，iOS 17+；产物未签名，不是可直接安装的正式版 |
 
@@ -20,6 +20,8 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 安装时选择 `app-release.apk`，不是 GitHub 自动生成的 **Source code (zip)**。首次安装需要 Android 的“允许安装未知应用”授权。官方新版沿用原签名，可覆盖升级，无需先卸载旧版。
 
 ### 最近更新
+
+- **0.20.28**：新增 BFCL V4、Terminal-Bench 4.1 与 Stanford HELM Classic 三张权威榜；榜单展示固定当前来源与当前榜单语境，补充指标单位、定义、版本和历史评测日期；快照发布门禁改为任一当前榜失败、空榜或超过 48 小时即拒绝整份候选数据。
 
 - **0.20.26**：榜单同步先校验再下载，未变化时跳过整份快照下载；官方源改用 GitHub 原始地址并自动切换镜像，连接超时缩短，失败可重试。
 
@@ -54,7 +56,7 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 | 趋势与选型 | 支持 | 支持 |
 | 独立模型对比、收藏 | 支持 | 支持本机收藏与最多 4 个模型逐榜对比；浏览器存储不可用时仅本次会话有效 |
 | 离线缓存 | 支持 | 页面及快照仍需联网加载；收藏不等于离线缓存 |
-| 榜单解释与数据状态 | 支持来源、指标、版本和抓取状态 | 支持来源、指标、版本、数据状态与历史变化 |
+| 榜单解释与数据状态 | 支持来源徽标、指标、版本和抓取状态 | 当前榜上下文固定展示来源、单位、版本、记录数和抓取时效，详细来源与历史可展开 |
 | 中转站地址历史 | 支持下拉选择，不保存访问密钥 | 暂未提供 |
 | 后台数据检查、应用升级 | 支持 | 无 APK 安装流程 |
 
@@ -62,7 +64,7 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 
 ## 数据与更新
 
-当前后端注册 **26 个榜单**，来自 **5 个独立抓取来源**：ModelSage/Arena 相关 12 个、LiveBench 8 个、SWE-bench 3 个、Aider Polyglot 1 个、EvalPlus HumanEval+ 与 MBPP+ 2 个。新增三榜均在“代码”分类中，可切换来源查看，不混合原始分数排序。数据来自公开来源，不是各评测机构的官方客户端。Aider、EvalPlus 的数据可能不包含最新模型，抓取日期不代表评测发布日期；商用前仍请确认上游条款。
+当前后端注册 **29 个榜单**，包括 **8 个当前榜单抓取来源**，并另保留 Humanity's Last Exam（HLE）参考资料源：ModelSage/Arena 相关 12 个、LiveBench 8 个、SWE-bench 3 个、Aider Polyglot 1 个、EvalPlus HumanEval+ 与 MBPP+ 2 个、BFCL 函数调用榜 1 个、Terminal-Bench 4.1 智能体榜 1 个、Stanford HELM Classic 综合榜 1 个。BFCL 与 Terminal-Bench 在“Agent”分类中；HELM Classic 固定为 2023-11-17 的 `v0.4.0` 历史评测，其 `Mean win rate` 不是任务准确率。各来源均可切换查看，不混合原始分数排序。数据来自公开来源，不是各评测机构的官方客户端。抓取日期不代表评测发布日期；商用前仍请确认上游条款。
 
 **榜单数据更新**与**应用版本升级**是两条独立通道：
 
@@ -76,8 +78,10 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 ### 如何阅读榜单与变化
 
 - 分数只在同一榜单、同一评测版本下比较，不将 Arena 分、LiveBench 分与其他能力指数相加生成“统一总分”；缺失成绩显示为未知，而不是 0 分。
+- 网页版榜单以当前来源和当前榜单为第一展示语境，先显示来源、指标单位、评测版本、榜单记录数与最近成功抓取时间，再按该榜原始名次列出模型；来源筛选下的概览统计也只基于当前榜，避免混入其他榜的成绩。
 - 榜单页默认仅显示紧凑的来源、抓取日期和必要状态；完整说明通过网页展开入口或 Android“详情”打开，不再常驻占据榜单首屏。说明中保留原始来源、指标含义和评测版本。未采集到的上游更新时间或版本明确显示为未知；LiveBench 的配置版本不是本站抓取日期。
-- 抓取数据超过 48 小时会提示可能陈旧，含义是本站缓存年龄，不代表上游 48 小时没有更新；部分来源抓取失败时保留此前可用成绩并展示失败状态。若所有来源均失败，发布流程保留整份旧快照，因此客户端只能看到上次发布状态与缓存年龄，无法显示这一轮失败。
+- 榜单按“当前榜单一语境”展示：先选择来源，再显示该来源的榜单、指标单位、评测版本、记录数和成功抓取时间；不会把不同来源按名次做统一总榜。HELM Classic 等固定历史版本同时保留 `v0.4.0 (2023-11-17)` 的评测日期，抓取日期仅说明本应用何时取到该版本。
+- 抓取数据超过 48 小时会提示可能陈旧，含义是本站缓存年龄，不代表上游 48 小时没有更新。发布流程要求当前 29 个榜全部抓取成功、均有数据，且每个来源的最旧当前榜成功时间不超过 48 小时；任一榜单失败、空榜、缺榜或过期都会拒绝整份候选快照，继续保留上一份已发布数据。
 - 新版导出快照带有可选健康信息和成功抓取历史。历史从实际采集开始积累，每榜最多保留 12 次、每次前 100 个模型；旧快照没有历史时不推算历史，首次采集不显示升降。
 - 历史名次变化只比较同榜且相同已知评测版本；版本未知或发生切换时仅展示抓取记录，不推断能力提升。大幅模型数或名次变化属于复核提示，不等同于数据错误。
 - 网页收藏及对比选择仅存储于当前浏览器，不上传、不跨设备同步；清除网站数据会移除记录。中转站工具仍为 Android 独有，iOS 本轮未改动。

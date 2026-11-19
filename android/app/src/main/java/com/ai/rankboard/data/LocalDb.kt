@@ -11,6 +11,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "cached_entries", primaryKeys = ["boardSlug", "modelSlug"])
@@ -19,6 +21,11 @@ data class CachedEntryEntity(
     val modelSlug: String,
     val displayName: String,
     val vendor: String?,
+    val paramsB: Double? = null,
+    val license: String? = null,
+    val contextWindow: String? = null,
+    val releaseDate: String? = null,
+    val sourceUrl: String? = null,
     val rank: Int,
     val score: Double?,
     val priceIn: Double?,
@@ -67,14 +74,34 @@ interface LeaderboardDao {
     suspend fun clearCachedEntries()
 }
 
-@Database(entities = [CachedEntryEntity::class, FavoriteEntity::class], version = 1, exportSchema = false)
+@Database(entities = [CachedEntryEntity::class, FavoriteEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): LeaderboardDao
 
     companion object {
+        internal val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE cached_entries ADD COLUMN paramsB REAL",
+                )
+                db.execSQL(
+                    "ALTER TABLE cached_entries ADD COLUMN license TEXT",
+                )
+                db.execSQL(
+                    "ALTER TABLE cached_entries ADD COLUMN contextWindow TEXT",
+                )
+                db.execSQL(
+                    "ALTER TABLE cached_entries ADD COLUMN releaseDate TEXT",
+                )
+                db.execSQL(
+                    "ALTER TABLE cached_entries ADD COLUMN sourceUrl TEXT",
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "rankboard.db")
-                .fallbackToDestructiveMigration()
+                .addMigrations(MIGRATION_1_2)
                 .build()
     }
 }

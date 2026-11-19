@@ -8,11 +8,11 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 
 from .service import refresh_all
-from .snapshot import write_snapshot
+from .snapshot import build_snapshot, write_snapshot
 from .boards import BOARD_BY_SLUG
 from .db import get_conn, init_db
 from .store import save_board_data, HISTORY_LIMIT, HISTORY_ENTRY_LIMIT, safe_fetch_error
@@ -102,18 +102,87 @@ def restore_baseline(output: Path) -> None:
             )
 
 
-def main() -> None:
-    output = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("leaderboards.json")
+SNAPSHOT_MAX_AGE_HOURS = 48
+
+
+def snapshot_health(output: Path) -> dict:
+    snapshot = build_snapshot()
+    boards = snapshot["boards"]
+    data_status = snapshot.get("dataStatus") or {}
+    sources = [{**source, "ageHours": None} for source in data_status.get("sources", [])]
+
+    now = datetime.now(timezone.utc)
+    for source in sources:
+        try:
+            timestamp = datetime.fromisoformat(
+                (source.get("oldestSuccessAt") or "").replace("Z", "+00:00")
+            )
+            if timestamp.tzinfo is None:
+                raise ValueError
+            source["ageHours"] = round((now - timestamp).total_seconds() / 3600, 1)
+        except (ValueError, TypeError):
+            source["ageHours"] = None
+
+    failed = sorted(
+        board["slug"]
+        for board in boards
+        if (board.get("health") or {}).get("latestAttemptStatus") == "error"
+    )
+    boards_without_data = sorted(
+        board["slug"] for board in boards if board.get("model_count", 0) <= 0
+    )
+    sources_without_data = sorted(
+        source["sourceId"] for source in sources
+        if any(board["source_id"] == source["sourceId"] for board in boards)
+        and source.get("lastSuccessAt") is None
+    )
+    stale_sources = sorted(
+        source["sourceId"] for source in sources
+        if source.get("ageHours") is None or source["ageHours"] > SNAPSHOT_MAX_AGE_HOURS
+    )
+    return {
+        "status": data_status.get("status", "degraded" if failed else "ok"),
+        "failedBoards": failed,
+        "boardsWithoutData": boards_without_data,
+        "sourcesWithoutData": sources_without_data,
+        "staleSources": stale_sources,
+        "maxAgeHours": SNAPSHOT_MAX_AGE_HOURS,
+        "sources": sources,
+    }
+
+
+def publish(output: Path) -> dict:
     restore_baseline(output)
     results = asyncio.run(refresh_all())
     ok = [
         slug
         for slug, result in results.items()
-        if isinstance(result, dict) and result.get("status") == "ok"
+        if slug in BOARD_BY_SLUG
+        and isinstance(result, dict)
+        and result.get("status") == "ok"
     ]
     if not ok:
         print("all sources failed; keeping previous snapshot")
-        return
+        return {"published": False, "reason": "all_sources_failed", "results": results}
+    health = snapshot_health(output)
+    integrity_errors = {
+        "failedBoards": health["failedBoards"],
+        "boardsWithoutData": health["boardsWithoutData"],
+        "sourcesWithoutData": health["sourcesWithoutData"],
+        "staleSources": health["staleSources"],
+    }
+    if any(integrity_errors.values()):
+        print(
+            "snapshot contains incomplete or stale boards; keeping previous snapshot: "
+            + json.dumps(integrity_errors, ensure_ascii=False, sort_keys=True)
+        )
+        return {
+            "published": False,
+            "reason": "incomplete_snapshot",
+            "health": health,
+            "integrityErrors": integrity_errors,
+            "results": results,
+        }
     digest = write_snapshot(output)
     failed = [
         slug
@@ -123,6 +192,21 @@ def main() -> None:
     print(f"snapshot written: {output}")
     print(f"ok boards: {len(ok)}; failed: {failed or 'none'}")
     print(f"sha256: {digest}")
+    return {
+        "published": True,
+        "digest": digest,
+        "okBoards": len(ok),
+        "failedBoards": failed,
+        "health": health,
+        "results": results,
+    }
+
+
+def main() -> None:
+    output = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("leaderboards.json")
+    result = publish(output)
+    if not result["published"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

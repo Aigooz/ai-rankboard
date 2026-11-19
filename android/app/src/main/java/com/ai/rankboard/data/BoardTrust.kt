@@ -36,6 +36,9 @@ fun metricExplanation(scoreType: String?): String = when (scoreType?.lowercase()
     "aider_polyglot" -> "Aider Polyglot 为多语言编程任务通过率，受编辑格式、运行设置影响；只在同一榜单条件内比较。"
     "evalplus" -> "EvalPlus 为指定HumanEval+/MBPP+任务集的通过率；任务集与运行条件不同，不能与其他代码榜原始分数混排。"
     "livebench" -> "LiveBench 为指定评测版本的任务成绩；不同版本的题目与评测条件可能不同，不直接跨版本比较。"
+    "bfcl" -> "BFCL 为函数调用综合准确率，受调用配置、提示格式与评测版本影响；只在同一榜单条件内比较。"
+    "terminal_bench" -> "Terminal-Bench 为终端任务解决率，受任务集、Agent 与推理强度影响；只在同一榜单条件内比较。"
+    "helm_classic" -> "HELM Classic Mean win rate 为 Accuracy 表内模型两两胜出的平均比例，已转换为百分数；不是任务准确率或统一能力分，该历史版本不持续重跑最新模型。"
     "swe_bench", "swebench" -> "SWE-bench 为软件工程任务解决率；数据子集、代理框架与运行条件影响结果，不等同于模型通用能力。"
     "aa_index" -> "能力指数采用来源方的综合计算口径，不是百分制正确率；具体组成请查看原始来源。"
     else -> "指标类型：${scoreType?.takeIf { it.isNotBlank() } ?: "未提供"}。定义与计算口径请以原始来源说明为准。"
@@ -58,6 +61,12 @@ fun boardCompactStatus(board: BoardDto?, now: Instant = Instant.now()): String {
 /** Keep complete source options separate from a user's selected subset. */
 fun filterBoardsBySource(boards: List<BoardDto>, sourceId: String?): List<BoardDto> =
     if (sourceId == null) boards else boards.filter { it.sourceId == sourceId }
+
+/** Default board order is neutral and deterministic; it never promotes a provider. */
+fun orderedBoards(boards: List<BoardDto>): List<BoardDto> =
+    boards.withIndex()
+        .sortedWith(compareBy<IndexedValue<BoardDto>> { it.value.name }.thenBy { it.value.slug })
+        .map { it.value }
 
 fun boardHealthLines(board: BoardDto, now: Instant = Instant.now()): List<String> = buildList {
     val success = board.health?.lastSuccessAt?.takeIf { it.isNotBlank() } ?: board.lastSuccessAt

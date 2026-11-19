@@ -147,8 +147,15 @@ struct SettingsView: View {
     private var defaultSources: [SnapshotSource] {
         [
             SnapshotSource(id: "modelsage", name: "ModelSage", url: "https://modelsage.cn/"),
-            SnapshotSource(id: "livebench", name: "LiveBench", url: "https://livebench.ai/leaderboard"),
+            SnapshotSource(id: "livebench", name: "LiveBench", url: "https://livebench.ai/"),
             SnapshotSource(id: "swebench", name: "SWE-bench", url: "https://www.swebench.com"),
+            SnapshotSource(id: "bfcl", name: "UC Berkeley BFCL", url: "https://gorilla.cs.berkeley.edu/leaderboard.html"),
+            SnapshotSource(
+                id: "terminal_bench",
+                name: "Terminal-Bench",
+                url: "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest?tab=leaderboard&leaderboard=4-1-0",
+            ),
+            SnapshotSource(id: "helm", name: "Stanford HELM Classic", url: "https://crfm.stanford.edu/helm/classic/latest/"),
         ]
     }
 

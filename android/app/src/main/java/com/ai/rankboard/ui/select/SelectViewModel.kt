@@ -49,12 +49,10 @@ class SelectViewModel(
 
     private fun load() {
         viewModelScope.launch {
-            val boards = runCatching { repository.boardsForDimension("overall") }
-                .getOrNull().orEmpty()
-                .sortedWith(
-                    compareByDescending<BoardDto> { it.sourceId.equals("modelsage", true) }
-                        .thenBy { it.name },
-                )
+            val boards = com.ai.rankboard.data.orderedBoards(
+                runCatching { repository.boardsForDimension("overall") }
+                    .getOrNull().orEmpty(),
+            )
             val preferred = boards.firstOrNull { it.slug == "overall" } ?: boards.firstOrNull()
             if (preferred == null) {
                 _state.update { it.copy(loading = false, error = "暂无可选模型") }

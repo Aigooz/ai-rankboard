@@ -312,8 +312,12 @@ internal fun formatRank(rank: Int?): String {
 
 internal fun formatPrice(value: Double?, currency: String?): String {
     if (value == null) return "-"
-    val symbol = if (currency.equals("USD", ignoreCase = true)) "$" else "¥"
-    return "$symbol${String.format(Locale.US, "%.2f", value)}"
+    val code = currency?.trim()?.uppercase(Locale.ROOT)
+    return when (code) {
+        "USD" -> "$${String.format(Locale.US, "%.2f", value)}"
+        "CNY", "RMB" -> "¥${String.format(Locale.US, "%.2f", value)}"
+        else -> "${String.format(Locale.US, "%.2f", value)} ${code?.takeIf { it.isNotBlank() } ?: "币种未提供"}"
+    }
 }
 
 internal fun formatNum(value: Double): String =
@@ -361,6 +365,9 @@ internal fun sourceLabel(sourceId: String): String = when (sourceId.lowercase(Lo
     "aider" -> "Aider"
     "evalplus" -> "EvalPlus"
     "livebench" -> "LiveBench"
+    "bfcl" -> "BFCL"
+    "terminal_bench" -> "Terminal-Bench"
+    "helm" -> "Stanford HELM Classic"
     "swebench", "swe-bench" -> "SWE-bench"
     "arena", "lmarena" -> "Arena"
     else -> sourceId

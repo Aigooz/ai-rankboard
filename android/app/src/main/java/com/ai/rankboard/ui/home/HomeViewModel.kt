@@ -80,7 +80,7 @@ class HomeViewModel(
 
     private var loadJob: Job? = null
     private var searchJob: Job? = null
-    private var loadKey: Triple<String, String, ModelRegion>? = null
+    private var loadKey: List<Any?>? = null
 
     init {
         _state.update { it.copy(snapshotInfo = repository.snapshotInfo(), hleReference = repository.benchmarkReference("hle")) }
@@ -280,9 +280,7 @@ class HomeViewModel(
                 null -> allBoards
                 else -> filtered
             }
-            val sortedBoards = displayedBoards.sortedWith(
-                compareByDescending { it.sourceId.equals("modelsage", ignoreCase = true) },
-            )
+            val sortedBoards = com.ai.rankboard.data.orderedBoards(displayedBoards)
             _state.update {
                 it.copy(
                     allBoardsForTab = allBoards,
@@ -313,7 +311,11 @@ class HomeViewModel(
 
     private suspend fun fetchPage(boardSlug: String, reset: Boolean) {
         val s = _state.value
-        val key = Triple(boardSlug, s.query, s.regionFilter)
+        val key = listOf(
+            boardSlug, s.query, s.regionFilter, s.sort,
+            s.vendorFilter.sorted(), s.licenseFilter.sorted(),
+            s.tab.takeIf { it in Periods.supported }, s.period,
+        )
         loadKey = key
         val offset = if (reset) 0 else s.entries.size
         val response = repository.page(
@@ -373,6 +375,11 @@ class HomeViewModel(
         slug = modelSlug,
         displayName = displayName,
         vendor = vendor,
+        paramsB = paramsB,
+        license = license,
+        contextWindow = contextWindow,
+        releaseDate = releaseDate,
+        sourceUrl = sourceUrl,
         rank = rank,
         score = score,
         priceIn = priceIn,

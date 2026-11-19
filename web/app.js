@@ -68,6 +68,7 @@ const state = {
   loading: true,
   dimension: "overall",
   board: "overall",
+  sourceId: "",
   query: "",
   sort: "rank",
   vendor: "",
@@ -165,7 +166,7 @@ function normalizeSnapshot(snapshot) {
     ]),
   );
 
-  return {
+  const normalized = {
     ...snapshot,
     boards: (snapshot.boards || []).map((board) => ({
       ...board,
@@ -198,6 +199,17 @@ function normalizeSnapshot(snapshot) {
       })),
     } : null,
   };
+  normalized.boardBySlug = Object.fromEntries(normalized.boards.map((board) => [board.slug, board]));
+  normalized.scoreRanges = Object.fromEntries(Object.entries(entriesByBoard).map(([slug, entries]) => {
+    const scores = entries.map((entry) => entry.score).filter(Number.isFinite);
+    return [slug, scores.length ? { min: Math.min(...scores), max: Math.max(...scores) } : { min: null, max: null }];
+  }));
+  normalized.entriesByModel = Object.create(null);
+  for (const [boardSlug, entries] of Object.entries(entriesByBoard)) {
+    for (const entry of entries) (normalized.entriesByModel[entry.slug] ||= []).push({ boardSlug, entry });
+  }
+  normalized.modelCatalog = Object.values(models);
+  return normalized;
 }
 
 function normalizeEntry(entry) {
@@ -331,12 +343,21 @@ function leaderboardTemplate() {
   const generated = formatDate(state.snapshot.generatedAt);
   const overview = leaderboardOverview();
   const livebenchRelease = livebenchReleaseLabel();
+  const currentBoard = state.snapshot.boardBySlug[state.board] || {};
+  const currentSource = currentBoard.source
+    || (state.snapshot.sources || []).find((source) => source.id === currentBoard.sourceId)
+    || {};
+  const currentMetric = currentBoard.metric || {};
+  const currentHealth = currentBoard.health || {};
+  const currentVersion = currentBoard.evaluation?.version || currentBoard.release;
+  const currentSuccess = currentHealth.lastSuccessAt || currentBoard.lastSuccessAt;
+  const currentStatus = boardStatus(currentBoard);
 
   return `
     <div class="view-header">
       <div>
         <h1>模型排行</h1>
-        <p>按能力、价格和发布状态对比 ${formatNumber(entries.length)} 个模型</p>
+        <p id="result-summary" aria-live="polite">显示 ${formatNumber(entries.length)} 个模型 · ${formatNumber(state.snapshot.entriesByBoard[state.board]?.length || 0)} 条榜单记录</p>
       </div>
       <div class="freshness compact-freshness">快照生成 ${generated}</div>
     </div>
@@ -347,6 +368,7 @@ function leaderboardTemplate() {
         </button>
       `).join("")}
     </div>
+    ${sourceOptions(state.snapshot.boards.filter((board) => board.dimension === state.dimension))}
     ${boards.length > 1 ? `
       <div class="dimension-tabs" aria-label="具体榜单">
         ${boards.map((board) => `
@@ -356,6 +378,26 @@ function leaderboardTemplate() {
         `).join("")}
       </div>
     ` : ""}
+    <section class="board-context" aria-label="当前榜单信息">
+      <div class="board-context-heading">
+        <div>
+          <span class="board-context-eyebrow">当前榜单</span>
+          <h2>${escapeHtml(currentBoard.name || state.board)}</h2>
+        </div>
+        <div class="board-context-source">
+          <span>${escapeHtml(currentSource.name || currentBoard.sourceId || "来源未分类")}</span>
+          ${currentStatus.stale || !currentSuccess ? `<span class="status-badge">${escapeHtml(!currentSuccess ? "抓取时间未知" : "缓存可能过期")}</span>` : ""}
+          ${currentHealth.latestAttemptStatus === "error" ? `<span class="status-badge status-badge-failed">最近抓取失败</span>` : ""}
+        </div>
+      </div>
+      <dl class="board-context-facts">
+        <div><dt>指标单位</dt><dd>${escapeHtml(currentMetric.unit || "来源未定义")}</dd></div>
+        <div><dt>评测版本</dt><dd>${escapeHtml(currentVersion || "未提供")}</dd></div>
+        <div><dt>榜单记录</dt><dd>${formatNumber(state.snapshot.entriesByBoard[state.board]?.length || 0)}</dd></div>
+        <div><dt>最近成功抓取</dt><dd>${escapeHtml(currentSuccess ? fullTime(currentSuccess) : "未提供")}</dd></div>
+      </dl>
+      <p class="board-context-note"><strong>指标口径：</strong>${escapeHtml(metricExplanation(currentBoard))} <span>抓取时间只表示本应用取得数据的时间，不代表上游刚刚更新。</span></p>
+    </section>
     ${boardInfo(state.board)}
     ${benchmarkReferenceTemplate(state.board)}
     ${selectionToolbar()}
@@ -383,7 +425,7 @@ function leaderboardTemplate() {
         <table class="data-table">
           <thead>
             <tr>
-              <th>名次</th><th>模型</th><th>分数</th><th>混合价 / 1M</th><th>上下文</th><th>发布</th><th>收藏 / 对比</th>
+              <th>名次</th><th>模型</th><th>本榜成绩${currentMetric.unit ? `（${escapeAttr(currentMetric.unit)}）` : ""}</th><th>混合价 / 1M</th><th>上下文</th><th>发布</th><th>收藏 / 对比</th>
             </tr>
           </thead>
           <tbody id="table-body">
@@ -391,7 +433,7 @@ function leaderboardTemplate() {
           </tbody>
         </table>
       </div>
-      ${entries.length ? "" : `<div class="empty-state">没有符合条件的模型。</div>`}
+      <div id="results-empty" class="empty-state" ${entries.length ? "hidden" : ""}>没有符合条件的模型。</div>
     </div>
     ${disclosure("筛选与价格说明", "归属按开发者厂商别名识别，不代表 API 部署位置；未识别厂商保留为未知。价格仅作估算，USD 暂按 7.2 换算人民币。")}
     ${historyTemplate(state.board)}
@@ -410,7 +452,7 @@ function leaderboardTemplate() {
         <div class="panel-head">
           <div>
             <h2>价格分布</h2>
-            <p class="panel-sub">按综合榜混合价分层</p>
+          <p class="panel-sub">按当前榜混合价分层</p>
           </div>
         </div>
         <div class="panel-body">
@@ -432,7 +474,7 @@ function leaderboardTemplate() {
         <div class="panel-head">
           <div>
             <h2>能力分布</h2>
-            <p class="panel-sub">综合榜分数按 20 分一段分层</p>
+            <p class="panel-sub">当前榜成绩按 20 分一段分层</p>
           </div>
         </div>
         <div class="panel-body">
@@ -446,7 +488,7 @@ function leaderboardTemplate() {
 }
 
 function leaderboardOverview() {
-  const entries = state.snapshot.entriesByBoard.overall || [];
+  const entries = filteredEntries();
   const scored = entries.filter((entry) => entry.score != null);
   const priced = entries.filter((entry) => entry.score != null && blendedPrice(entry) != null);
   const prices = priced.map((entry) => blendedPrice(entry)).sort((a, b) => a - b);
@@ -472,10 +514,10 @@ function leaderboardOverview() {
     priced,
     vendorCounts,
     cards: [
-      { label: "模型样本", value: formatNumber(entries.length), detail: `${state.snapshot.boards.length} 个独立榜单；统计样本为综合榜`, color: "#0EA5E9" },
-      { label: "综合榜平均分", value: averageScore.toFixed(1), detail: `${formatNumber(scored.length)} 个已评分`, color: "#22C55E" },
+      { label: "当前榜模型样本", value: formatNumber(entries.length), detail: `${formatNumber(scored.length)} 个本榜已评分`, color: "#0EA5E9" },
+      { label: "当前榜平均成绩", value: averageScore.toFixed(1), detail: `${formatNumber(scored.length)} 个样本；只属于当前榜`, color: "#22C55E" },
       { label: "混合价中位数", value: formatPrice(medianPrice), detail: "(输入 ×3 + 输出) ÷4", color: "#F59E0B" },
-      { label: "30 天上新", value: formatNumber(newCount), detail: "以快照日期为基准", color: "#EC4899" },
+      { label: "近 30 日发布", value: formatNumber(newCount), detail: "按快照日期筛选当前榜", color: "#EC4899" },
     ],
   };
 }
@@ -621,6 +663,8 @@ function tableRows(entries) {
     const price = blendedPrice(entry);
     const rank = entry.rank || index + 1;
     const rankColorValue = rankColor(rank);
+    const board = state.snapshot.boardBySlug[state.board] || {};
+    const metric = board.metric || {};
     return `
       <tr tabindex="0" data-slug="${escapeAttr(entry.slug)}">
         <td class="rank-cell">
@@ -631,35 +675,38 @@ function tableRows(entries) {
             ${vendorIcon(entry.vendor)}
             <span class="model-info">
               <span class="model-name">${escapeHtml(entry.displayName)}</span>
-              <span class="model-vendor">${escapeHtml(entry.vendor || "未知厂商")}</span>
+              <span class="model-vendor">${escapeHtml(entry.vendor || "未知厂商")}${entry.releaseDate ? ` · 发布 ${escapeHtml(formatDate(entry.releaseDate))}` : ""}</span>
             </span>
           </div>
         </td>
-        <td class="score-cell">${scoreCell(entry, scoredCount)}</td>
+        <td class="score-cell">${scoreCell(entry, scoredCount, metric)}</td>
         <td class="num">${formatPrice(price)}</td>
         <td class="num">${escapeHtml(entry.contextWindow || "—")}</td>
-        <td class="num">${formatDate(entry.releaseDate)}</td>
+        <td class="num">${escapeHtml(entry.releaseDate || "—")}</td>
         <td>${modelActions(entry.slug)}</td>
       </tr>
     `;
   }).join("");
 }
 
-function scoreCell(entry, scoredCount) {
+function scoreCell(entry, scoredCount, metric = {}) {
   if (entry.score == null) {
     return `
       <span class="score-pill" style="--score-color:#5D6675">—</span>
       <span class="score-meter" style="--score-ratio:0%"><i></i></span>
     `;
   }
-  const values = (state.snapshot.entriesByBoard[state.board] || []).map(x => x.score).filter(Number.isFinite);
-  const min = Math.min(...values), max = Math.max(...values);
+  const { min, max } = state.snapshot.scoreRanges[state.board] || { min: entry.score, max: entry.score };
   const ratio = scoreRatio(entry.score, min, max) * 100;
   const percentile = topPercentile(entry.rank, scoredCount);
+  const confidenceValue = entry.score_ci ?? entry.confidence_interval ?? entry.confidenceInterval;
+  const confidence = confidenceValue != null
+    ? `± ${formatNumber(confidenceValue)}${metric.unit ? ` ${metric.unit}` : ""}`
+    : "";
   return `
     <span class="score-pill" style="--score-color:${scoreColor(entry.score, min, max)}">${entry.score.toFixed(1)}</span>
     <span class="score-meter" style="--score-color:${scoreColor(entry.score, min, max)};--score-ratio:${ratio.toFixed(1)}%"><i></i></span>
-    ${percentile ? `<small>${percentile}</small>` : ""}
+    <small>${[percentile, confidence].filter(Boolean).join(" · ") || "本榜相对位置"}</small>
   `;
 }
 
@@ -924,6 +971,7 @@ function bindLeaderboard() {
   document.querySelectorAll("[data-dimension]").forEach((node) => {
     node.addEventListener("click", () => {
       state.dimension = node.dataset.dimension;
+      state.sourceId = "";
       const boards = boardsForDimension(state.dimension);
       state.board = boards[0]?.slug || "overall";
       render();
@@ -933,28 +981,52 @@ function bindLeaderboard() {
   document.querySelectorAll("[data-board]").forEach((node) => {
     node.addEventListener("click", () => {
       state.board = node.dataset.board;
+      state.query = ""; state.vendor = ""; state.license = "";
       render();
     });
   });
 
+  let searchTimer;
   searchInput.addEventListener("input", () => {
     state.query = searchInput.value;
-    const position = searchInput.selectionStart;
-    render();
-    const next = document.getElementById("search-input"); next.focus();
-    try { next.setSelectionRange(position, position); } catch {}
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderLeaderboardResults, 120);
   });
-  sortSelect.addEventListener("change", () => { state.sort = sortSelect.value; render(); searchInput.focus(); });
-  vendorSelect.addEventListener("change", () => { state.vendor = vendorSelect.value; render(); });
-  licenseSelect.addEventListener("change", () => { state.license = licenseSelect.value; render(); });
-  document.getElementById("region-select").addEventListener("change", event => { state.region = event.target.value; render(); });
+  sortSelect.addEventListener("change", () => { state.sort = sortSelect.value; renderLeaderboardResults(); });
+  vendorSelect.addEventListener("change", () => { state.vendor = vendorSelect.value; renderLeaderboardResults(); });
+  licenseSelect.addEventListener("change", () => { state.license = licenseSelect.value; renderLeaderboardResults(); });
+  document.getElementById("region-select").addEventListener("change", event => { state.region = event.target.value; renderLeaderboardResults(); });
+  document.getElementById("source-select")?.addEventListener("change", (event) => {
+    state.sourceId = event.target.value;
+    const next = boardsForDimension(state.dimension);
+    if (!next.some((board) => board.slug === state.board)) state.board = next[0]?.slug || state.board;
+    state.query = ""; state.vendor = ""; state.license = "";
+    render();
+  });
+  document.getElementById("clear-filters")?.addEventListener("click", () => {
+    state.query = ""; state.vendor = ""; state.license = ""; state.region = ""; state.favoritesOnly = false;
+    render();
+  });
   bindActions();
   bindModelRows();
 }
 
+function renderLeaderboardResults() {
+  const entries = filteredEntries();
+  const body = document.getElementById("table-body");
+  if (!body) return;
+  body.innerHTML = tableRows(entries);
+  const empty = document.getElementById("results-empty");
+  if (empty) empty.hidden = entries.length > 0;
+  const summary = document.getElementById("result-summary");
+  if (summary) summary.textContent = `显示 ${formatNumber(entries.length)} 个模型 · ${formatNumber(state.snapshot.entriesByBoard[state.board]?.length || 0)} 条榜单记录`;
+  bindActions(body);
+  bindModelRows(body);
+}
+
 function bindTrends() {
   document.querySelectorAll("[data-article]").forEach(node => node.addEventListener("click", () => openReader(node.dataset.article)));
-  bindModelRows(true);
+  bindModelRows();
 }
 
 function bindSelect() {
@@ -1086,10 +1158,9 @@ function metricLabel(slug) {
   return DIMENSIONS.find((dimension) => dimension.slug === slug)?.name || "能力";
 }
 
-function bindModelRows(allowEmptySlug = false) {
-  document.querySelectorAll("[data-slug]").forEach((node) => {
+function bindModelRows(root = document) {
+  root.querySelectorAll("[data-slug]").forEach((node) => {
     const slug = node.dataset.slug;
-    if (!slug && !allowEmptySlug) return;
     if (!slug) return;
     const open = () => {
       location.hash = `#/model/${encodeURIComponent(slug)}`;
@@ -1149,11 +1220,20 @@ function detailTemplate({ model, scores }) {
       <p>${sourceLink(model.sourceUrl,"模型记录来源（非必然官网）")}</p><p>价格记录：${escapeHtml(model.priceBoardName)} · 抓取 ${escapeHtml(fullTime(model.priceFetchedAt))}</p><p>${sourceLink(model.priceSourceUrl,"价格来源")}。原币种展示，不混合不同来源价格；缺失不按零计算。</p>
     </div></details>
     <details class="detail-results"><summary>全部榜单成绩 · ${scores.length} 条</summary><div class="disclosure-body"><p class="detail-caution">不同榜单不是统一量尺，请逐榜查看。</p>
-      ${scores.length ? `<div class="detail-score-list">${scores.map(score => `<article class="detail-score"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(valueText(score))}</strong><span>${rankText(score)}</span></div><details><summary>来源与评测说明</summary><p>${sourceLink(score.sourceUrl,"榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p></details></article>`).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}
+      ${scores.length ? `<div class="detail-score-list">${groupScoresByDimension(scores).map(group => `<section class="detail-score-group"><h2>${escapeHtml(metricLabel(group.dimension))}<span>${group.scores.length} 个榜单</span></h2>${group.scores.map(score => `<article class="detail-score"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(valueText(score))}</strong><span>${rankText(score)}</span></div><details><summary>来源与评测说明</summary><p>${sourceLink(score.sourceUrl,"榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p></details></article>`).join("")}</section>`).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}
     </div></details>
     ${radarScores.length >= 3 ? `<details class="detail-radar"><summary>相对位置雷达</summary><p class="muted">各榜内 min-max 相对位置，不是统一能力分数；每维取首个有效榜，不跨榜汇总。</p>${radarChart(radarScores)}</details>` : ""}
     ${related.length ? `<details class="detail-related"><summary>同厂商其他模型 · ${related.length}</summary><div class="related-model-list">${related.map(item => `<button type="button" class="chip" data-related-model="${escapeAttr(item.slug)}">${escapeHtml(item.displayName || item.slug)}</button>`).join("")}</div></details>` : ""}
   `;
+}
+function groupScoresByDimension(scores) {
+  const groups = new Map();
+  for (const score of scores) {
+    const dimension = score.dimension || score.boardSlug;
+    if (!groups.has(dimension)) groups.set(dimension, []);
+    groups.get(dimension).push(score);
+  }
+  return [...groups].map(([dimension, values]) => ({ dimension, scores: values }));
 }
 function selectRadarScores(scores) {
   const priority = ["overall", "coding", "writing", "multimodal", "agent", "math", "search", "speed", "value"];
@@ -1305,17 +1385,31 @@ function licenseOptions() {
 }
 
 function boardsForDimension(dimension) {
-  return state.snapshot.boards.filter((board) => board.dimension === dimension);
+  return state.snapshot.boards
+    .filter((board) => board.dimension === dimension
+      && (!state.sourceId || (board.sourceId || board.source?.id || "") === state.sourceId))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-CN")
+      || String(a.slug || "").localeCompare(String(b.slug || ""), "zh-CN"));
+}
+
+function sourceOptions(boards) {
+  const sources = [...new Map(boards.map((board) => {
+    const id = board.sourceId || board.source?.id || "";
+    const name = board.source?.name || state.snapshot.sources?.find((source) => source.id === id)?.name || id || "来源未分类";
+    return [id, { id, name }];
+  })).values()];
+  if (sources.length < 2) return "";
+  const activeCount = state.snapshot.boards.filter((board) => board.dimension === state.dimension && (!state.sourceId || (board.sourceId || board.source?.id || "") === state.sourceId)).length;
+  return `<label class="board-source-filter">榜单来源 <select id="source-select" aria-label="按来源筛选榜单"><option value="">全部来源 (${boards.length})</option>${sources.map((source) => `<option value="${escapeAttr(source.id)}" ${source.id === state.sourceId ? "selected" : ""}>${escapeHtml(source.name)} · ${boards.filter((board) => (board.sourceId || board.source?.id || "") === source.id).length}</option>`).join("")}</select><span class="source-board-count">当前 ${activeCount} 个榜单</span></label>`;
 }
 
 function findModel(slug) {
-  return !!state.snapshot.models[slug] || Object.values(state.snapshot.entriesByBoard)
-    .some((entries) => entries.some((entry) => entry.slug === slug));
+  return !!state.snapshot.models[slug] || !!state.snapshot.entriesByModel[slug]?.length;
 }
 
 function modelDetail(slug) {
-  const entries = Object.values(state.snapshot.entriesByBoard).flat();
-  const firstEntry = entries.find((entry) => entry.slug === slug);
+  const modelEntries = state.snapshot.entriesByModel[slug] || [];
+  const firstEntry = modelEntries[0]?.entry;
   const stored = state.snapshot.models[slug];
   if (!firstEntry && !stored) return null;
   const selectedPrice = selectPriceRecord(state.snapshot.entriesByBoard, slug);
@@ -1326,12 +1420,10 @@ function modelDetail(slug) {
     priceFetchedAt: priceRecord?.fetchedAt,
     priceSourceUrl: priceRecord?.sourceUrl || state.snapshot.boards.find(board => board.slug === priceBoard)?.url,
   };
-  const scores = Object.entries(state.snapshot.entriesByBoard).flatMap(([boardSlug, boardEntries]) => {
-    const entry = boardEntries.find((item) => item.slug === slug);
-    if (!entry) return [];
-    const board = state.snapshot.boards.find((item) => item.slug === boardSlug);
-    const boardScores = boardEntries.map((item) => item.score).filter(Number.isFinite);
-    return [{
+  const scores = modelEntries.map(({ boardSlug, entry }) => {
+    const board = state.snapshot.boardBySlug[boardSlug];
+    const range = state.snapshot.scoreRanges[boardSlug] || {};
+    return {
       boardSlug,
       dimension: board?.dimension || boardSlug,
       boardName: board?.name || boardSlug,
@@ -1341,9 +1433,9 @@ function modelDetail(slug) {
       sourceUrl: entry.sourceUrl || board?.url || board?.source?.url,
       fetchedAt: entry.fetchedAt || board?.health?.lastSuccessAt || board?.lastSuccessAt,
       unit: scoreUnit(board),
-      scoreMin: boardScores.length ? Math.min(...boardScores) : null,
-      scoreMax: boardScores.length ? Math.max(...boardScores) : null,
-    }];
+      scoreMin: range.min,
+      scoreMax: range.max,
+    };
   });
   return { model, scores };
 }

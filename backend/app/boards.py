@@ -41,6 +41,18 @@ BOARDS.extend([
     {"slug": "evalplus-mbpp-plus", "name": "EvalPlus MBPP+", "dimension": "coding",
      "score_type": "evalplus", "kind": "evalplus", "source_id": "evalplus", "category": "mbpp+", "release": "MBPP+ 0.2.0",
      "url": "https://evalplus.github.io/leaderboard.html"},
+    {"slug": "bfcl-v4", "name": "BFCL V4 函数调用", "dimension": "agent",
+     "score_type": "bfcl", "kind": "bfcl", "source_id": "bfcl", "release": "bfcl-eval 2025.12.17",
+     "url": "https://gorilla.cs.berkeley.edu/leaderboard.html"},
+    {"slug": "terminal-bench-4-1", "name": "Terminal-Bench 4.1", "dimension": "agent",
+     "score_type": "terminal_bench", "kind": "terminal_bench", "source_id": "terminal_bench",
+     "release": "Terminal-Bench 4.1",
+     "url": "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
+            "?tab=leaderboard&leaderboard=4-1-0"},
+    {"slug": "helm-classic-accuracy", "name": "HELM Classic 综合", "dimension": "overall",
+     "score_type": "helm_classic", "kind": "helm_classic", "source_id": "helm",
+     "release": "HELM Classic v0.4.0 (2023-11-17)",
+     "url": "https://crfm.stanford.edu/helm/classic/latest/"},
 ])
 
 BOARD_BY_SLUG = {b["slug"]: b for b in BOARDS}

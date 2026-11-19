@@ -117,7 +117,22 @@ struct ModelDetailView: View {
     }
 
     private func formatPrice(_ value: Double, currency: String) -> String {
-        let symbol = currency.uppercased() == "USD" ? "$" : "¥"
-        return "\(symbol)\(String(format: "%.2f", value)) / 1M"
+        let amount = String(format: "%.2f", value)
+        switch currency.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "USD":
+            return "$\(amount) / 1M"
+        case "CNY", "RMB":
+            return "¥\(amount) / 1M"
+        case "EUR":
+            return "€\(amount) / 1M"
+        case "GBP":
+            return "£\(amount) / 1M"
+        case "JPY":
+            return "¥\(amount) / 1M"
+        case "":
+            return "\(amount) / 1M"
+        default:
+            return "\(amount) \(currency.uppercased()) / 1M"
+        }
     }
 }

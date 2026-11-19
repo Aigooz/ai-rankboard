@@ -35,4 +35,11 @@ class CompareTableTest {
         assertEquals("-1.8", formatDelta(-1.76))
         assertEquals("+0.0", formatDelta(0.0))
     }
+
+    @Test
+    fun `authoritative source labels remain readable in comparison`() {
+        assertEquals("Stanford HELM Classic", sourceLabel("helm"))
+        assertEquals("Terminal-Bench", sourceLabel("terminal_bench"))
+        assertEquals("BFCL", sourceLabel("bfcl"))
+    }
 }

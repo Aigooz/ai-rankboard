@@ -4,6 +4,7 @@ import com.ai.rankboard.data.ModelDetailDto
 import com.ai.rankboard.data.ModelDetailResponse
 import com.ai.rankboard.data.ScoreDto
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CompareRadarTest {
@@ -42,13 +43,13 @@ class CompareRadarTest {
     }
 
     @Test
-    fun `missing dimension maps to near-center ratio`() {
+    fun `missing dimension remains absent instead of becoming a low score`() {
         val model = response(score("overall", "overall", 80.0, 5))
 
         val ratios = modelAxisRatios(model, listOf("overall", "coding"))
 
         assertEquals(2, ratios.size)
-        assertEquals(0.12f, ratios[1], 0.0001f)
+        assertNull(ratios[1])
     }
 
     @Test
@@ -61,7 +62,7 @@ class CompareRadarTest {
         // 10/100 -> 0.1 会被压到 0.12；票选百分位 (10-3+1)/10 = 0.8 更高。
         val ratios = modelAxisRatios(model, listOf("coding"))
 
-        assertEquals(0.8f, ratios[0], 0.0001f)
+        assertEquals(0.8f, ratios[0]!!, 0.0001f)
     }
 
     private fun score(

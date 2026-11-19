@@ -28,12 +28,20 @@ SOURCE = {
 SOURCES = [
     {"id": "hle", "name": "CAIS / Scale AI", "url": "https://lastexam.ai/"},
     SOURCE,
-    {"id": "livebench", "name": "LiveBench", "url": "https://livebench.ai/leaderboard"},
+    {"id": "livebench", "name": "LiveBench", "url": "https://livebench.ai/"},
     {"id": "swebench", "name": "SWE-bench", "url": "https://www.swebench.com"},
     {"id": "aider", "name": "Aider", "url": "https://aider.chat/docs/leaderboards/",
      "license": "Apache-2.0", "licenseUrl": "https://github.com/Aider-AI/aider/blob/main/LICENSE.txt"},
     {"id": "evalplus", "name": "EvalPlus", "url": "https://evalplus.github.io/leaderboard.html",
      "license": "Apache-2.0", "licenseUrl": "https://github.com/evalplus/evalplus.github.io/blob/master/LICENSE"},
+    {"id": "bfcl", "name": "UC Berkeley BFCL", "url": "https://gorilla.cs.berkeley.edu/leaderboard.html",
+     "license": "Apache-2.0", "licenseUrl": "https://github.com/ShishirPatil/gorilla/blob/main/LICENSE"},
+    {"id": "terminal_bench", "name": "Terminal-Bench",
+     "url": "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
+            "?tab=leaderboard&leaderboard=4-1-0",
+     "license": "Apache-2.0", "licenseUrl": "https://github.com/laude-institute/terminal-bench/blob/main/LICENSE"},
+    {"id": "helm", "name": "Stanford HELM Classic", "url": "https://crfm.stanford.edu/helm/classic/latest/",
+     "license": "Apache-2.0", "licenseUrl": "https://github.com/stanford-crfm/helm/blob/main/LICENSE"},
 ]
 
 
@@ -45,6 +53,9 @@ def build_snapshot() -> dict:
         "swe_bench": "swebench",
         "aider_polyglot": "aider",
         "evalplus": "evalplus",
+        "bfcl": "bfcl",
+        "terminal_bench": "terminal_bench",
+        "helm_classic": "helm",
     }
     with get_conn() as conn:
         boards = [
@@ -68,7 +79,6 @@ def build_snapshot() -> dict:
                 """
             )
         ]
-
         history = {board["slug"]: [] for board in boards}
         now = datetime.now(timezone.utc)
         for board in boards:
@@ -85,7 +95,10 @@ def build_snapshot() -> dict:
             ]
             board["health"] = health_info(board, history[board["slug"]], now)
             board["metric"] = metric_info(board)
-            source = next(item for item in SOURCES if item["id"] == board["source_id"])
+            source = next(
+                (item for item in SOURCES if item["id"] == board["source_id"]),
+                {"id": board["source_id"], "name": board["source_id"]},
+            )
             board["source"] = {**source, "url": board["url"]}
             version = board.pop("evaluation_version")
             if "release" in board:
@@ -154,6 +167,8 @@ def build_snapshot() -> dict:
                     "fetched_at": item["fetched_at"],
                 }
             )
+        for board in boards:
+            entries.setdefault(board["slug"], [])
 
         usage_rows = conn.execute("SELECT * FROM usage_ranking ORDER BY position").fetchall()
         usage = None
@@ -205,10 +220,11 @@ def build_snapshot() -> dict:
         "benchmarkReferences": {"hle": HLE_REFERENCE},
         "benchmarkMeta": {
             "livebench": {
-                "release": next(
-                    (board.get("release") for board in boards if board.get("kind") == LIVEBENCH),
-                    None,
-                ),
+                "release": next((
+                    board["release"]
+                    for board in boards
+                    if board.get("kind") == LIVEBENCH
+                ), None),
                 "categories": [
                     {
                         "slug": board["slug"],
@@ -220,12 +236,46 @@ def build_snapshot() -> dict:
                 ],
             },
         },
+        "dataStatus": build_data_status(boards),
     }
     if usage:
         snapshot["usageRanking"] = usage
     if news:
         snapshot["news"] = news
     return snapshot
+
+
+def build_data_status(boards: list[dict]) -> dict:
+    sources: dict[str, dict] = {}
+    for board in boards:
+        source_id = board.get("source_id") or "modelsage"
+        source = sources.setdefault(source_id, {
+            "sourceId": source_id,
+            "boards": 0,
+            "failedBoards": 0,
+            "lastSuccessAt": None,
+            "oldestSuccessAt": None,
+        })
+        source["boards"] += 1
+        health = board.get("health") or {}
+        if health.get("latestAttemptStatus") == "error":
+            source["failedBoards"] += 1
+        success = health.get("lastSuccessAt")
+        if success and (
+            source["lastSuccessAt"] is None or success > source["lastSuccessAt"]
+        ):
+            source["lastSuccessAt"] = success
+        if success and (
+            source["oldestSuccessAt"] is None or success < source["oldestSuccessAt"]
+        ):
+            source["oldestSuccessAt"] = success
+    return {
+        "status": "degraded" if any(
+            source["failedBoards"] for source in sources.values()
+        ) else "ok",
+        "staleAfterHours": 48,
+        "sources": [sources[key] for key in sorted(sources)],
+    }
 
 
 def write_snapshot(path: Path) -> str:

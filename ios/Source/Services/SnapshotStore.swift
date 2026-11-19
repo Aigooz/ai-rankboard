@@ -13,7 +13,7 @@ final class SnapshotStore: ObservableObject {
     private var decoder = JSONDecoder()
     private let fileManager = FileManager.default
     private let remoteURLKey = "remoteSnapshotURL"
-    private let remoteTokenKey = "remoteSnapshotToken"
+    private let legacyRemoteTokenKey = "remoteSnapshotToken"
     private let lastRefreshKey = "lastSnapshotRefreshAt"
 
     var remoteURLString: String {
@@ -24,9 +24,24 @@ final class SnapshotStore: ObservableObject {
     }
 
     var remoteTokenString: String {
-        get { UserDefaults.standard.string(forKey: remoteTokenKey) ?? "" }
+        get {
+            let legacy = UserDefaults.standard.string(forKey: legacyRemoteTokenKey) ?? ""
+            if !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let token = legacy.trimmingCharacters(in: .whitespacesAndNewlines)
+                KeychainTokenStore.save(token)
+                UserDefaults.standard.removeObject(forKey: legacyRemoteTokenKey)
+                return token
+            }
+            return KeychainTokenStore.read()
+        }
         set {
-            UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: remoteTokenKey)
+            let token = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.removeObject(forKey: legacyRemoteTokenKey)
+            if token.isEmpty {
+                KeychainTokenStore.delete()
+            } else {
+                KeychainTokenStore.save(token)
+            }
         }
     }
 
@@ -85,17 +100,16 @@ final class SnapshotStore: ObservableObject {
         lastCheckedAt = Date()
 
         do {
-            let (data, _) = try await URLSession.shared.data(for: request(for: url))
             let expectedHash = try await remoteHash(for: url)
-            if let expectedHash, !verify(data, expectedHash: expectedHash) {
-                message = "远端数据校验失败"
-                return
-            }
             if let existing = try? Data(contentsOf: downloadedJSONURL),
-               let expectedHash = try await remoteHash(for: url),
                verify(existing, expectedHash: expectedHash) {
                 message = "榜单数据已是最新"
                 UserDefaults.standard.set(Date(), forKey: lastRefreshKey)
+                return
+            }
+            let (data, _) = try await URLSession.shared.data(for: request(for: url))
+            guard verify(data, expectedHash: expectedHash) else {
+                message = "远端数据校验失败"
                 return
             }
             guard let decoded = try? decoder.decode(Snapshot.self, from: data) else {
@@ -116,18 +130,22 @@ final class SnapshotStore: ObservableObject {
         }
     }
 
-    private func remoteHash(for url: URL) async throws -> String? {
-        guard let hashURL = hashURL(for: url) else { return nil }
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request(for: hashURL))
-            return String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .split(separator: " ")
-                .first
-                .map(String.init)
-        } catch {
-            return nil
+    private func remoteHash(for url: URL) async throws -> String {
+        guard let hashURL = hashURL(for: url) else {
+            throw SnapshotError.invalidHashURL
         }
+        let (data, _) = try await URLSession.shared.data(for: request(for: hashURL))
+        guard let hash = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ")
+            .first
+            .map(String.init),
+            hash.count == 64,
+            hash.allSatisfy(\.isHexDigit)
+        else {
+            throw SnapshotError.invalidHash
+        }
+        return hash.lowercased()
     }
 
     private func hashURL(for url: URL) -> URL? {
@@ -149,7 +167,8 @@ final class SnapshotStore: ObservableObject {
 
         let token = remoteTokenString
         let host = url.host?.lowercased() ?? ""
-        if !token.isEmpty, host == "raw.githubusercontent.com" || host == "github.com" {
+        let githubHosts = ["api.github.com", "raw.githubusercontent.com", "github.com"]
+        if !token.isEmpty, githubHosts.contains(host) {
             request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
@@ -169,5 +188,19 @@ final class SnapshotStore: ObservableObject {
             return
         }
         await refresh()
+    }
+
+    private enum SnapshotError: LocalizedError {
+        case invalidHashURL
+        case invalidHash
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidHashURL:
+                return "快照地址无法生成校验地址"
+            case .invalidHash:
+                return "快照校验文件无效"
+            }
+        }
     }
 }

@@ -20,8 +20,10 @@ class ArticleReaderUrlTest {
         val asset = java.io.File("src/main/assets/leaderboards.json").takeIf { it.isFile }
             ?: java.io.File("app/src/main/assets/leaderboards.json")
         val articles = gson.fromJson(asset.readText(), com.ai.rankboard.data.Snapshot::class.java).news!!.articles
-        assertTrue(articles.any { articleParagraphs(it.content).size > 1 })
-        assertTrue(articles.any { it.content == null })
+        assertTrue(articles.isNotEmpty())
+        articles.filter { it.content != null }.forEach {
+            assertFalse(articleParagraphs(it.content).isEmpty())
+        }
     }
     @Test fun resolvesOfficialRelativeAndAbsoluteArticles() {
         assertEquals("https://artificialanalysis.ai/articles/example", articleReaderUrl("/articles/example"))

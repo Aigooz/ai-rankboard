@@ -53,7 +53,7 @@ export function scoreUnit(board = {}) {
   if (typeof unit === 'string' && unit.trim()) return unit.trim();
   const type = board.scoreType || board.score_type;
   if (type === 'arena_elo') return 'Elo';
-  if (['livebench','swebench','swe_bench','evalplus','aider_polyglot'].includes(type) || String(board.slug || '').startsWith('swe-bench')) return '%';
+  if (['livebench','swebench','swe_bench','evalplus','aider_polyglot','helm_classic'].includes(type) || String(board.slug || '').startsWith('swe-bench')) return '%';
   return null;
 }
 export function vendorKey(value) {

@@ -41,6 +41,7 @@ export function metricExplanation(board = {}) {
   if (type === "arena_elo") return "Arena Elo / 偏好评分：由该榜盲测偏好估计，不是百分制；仅同榜、同评测条件下比较。";
   if (type === "livebench" || board.kind === "livebench") return "LiveBench：该分类任务的评测成绩；题集与 release 变化会影响分数，不同分类不能直接等同。";
   if (String(type).includes("swe") || String(board.slug).startsWith("swe")) return "SWE-bench：软件工程任务解决率，受任务子集、Agent 配置及评测条件影响。";
+  if (type === "helm_classic") return "HELM Classic Mean win rate：按 Accuracy 表相关任务计算模型两两胜出的平均比例并转为百分数，不是任务准确率或跨榜综合分；该历史版本不持续重跑最新模型。";
   return "来源定义的指标（" + (type || "未提供类型") + "）：仅用于本榜比较，非本应用计算的跨榜综合分。";
 }
 

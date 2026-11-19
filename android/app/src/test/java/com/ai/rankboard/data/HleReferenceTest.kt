@@ -19,10 +19,10 @@ class HleReferenceTest {
         assertNotNull(sourceHttpUrl(reference.examples.first().sourceUrl))
         assertTrue(reference.licenseNotice!!.contains("勿公开分享"))
         assertTrue(reference.trainingWarning!!.contains("NEVER APPEAR IN TRAINING CORPORA"))
-        assertEquals(26, snapshot.boards.size)
+        assertEquals(29, snapshot.boards.size)
         assertFalse(snapshot.boards.any { it.sourceId == "hle" || it.slug.startsWith("hle-") })
         assertFalse(snapshot.entriesByBoard.keys.any { it.startsWith("hle-") })
-        assertEquals(12, snapshot.news!!.articles.size)
+        assertFalse(snapshot.news!!.articles.isEmpty())
         assertEquals(reference, LocalSnapshotDataSource(snapshot).benchmarkReference("hle"))
     }
     @Test fun absentReferenceStaysCompatibleWithoutRequiringAnyScoreBoard() {

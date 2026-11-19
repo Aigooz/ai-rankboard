@@ -37,10 +37,11 @@ test('unknown vendors are not classified as international', () => {
 });
 test('untrusted source links exclude executable URL schemes', () => {
   assert.equal(safeUrl('javascript:alert(1)'), ''); assert.equal(safeUrl('data:text/html,x'), '');
-  assert.equal(safeUrl('https://livebench.ai/leaderboard'), 'https://livebench.ai/leaderboard');
+  assert.equal(safeUrl('https://livebench.ai/'), 'https://livebench.ai/');
 });
 test('score explanations and history avoid false comparisons', () => {
   assert.match(metricExplanation({score_type:'arena_elo'}), /不是百分制/);
+  assert.match(metricExplanation({score_type:'helm_classic'}), /Mean win rate/);
   assert.equal(metricExplanation({metric:{description:'upstream definition'}}), 'upstream definition');
   assert.equal(historyComparable({evaluationVersion:null}, {evaluationVersion:null}), false);
   assert.equal(historyComparable({evaluationVersion:'a'}, {evaluationVersion:'b'}), false);
