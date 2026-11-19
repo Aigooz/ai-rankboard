@@ -229,7 +229,8 @@ private val AXIS_PRIORITY = listOf(
 
 /** 取所有模型可排名次（有分数或名次）的维度，按常用维度优先，最多 6 轴。 */
 internal fun selectCompareAxes(models: List<ModelDetailResponse>): List<String> {
-    val rankable = models.flatMap { it.scores }.filter { it.score != null || it.rank > 0 }
+    val rankable = models.flatMap { it.scores }
+        .filter { it.dimension != "usage" && (it.score != null || it.rank > 0) }
     return rankable.groupBy { it.dimension }.keys
         .sortedWith(
             compareByDescending<String> { AXIS_PRIORITY.indexOf(it) >= 0 }

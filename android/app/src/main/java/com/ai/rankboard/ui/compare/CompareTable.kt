@@ -352,6 +352,7 @@ internal fun dimensionLabel(dimension: String): String = when (dimension) {
     "search" -> "搜索"
     "speed" -> "速度"
     "value" -> "性价比"
+    "usage" -> "使用趋势"
     "math" -> "数学"
     "analysis" -> "数据分析"
     "reasoning" -> "推理"
@@ -367,7 +368,7 @@ internal fun sourceLabel(sourceId: String): String = when (sourceId.lowercase(Lo
     "livebench" -> "LiveBench"
     "bfcl" -> "BFCL"
     "terminal_bench" -> "Terminal-Bench"
-    "helm" -> "Stanford HELM Classic"
+    "openrouter" -> "OpenRouter"
     "swebench", "swe-bench" -> "SWE-bench"
     "arena", "lmarena" -> "Arena"
     else -> sourceId

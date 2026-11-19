@@ -94,8 +94,17 @@ class PublicSourceParserTests(unittest.TestCase):
                                    ("evalplus-mbpp-plus", parse_evalplus(EVALPLUS, "mbpp+"))]:
                     self.assertEqual(save_board_data(BOARD_BY_SLUG[slug], rows, "2026-10-19T04:00:00+00:00"), len(rows))
                 snapshot = build_snapshot()
-                self.assertEqual({board["source_id"] for board in snapshot["boards"]}, {"aider", "evalplus"})
+                self.assertEqual(
+                    set(BOARD_BY_SLUG),
+                    {board["slug"] for board in snapshot["boards"]},
+                )
                 for board in snapshot["boards"]:
+                    if board["slug"] not in {
+                        "aider-polyglot",
+                        "evalplus-humaneval-plus",
+                        "evalplus-mbpp-plus",
+                    }:
+                        continue
                     self.assertEqual(board["metric"]["unit"], "%")
                     self.assertTrue(board["metric"]["higherIsBetter"])
                     expected_version = BOARD_BY_SLUG[board["slug"]].get("release")

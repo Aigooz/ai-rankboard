@@ -65,6 +65,15 @@ class CompareRadarTest {
         assertEquals(0.8f, ratios[0]!!, 0.0001f)
     }
 
+    @Test
+    fun `usage board is never a compare axis`() {
+        val models = listOf(
+            response(score("openrouter-weekly-usage", "usage", 62.1, 1, entryCount = 10)),
+        )
+
+        assertEquals(emptyList<String>(), selectCompareAxes(models))
+    }
+
     private fun score(
         boardSlug: String,
         dimension: String,

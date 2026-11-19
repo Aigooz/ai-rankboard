@@ -182,6 +182,47 @@ test('reasoning uses neutral snapshot order without HLE scoring navigation', () 
   assert.equal(run('state.board'),'livebench-reasoning');
 });
 
+test('OpenRouter usage board is a dedicated live trend view and never an ability radar', () => {
+  const data = structuredClone(old);
+  data.boards.push({
+    slug: 'openrouter-weekly-usage',
+    name: 'OpenRouter 近期使用趋势',
+    dimension: 'usage',
+    score_type: 'openrouter_usage',
+    source_id: 'openrouter',
+    source: { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/rankings' },
+    metric: {
+      name: 'OpenRouter 周 token 使用量',
+      description: '聚合平台周 token 使用趋势，不代表能力或市场份额。',
+      unit: '万亿 tokens/周',
+    },
+    evaluation: { version: null, upstreamUpdatedAt: '2026-10-18' },
+    health: { lastSuccessAt: '2026-10-19T00:00:00Z', latestAttemptStatus: 'ok' },
+  });
+  data.sources = [{ id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/rankings' }];
+  data.entriesByBoard['openrouter-weekly-usage'] = [
+    { slug: 'alpha', display_name: 'Alpha Long Model Name', vendor: 'Author A', score: 62.1, rank: 1, weekly_change: '+17%' },
+    { slug: 'beta', display_name: 'Beta', vendor: 'Author B', score: 46.6, rank: 2, weekly_change: 'new' },
+  ];
+  const run = ui(data);
+  assert.equal(run('DIMENSIONS.at(-1).slug'), 'usage');
+  assert.equal(run('DIMENSIONS.at(-1).name'), '使用趋势');
+  run('state.dimension="usage"; state.board="openrouter-weekly-usage"');
+  const html = run('usageBoardTemplate()');
+  assert.match(html, /OpenRouter 近期使用趋势/);
+  assert.match(html, /万亿 tokens\/周/);
+  assert.match(html, /2026-10-18（\d+ 天前）/);
+  assert.match(html, /Alpha Long Model Name/);
+  assert.match(html, /\+17%/);
+  assert.doesNotMatch(html, /混合价|上下文|模型发布|能力雷达/);
+  assert.doesNotMatch(run('detailTemplate(modelDetail("alpha"))'), /class="detail-radar"/);
+  assert.match(run('detailTemplate(modelDetail("alpha"))'), /使用趋势|OpenRouter|万亿 tokens\/周/);
+  assert.equal(
+    run('selectRadarScores([{dimension:"usage",boardSlug:"openrouter-weekly-usage",score:62.1,scoreMin:3.67,scoreMax:62.1}]).length'),
+    0,
+  );
+});
+
 test('dimension boards use neutral deterministic order regardless of snapshot source order', () => {
   const data = structuredClone(old);
   data.boards.push(

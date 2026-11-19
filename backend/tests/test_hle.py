@@ -32,6 +32,7 @@ class HleReferenceTests(unittest.TestCase):
         self.assertFalse(any(board['score_type'].startswith('hle') for board in BOARDS))
         self.assertEqual(len(SOURCES), 9)
         self.assertEqual(next(source['name'] for source in SOURCES if source['id'] == 'hle'), 'CAIS / Scale AI')
+        self.assertIn('openrouter', {source['id'] for source in SOURCES})
 
     def test_snapshot_omits_retired_scores_from_existing_database_keeps_reference(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -45,9 +46,12 @@ class HleReferenceTests(unittest.TestCase):
                     conn.execute("INSERT INTO models(slug,display_name,first_seen_at,updated_at) VALUES('old-hle-only','Retired model','2026-01-01','2026-01-01')")
                     conn.execute("INSERT INTO scores(board_slug,model_slug,rank,score,fetched_at) VALUES('hle-official-2025-04','old-hle-only',1,20,'2026-01-01')")
                 snapshot = build_snapshot()
-                self.assertEqual(snapshot['boards'], [])
-                self.assertEqual(snapshot['entriesByBoard'], {})
-                self.assertEqual(snapshot['historyByBoard'], {})
+                self.assertNotIn(
+                    'hle-official-2025-04',
+                    {board['slug'] for board in snapshot['boards']},
+                )
+                self.assertNotIn('hle-official-2025-04', snapshot['entriesByBoard'])
+                self.assertNotIn('hle-official-2025-04', snapshot['historyByBoard'])
                 self.assertEqual(snapshot['models'], {})
                 self.assertEqual(snapshot['benchmarkReferences']['hle']['canary'], HLE_CANARY)
                 self.assertEqual(len(snapshot['sources']), 9)
@@ -58,7 +62,10 @@ class HleReferenceTests(unittest.TestCase):
                 path.write_text(json.dumps(snapshot), encoding='utf-8')
                 db.DB_PATH = Path(tmp) / 'fresh.db'
                 restore_baseline(path)
-                self.assertEqual(build_snapshot()['boards'], [])
+                self.assertNotIn(
+                    'hle-diamond-no-tools-high',
+                    {board['slug'] for board in build_snapshot()['boards']},
+                )
                 self.assertEqual(build_snapshot()['benchmarkReferences']['hle'], HLE_REFERENCE)
             finally:
                 db.DB_PATH, db.DATA_DIR = original

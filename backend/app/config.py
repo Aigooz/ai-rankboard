@@ -4,6 +4,8 @@ import secrets
 
 BASE_URL = "https://modelsage.cn"
 LIVEBENCH_URL = "https://livebench.ai"
+OPENROUTER_URL = "https://openrouter.ai"
+OPENROUTER_RANKINGS_URL = f"{OPENROUTER_URL}/rankings"
 LIVEBENCH_RELEASE = "2026-06-25"
 SWE_BENCH_DATA_URL = (
     "https://raw.githubusercontent.com/SWE-bench/SWE-bench.github.io/"

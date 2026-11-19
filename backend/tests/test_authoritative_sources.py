@@ -1,5 +1,6 @@
 """Regression tests for authoritative public leaderboard adapters."""
 import csv
+from datetime import date, timedelta
 import io
 import json
 import re
@@ -13,7 +14,7 @@ from app import db
 from app.model_identity import canonical_model_slug
 from app.public_sources import (
     parse_bfcl,
-    parse_helm_classic,
+    parse_openrouter_rankings,
     parse_terminal_bench_submissions,
 )
 from app.scraper import fetch_board
@@ -267,139 +268,243 @@ class TerminalBenchParserTests(unittest.TestCase):
                 db.DB_PATH, db.DATA_DIR = original
 
 
-def helm_fixtures():
-    summary = {"release": "v0.4.0", "date": "2023-11-17"}
-    schema = {
-        "models": [
-            {
-                "name": "example/alpha",
-                "display_name": "Alpha (7B)",
-                "creator_organization": "Example Lab",
-                "release_date": "2023-01-02",
-                "num_parameters": 7_000_000_000,
-            },
-            {
-                "name": "example/beta",
-                "display_name": "Beta",
-                "creator_organization": "Other Lab",
-                "release_date": "2023-02-03",
-                "num_parameters": 13_000_000_000,
-            },
-            {
-                "name": "example/ambiguous-a",
-                "display_name": "Ambiguous",
-                "creator_organization": "Example Lab",
-            },
-            {
-                "name": "example/ambiguous-b",
-                "display_name": "Ambiguous",
-                "creator_organization": "Other Lab",
-            },
+def openrouter_fixture():
+    names = [
+        "Alpha", "Beta", "Gamma", "Delta", "Epsilon",
+        "Zeta", "Eta", "Theta", "Iota", "Kappa",
+    ]
+    values = [62.1, 46.6, 16.0, 13.0, 10.9, 8.62, 7.63, 6.39, 4.05, 3.67]
+    changes = ["+17%", "new", "-2%", "-36%", "-9%",
+               "+20%", "+15%", "-7%", "+25%", "-4%"]
+    items = [
+        {
+            "@type": "ListItem",
+            "position": index,
+            "name": name,
+            "item": f"https://openrouter.ai/example/{name.lower()}",
+        }
+        for index, name in enumerate(names, 1)
+    ]
+    documents = [
+        {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "url": "https://openrouter.ai/rankings",
+            "dateModified": "2026-11-18T00:00:00.000Z",
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            "name": "Top LLMs by weekly token usage on OpenRouter",
+            "numberOfItems": 10,
+            "itemListOrder": "https://schema.org/ItemListOrderDescending",
+            "itemListElement": items,
+        },
+    ]
+    rows = "".join(
+        (
+            f"<tr><td>{index}</td><th>{name}</th><td>author-{index}</td>"
+            f"<td>{value}T tokens</td><td>{change}</td></tr>"
+        )
+        for index, (name, value, change) in enumerate(
+            zip(names, values, changes), 1
+        )
+    )
+    html = (
+        "<html><head>"
+        + "".join(
+            f'<script type="application/ld+json">{json.dumps(item)}</script>'
+            for item in documents
+        )
+        + "</head><body><table><caption>Model rankings by tokens processed</caption>"
+        "<thead><tr><th>Rank</th><th>Model</th><th>Author</th>"
+        "<th>tokens processed</th><th>Change</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></body></html>"
+    )
+    return html, names, values
+
+
+class OpenRouterRankingsTests(unittest.TestCase):
+    def setUp(self):
+        self.html, self.names, self.values = openrouter_fixture()
+
+    def test_weekly_usage_table_and_json_ld_must_agree(self):
+        rows, updated = parse_openrouter_rankings(
+            self.html, today=date(2026, 11, 19)
+        )
+
+        self.assertEqual(updated, "2026-11-18")
+        self.assertEqual([row["name"] for row in rows], self.names)
+        self.assertEqual([row["score"] for row in rows], self.values)
+        self.assertEqual([row["rank"] for row in rows], list(range(1, 11)))
+        self.assertEqual(rows[0]["vendor"], "author-1")
+        self.assertEqual(rows[0]["weekly_change"], "+17%")
+        self.assertEqual(rows[0]["source_url"], "https://openrouter.ai/example/alpha")
+        self.assertIsNone(rows[0]["context_window"])
+
+    def test_rejects_structural_disagreement_and_duplicates(self):
+        mutations = [
+            self.html.replace(
+                '<th>Alpha</th>', '<th>Changed</th>', 1
+            ),
+            self.html.replace(
+                'https://openrouter.ai/example/alpha',
+                'https://openrouter.ai/example/beta',
+            ),
+            self.html.replace(
+                '"name": "Gamma"', '"name": "Beta"'
+            ),
+            self.html.replace(
+                "<td>16.0T tokens</td>", "<td>0T tokens</td>"
+            ),
+            self.html.replace(
+                "https://schema.org/ItemListOrderDescending",
+                "https://schema.org/ItemListOrderAscending",
+            ),
+            self.html.replace(
+                "Model rankings by tokens processed",
+                "Models ranked by tokens processed on OpenRouter over the most recent complete day",
+            ),
         ]
-    }
-    accuracy = {
-        "title": "Accuracy",
-        "header": [
-            {"value": "Model/adapter"},
-            {"value": "Mean win rate"},
-            {"value": "MMLU - EM"},
-        ],
-        "rows": [
-            [{"value": "Alpha (7B)"}, {"value": 0.75}, {"value": 0.9}],
-            [{"value": "Beta"}, {"value": 0.50}, {"value": 0.8}],
-            [{"value": "Ambiguous"}, {"value": 0.99}, {"value": 0.99}],
-        ],
-    }
-    other = {"title": "Calibration", "header": [{"value": "Model/adapter"}], "rows": []}
-    return summary, schema, [accuracy, other]
-
-
-class HelmClassicParserTests(unittest.TestCase):
-    def test_official_accuracy_table_uses_percent_units_and_metadata(self):
-        summary, schema, tables = helm_fixtures()
-        rows = parse_helm_classic(summary, schema, tables)
-        self.assertEqual([row["name"] for row in rows], ["Alpha (7B)", "Beta"])
-        self.assertEqual([row["rank"] for row in rows], [1, 2])
-        self.assertEqual(rows[0]["score"], 75)
-        self.assertEqual(rows[0]["vendor"], "Example Lab")
-        self.assertEqual(rows[0]["params_b"], 7)
-        self.assertEqual(rows[0]["release_date"], "2023-01-02")
-        self.assertTrue(all(row["score_ci"] is None for row in rows))
-        self.assertTrue(all(row["source_url"].startswith("https://crfm.stanford.edu/") for row in rows))
-
-    def test_ties_share_rank_and_away_rows_are_skipped(self):
-        summary, schema, tables = helm_fixtures()
-        tables[0]["rows"][1][1]["value"] = 0.75
-        rows = parse_helm_classic(summary, schema, tables)
-        self.assertEqual([row["rank"] for row in rows], [1, 1])
-
-        tables[0]["rows"].append([{"value": "Alpha (7B)"}, {"value": 0.7}, {"value": 0.8}])
-        with self.assertRaises(ValueError):
-            parse_helm_classic(summary, schema, tables)
-
-    def test_rejects_changed_release_headers_missing_values_and_bad_metadata(self):
-        summary, schema, tables = helm_fixtures()
-        mutations = []
-        changed_summary = dict(summary)
-        changed_summary["release"] = "v0.5.0"
-        mutations.append((changed_summary, schema, tables))
-        changed_header = json.loads(json.dumps(tables))
-        changed_header[0]["header"][1]["value"] = "Accuracy"
-        mutations.append((summary, schema, changed_header))
-        missing_score = json.loads(json.dumps(tables))
-        missing_score[0]["rows"][0][1] = {"description": "No matching runs"}
-        mutations.append((summary, schema, missing_score))
-        bad_params = json.loads(json.dumps(schema))
-        bad_params["models"][0]["num_parameters"] = True
-        mutations.append((summary, bad_params, tables))
-        no_accuracy = [{"title": "Calibration", "header": [], "rows": []}]
-        mutations.append((summary, schema, no_accuracy))
-        for value in mutations:
+        for html in mutations:
             with self.subTest():
                 with self.assertRaises(ValueError):
-                    parse_helm_classic(*value)
+                    parse_openrouter_rankings(html, today=date(2026, 11, 19))
 
-    def test_helm_fetch_uses_official_release_documents(self):
-        summary, schema, tables = helm_fixtures()
+    def test_rejects_stale_future_and_invalid_dates(self):
+        for modified in [
+            "2026-11-11T00:00:00.000Z",
+            "2026-02-30T00:00:00.000Z",
+            "2026-10-01T00:00:00.000Z",
+        ]:
+            html = self.html.replace("2026-11-18T00:00:00.000Z", modified)
+            with self.subTest(modified=modified):
+                with self.assertRaises(ValueError):
+                    parse_openrouter_rankings(html, today=date(2026, 11, 19))
+        future = self.html.replace(
+            "2026-11-18T00:00:00.000Z", "2026-11-20T00:00:00.000Z"
+        )
+        with self.assertRaises(ValueError):
+            parse_openrouter_rankings(future, today=date(2026, 11, 19))
+
+        within_week = self.html.replace(
+            "2026-11-18T00:00:00.000Z", "2026-11-12T00:00:00.000Z"
+        )
+        rows, updated = parse_openrouter_rankings(
+            within_week, today=date(2026, 11, 19), max_age_days=7
+        )
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(updated, "2026-11-12")
+
+    def test_fetch_uses_official_rankings_page_and_keeps_upstream_date(self):
         with patch(
-            "app.scraper.fetch_json",
-            new=AsyncMock(side_effect=[summary, schema, tables]),
+            "app.scraper.fetch_html", new=AsyncMock(return_value=self.html)
         ) as fetch:
-            parsed = __import__("asyncio").run(fetch_board(BOARD_BY_SLUG["helm-classic-accuracy"]))
+            result = __import__("asyncio").run(
+                fetch_board(BOARD_BY_SLUG["openrouter-weekly-usage"])
+            )
 
-        self.assertEqual(len(parsed), 2)
-        called = [call.args[1] for call in fetch.call_args_list]
-        self.assertTrue(any(url.endswith("/summary.json") for url in called))
-        self.assertTrue(any(url.endswith("/schema.json") for url in called))
-        self.assertTrue(any(url.endswith("/groups/core_scenarios.json") for url in called))
+        self.assertEqual(len(result.rows), 10)
+        self.assertEqual(result.upstream_updated_at, "2026-11-18")
+        self.assertEqual(fetch.call_args.args[1], "https://openrouter.ai/rankings")
 
-    def test_helm_store_and_snapshot_expose_source_license_and_percent(self):
-        summary, schema, tables = helm_fixtures()
-        rows = parse_helm_classic(summary, schema, tables)
+    def test_store_snapshot_history_and_baseline_keep_real_upstream_date(self):
+        rows, updated = parse_openrouter_rankings(
+            self.html, today=date(2026, 11, 19)
+        )
         with tempfile.TemporaryDirectory() as tmp:
             original = db.DB_PATH, db.DATA_DIR
             try:
                 db.DATA_DIR = Path(tmp)
-                db.DB_PATH = db.DATA_DIR / "helm.db"
+                db.DB_PATH = db.DATA_DIR / "openrouter.db"
                 db.init_db()
-                self.assertEqual(
-                    save_board_data(
-                        BOARD_BY_SLUG["helm-classic-accuracy"],
-                        rows,
-                        "2026-11-19T00:00:00+00:00",
-                    ),
-                    2,
+                count = save_board_data(
+                    BOARD_BY_SLUG["openrouter-weekly-usage"],
+                    rows,
+                    "2026-11-19T00:00:00+00:00",
+                    upstream_updated_at=updated,
+                    row_metadata={"weekly_changes": {
+                        row["slug"]: row["weekly_change"] for row in rows
+                    }},
                 )
+                self.assertEqual(count, 10)
                 snapshot = build_snapshot()
                 board = next(
                     item for item in snapshot["boards"]
-                    if item["slug"] == "helm-classic-accuracy"
+                    if item["slug"] == "openrouter-weekly-usage"
                 )
-                self.assertEqual(board["source_id"], "helm")
-                self.assertEqual(board["metric"]["name"], "HELM Mean win rate")
-                self.assertEqual(board["metric"]["unit"], "%")
-                self.assertTrue(board["source"]["licenseUrl"])
-                self.assertEqual(len(snapshot["entriesByBoard"][board["slug"]]), 2)
+                self.assertEqual(board["slug"], "openrouter-weekly-usage")
+                self.assertEqual(board["evaluation"]["upstreamUpdatedAt"], updated)
+                self.assertEqual(board["metric"]["unit"], "万亿 tokens/周")
+                self.assertEqual(
+                    snapshot["historyByBoard"][board["slug"]][-1]["upstreamUpdatedAt"],
+                    updated,
+                )
+                saved_rows = snapshot["entriesByBoard"][board["slug"]]
+                self.assertEqual(saved_rows[0]["weekly_change"], "+17%")
+
+                path = db.DATA_DIR / "baseline.json"
+                path.write_text(json.dumps(snapshot), encoding="utf-8")
+                db.DB_PATH = db.DATA_DIR / "restored.db"
+                from app.publish import restore_baseline
+                restore_baseline(path)
+                restored = build_snapshot()
+                restored_board = next(
+                    item for item in restored["boards"]
+                    if item["slug"] == "openrouter-weekly-usage"
+                )
+                self.assertEqual(
+                    restored_board["evaluation"]["upstreamUpdatedAt"], updated
+                )
+                self.assertEqual(
+                    len(restored["entriesByBoard"][board["slug"]]), len(saved_rows)
+                )
+                self.assertIn(
+                    "openrouter", {source["id"] for source in restored["sources"]}
+                )
+            finally:
+                db.DB_PATH, db.DATA_DIR = original
+
+    def test_migration_removes_retired_helm_rows_and_orphan_models(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = db.DB_PATH, db.DATA_DIR
+            try:
+                db.DATA_DIR = Path(tmp)
+                db.DB_PATH = db.DATA_DIR / "old.db"
+                db.init_db()
+                with db.get_conn() as conn:
+                    conn.execute(
+                        "INSERT INTO boards(slug,name,dimension,score_type,url) "
+                        "VALUES('helm-classic-accuracy','HELM Classic','overall',"
+                        "'helm_classic','https://crfm.stanford.edu/helm/classic/latest/')"
+                    )
+                    conn.execute(
+                        "INSERT INTO models(slug,display_name,first_seen_at,updated_at) "
+                        "VALUES('old-helm-model','Old HELM','2026-01-01','2026-01-01')"
+                    )
+                    conn.execute(
+                        "INSERT INTO scores(board_slug,model_slug,rank,score,fetched_at) "
+                        "VALUES('helm-classic-accuracy','old-helm-model',1,50,'2026-01-01')"
+                    )
+                db.init_db()
+                with db.get_conn() as conn:
+                    self.assertIsNone(
+                        conn.execute(
+                            "SELECT 1 FROM boards WHERE slug='helm-classic-accuracy'"
+                        ).fetchone()
+                    )
+                    self.assertIsNone(
+                        conn.execute(
+                            "SELECT 1 FROM models WHERE slug='old-helm-model'"
+                        ).fetchone()
+                    )
+                boot = build_snapshot()
+                self.assertNotIn("helm", {source["id"] for source in boot["sources"]})
+                self.assertNotIn(
+                    "helm-classic-accuracy",
+                    {board["slug"] for board in boot["boards"]},
+                )
+                self.assertNotIn("helm-classic-accuracy", boot["entriesByBoard"])
             finally:
                 db.DB_PATH, db.DATA_DIR = original
 

@@ -74,7 +74,7 @@ class BoardTrustTest {
         assertTrue(metricExplanation("livebench").contains("版本"))
         assertTrue(metricExplanation("bfcl").contains("函数调用"))
         assertTrue(metricExplanation("terminal_bench").contains("终端任务"))
-        assertTrue(metricExplanation("helm_classic").contains("Mean win rate"))
+        assertTrue(metricExplanation("openrouter_usage").contains("不代表模型能力"))
         assertTrue(metricExplanation(null).contains("未提供"))
     }
     private fun point(at: String, version: String? = "v1", rank: Int = 2, score: Double = 50.0) =

@@ -3,7 +3,7 @@ import logging
 
 from .boards import BOARDS, BOARD_BY_SLUG
 from .db import get_conn, init_db, now_iso
-from .scraper import fetch_aa_articles, fetch_board, fetch_missing_model_dates, fetch_usage_trend
+from .scraper import BoardFetchResult, fetch_aa_articles, fetch_board, fetch_missing_model_dates, fetch_usage_trend
 from .store import (
     mark_board_error,
     save_board_data,
@@ -19,8 +19,16 @@ log = logging.getLogger("service")
 async def refresh_board(board: dict) -> int:
     fetched_at = now_iso()
     try:
-        rows = await fetch_board(board)
-        return save_board_data(board, rows, fetched_at)
+        result = await fetch_board(board)
+        if not hasattr(result, "rows"):
+            result = BoardFetchResult(rows=result)
+        return save_board_data(
+            board,
+            result.rows,
+            fetched_at,
+            upstream_updated_at=result.upstream_updated_at,
+            row_metadata=result.metadata,
+        )
     except Exception as exc:  # noqa: BLE001
         log.warning("board %s refresh failed: %s", board["slug"], exc)
         mark_board_error(board, str(exc), fetched_at)

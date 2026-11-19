@@ -155,7 +155,7 @@ struct SettingsView: View {
                 name: "Terminal-Bench",
                 url: "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest?tab=leaderboard&leaderboard=4-1-0",
             ),
-            SnapshotSource(id: "helm", name: "Stanford HELM Classic", url: "https://crfm.stanford.edu/helm/classic/latest/"),
+            SnapshotSource(id: "openrouter", name: "OpenRouter", url: "https://openrouter.ai/rankings"),
         ]
     }
 

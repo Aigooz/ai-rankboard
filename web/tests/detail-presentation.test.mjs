@@ -17,7 +17,9 @@ test('related models exclude self duplicates unknown vendors and unrelated vendo
 });
 test('release params and score unit preserve absent and source-specific metadata',()=>{
  assert.equal(detailDate('2026-02-31'),'未获取');assert.equal(detailDate(null),'未获取');assert.equal(detailDate('2026-10-19'),'2026-10-19');
- assert.equal(parameterLabel(-1),'未获取');assert.equal(parameterLabel(0),'未获取');assert.equal(scoreUnit({score_type:'arena_elo'}),'Elo');assert.equal(scoreUnit({score_type:'helm_classic'}),'%');assert.equal(scoreUnit({metric:{unit:'%'}}),'%');assert.equal(scoreUnit({}),null);
+ assert.equal(parameterLabel(-1),'未获取');assert.equal(parameterLabel(0),'未获取');assert.equal(scoreUnit({score_type:'arena_elo'}),'Elo');assert.equal(scoreUnit({score_type:'openrouter_usage'}),null);assert.equal(scoreUnit({metric:{unit:'万亿 tokens/周'}}),'万亿 tokens/周');assert.equal(scoreUnit({metric:{unit:'%'}}),'%');assert.equal(scoreUnit({}),null);
+ assert.equal(primaryDetailScore([{boardSlug:'openrouter-weekly-usage',dimension:'usage',score:62.1}]),null);
+ assert.equal(primaryDetailScore([{boardSlug:'openrouter-weekly-usage',dimension:'usage',score:62.1},{boardSlug:'coding',dimension:'coding',score:73}]).boardSlug,'coding');
 });
 
 test('primary score prefers valid overall not highest cross-board score',()=>{

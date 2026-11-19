@@ -9,6 +9,7 @@ struct RankingsView: View {
 
     private let dimensions = [
         "overall": "综合榜",
+        "usage": "使用趋势",
         "coding": "代码榜",
         "writing": "写作榜",
         "multimodal": "多模态榜",
@@ -35,6 +36,10 @@ struct RankingsView: View {
         boardsForDimension.first { $0.slug == boardSlug } ?? boardsForDimension.first
     }
 
+    private var isUsageBoard: Bool {
+        activeBoard?.dimension == "usage"
+    }
+
     private var entries: [Entry] {
         let base = activeBoard.map { snapshot.entries(board: $0.slug) } ?? []
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -59,9 +64,17 @@ struct RankingsView: View {
                     )
                 } else {
                     List {
-                        overview
-                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                            row(entry)
+                        if isUsageBoard {
+                            usageProvenance
+                            usageHeader
+                            ForEach(entries) { entry in
+                                usageRow(entry)
+                            }
+                        } else {
+                            overview
+                            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                                row(entry)
+                            }
                         }
                         if entries.isEmpty {
                             Text("没有匹配的模型")
@@ -99,6 +112,101 @@ struct RankingsView: View {
                     boardSlug = boardsForDimension.first?.slug ?? ""
                 }
             }
+        }
+    }
+
+    private var usageProvenance: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("OpenRouter 官方周 token 使用趋势", systemImage: "chart.line.uptrend.xyaxis")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if let rawURL = activeBoard?.url, let url = URL(string: rawURL) {
+                        Link(destination: url) {
+                            Label("原始榜", systemImage: "arrow.up.right")
+                                .font(.caption)
+                        }
+                    }
+                }
+                Text("上游更新时间：\(upstreamDateLabel(activeBoard?.evaluation?.upstreamUpdatedAt))。抓取时间不替代上游更新时间。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(activeBoard?.metric?.description ?? "仅统计 OpenRouter 聚合网关，不代表模型能力、质量、市场份额或全球调用量。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var usageHeader: some View {
+        Section {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("近期使用榜")
+                        .font(.headline)
+                    Text(activeBoard?.metric?.name ?? "OpenRouter 周 token 使用量")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("\(entries.count) 条")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func usageRow(_ entry: Entry) -> some View {
+        let maxTokens = entries.compactMap(\.score).max() ?? 1
+        let ratio = max(0, min((entry.score ?? 0) / max(maxTokens, 0.000_001), 1))
+        return NavigationLink {
+            ModelDetailView(entry: entry, snapshot: snapshot, favorites: favorites)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text("\(entry.rank)")
+                        .font(.caption.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.tint)
+                        .frame(width: 24, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(formatName(entry.displayName).0)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                        Text(entry.vendor?.isEmpty == false ? entry.vendor! : "作者未提供")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(entry.score.map { String(format: "%.2f", $0) } ?? "-")
+                            .font(.subheadline.weight(.bold).monospacedDigit())
+                        Text("万亿 tokens/周")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.16))
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(width: proxy.size.width * ratio)
+                    }
+                }
+                .frame(height: 6)
+
+                HStack {
+                    Spacer()
+                    Text(weeklyChangeLabel(entry.weeklyChange))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(weeklyChangeColor(entry.weeklyChange))
+                }
+            }
+            .padding(.vertical, 3)
         }
     }
 
@@ -254,6 +362,44 @@ struct RankingsView: View {
             parts.append(String(date.prefix(10)))
         }
         return parts.joined(separator: " · ")
+    }
+
+    private func upstreamDateLabel(_ value: String?) -> String {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return "未提供"
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: String(value.prefix(10))) else {
+            return "\(value)（日期格式无法解析）"
+        }
+        let days = Calendar(identifier: .gregorian).dateComponents(
+            [.day],
+            from: Calendar(identifier: .gregorian).startOfDay(for: date),
+            to: Calendar(identifier: .gregorian).startOfDay(for: Date())
+        ).day ?? 0
+        let day = String(value.prefix(10))
+        if days < 0 { return "\(day)（日期晚于设备时间）" }
+        if days == 0 { return "\(day)（今天）" }
+        return "\(day)（\(days) 天前）"
+    }
+
+    private func weeklyChangeLabel(_ value: String?) -> String {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "环比未提供"
+        }
+        return value.caseInsensitiveCompare("new") == .orderedSame ? "本周新进" : "周环比 \(value)"
+    }
+
+    private func weeklyChangeColor(_ value: String?) -> Color {
+        guard let value, !value.isEmpty else { return .secondary }
+        if value.caseInsensitiveCompare("new") == .orderedSame { return .accentColor }
+        if value.hasPrefix("+") { return Color(red: 0.08, green: 0.50, blue: 0.24) }
+        if value.hasPrefix("-") { return Color(red: 0.78, green: 0.07, blue: 0.24) }
+        return .secondary
     }
 }
 

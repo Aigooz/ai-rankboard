@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from .config import DATA_DIR, DB_PATH
+from .boards import BOARDS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS boards (
@@ -15,13 +16,16 @@ CREATE TABLE IF NOT EXISTS boards (
     last_status TEXT,
     last_error TEXT,
     last_attempt_at TEXT,
-    evaluation_version TEXT
+    evaluation_version TEXT,
+    upstream_updated_at TEXT,
+    score_metadata TEXT
 );
 CREATE TABLE IF NOT EXISTS board_history (
     board_slug TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
     model_count INTEGER NOT NULL,
     evaluation_version TEXT,
+    upstream_updated_at TEXT,
     entries_json TEXT NOT NULL,
     PRIMARY KEY (board_slug, fetched_at),
     FOREIGN KEY (board_slug) REFERENCES boards(slug)
@@ -101,6 +105,9 @@ def get_conn():
 
 
 def init_db() -> None:
+    # Imported lazily so store can import database helpers without a cycle.
+    from .store import upsert_board_meta
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
@@ -112,8 +119,59 @@ def init_db() -> None:
             conn.execute("ALTER TABLE boards ADD COLUMN last_attempt_at TEXT")
         if "evaluation_version" not in board_columns:
             conn.execute("ALTER TABLE boards ADD COLUMN evaluation_version TEXT")
+        if "upstream_updated_at" not in board_columns:
+            conn.execute("ALTER TABLE boards ADD COLUMN upstream_updated_at TEXT")
+        if "score_metadata" not in board_columns:
+            conn.execute("ALTER TABLE boards ADD COLUMN score_metadata TEXT")
+        history_columns = {row[1] for row in conn.execute("PRAGMA table_info(board_history)")}
+        if "upstream_updated_at" not in history_columns:
+            conn.execute(
+                "ALTER TABLE board_history ADD COLUMN upstream_updated_at TEXT"
+            )
+        # HELM was a fixed 2023 benchmark release, not a live board. Remove its
+        # retired rows even when this database predates the registry change.
+        retired = conn.execute(
+            "SELECT slug FROM boards WHERE score_type='helm_classic' "
+            "OR slug='helm-classic-accuracy'"
+        ).fetchall()
+        for row in retired:
+            conn.execute("DELETE FROM scores WHERE board_slug=?", (row["slug"],))
+            conn.execute("DELETE FROM board_history WHERE board_slug=?", (row["slug"],))
+            conn.execute("DELETE FROM boards WHERE slug=?", (row["slug"],))
+        conn.execute(
+            "DELETE FROM models WHERE slug NOT IN "
+            "(SELECT DISTINCT model_slug FROM scores)"
+        )
         columns = {row[1] for row in conn.execute("PRAGMA table_info(models)")}
         if "release_date" not in columns:
             conn.execute("ALTER TABLE models ADD COLUMN release_date TEXT")
         if "release_date_source_url" not in columns:
             conn.execute("ALTER TABLE models ADD COLUMN release_date_source_url TEXT")
+        add = {b["slug"]: b for b in BOARDS}
+        board_slugs = list(add)
+        placeholders = ",".join("?" for _ in board_slugs)
+        # Keep score-aware board metadata even before the first successful
+        # fetch. A configured board with no rows stays visible as a verification
+        # failure rather than silently disappearing from the snapshot.
+        for board in add.values():
+            upsert_board_meta(conn, board)
+        # Scores reference boards, so retired score rows must be removed before
+        # the registry-only board cleanup can satisfy the foreign key.
+        retained_slugs = list(add)
+        retained_placeholders = ",".join("?" for _ in retained_slugs)
+        conn.execute(
+            f"DELETE FROM scores WHERE board_slug NOT IN ({retained_placeholders})",
+            retained_slugs,
+        )
+        conn.execute(
+            f"DELETE FROM board_history WHERE board_slug NOT IN ({retained_placeholders})",
+            retained_slugs,
+        )
+        conn.execute(
+            f"DELETE FROM boards WHERE slug NOT IN ({placeholders})",
+            board_slugs,
+        )
+        conn.execute(
+            "DELETE FROM models WHERE slug NOT IN "
+            "(SELECT DISTINCT model_slug FROM scores)"
+        )

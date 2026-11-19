@@ -3,15 +3,16 @@
 Sources are public benchmark releases; source links retain attribution.
 Aider: https://github.com/Aider-AI/aider/blob/main/LICENSE.txt
 EvalPlus: https://github.com/evalplus/evalplus.github.io/blob/master/LICENSE
-HELM: https://github.com/stanford-crfm/helm/blob/main/LICENSE
 """
 import asyncio
 import json
 import math
 import re
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 import yaml
+from bs4 import BeautifulSoup
 
 AIDER_DATA_URL = "https://raw.githubusercontent.com/Aider-AI/aider/main/aider/website/_data/polyglot_leaderboard.yml"
 EVALPLUS_DATA_URL = "https://raw.githubusercontent.com/evalplus/evalplus.github.io/master/results.json"
@@ -25,15 +26,7 @@ TERMINAL_BENCH_SUBMISSIONS_API = (
     "https://api.github.com/repos/harbor-framework/terminal-bench/"
     "contents/leaderboard/submissions"
 )
-HELM_PAGE_URL = "https://crfm.stanford.edu/helm/classic/latest/"
-HELM_RELEASE = "v0.4.0"
-HELM_BASE_URL = (
-    "https://storage.googleapis.com/crfm-helm-public/classic/"
-    f"benchmark_output/releases/{HELM_RELEASE}"
-)
-HELM_SUMMARY_URL = f"{HELM_BASE_URL}/summary.json"
-HELM_SCHEMA_URL = f"{HELM_BASE_URL}/schema.json"
-HELM_CORE_URL = f"{HELM_BASE_URL}/groups/core_scenarios.json"
+OPENROUTER_RANKINGS_URL = "https://openrouter.ai/rankings"
 
 
 def _percentage(value):
@@ -331,122 +324,167 @@ async def fetch_terminal_bench_submissions(client, fetch_json):
     return parse_terminal_bench_submissions(submissions)
 
 
-def parse_helm_classic(summary, schema, tables):
-    """Parse HELM Classic's official Accuracy table as one neutral ranking.
+_OPENROUTER_CAPTION = "Model rankings by tokens processed"
+_OPENROUTER_HEADER = ["Rank", "Model", "Author", "tokens processed", "Change"]
+_OPENROUTER_TOKEN_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*[Tt]\s+tokens\s*$")
 
-    "Mean win rate" is the mean fraction of other models a model outperforms,
-    not task accuracy. The release stores it as a 0-1 value; the app stores the
-    same quantity as a percentage for display. Unknown tables/columns are
-    rejected so a silent layout change cannot create a misleading score.
-    """
-    if not isinstance(summary, dict):
-        raise ValueError("HELM: expected release summary")
-    release = summary.get("release")
-    release_date = summary.get("date")
-    if release != HELM_RELEASE or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(release_date or "")):
-        raise ValueError("HELM: unsupported release")
 
-    if not isinstance(schema, dict) or not isinstance(schema.get("models"), list):
-        raise ValueError("HELM: expected model schema")
-    metadata = {}
-    for model in schema["models"]:
-        if not isinstance(model, dict):
-            continue
-        name = model.get("display_name")
-        if not isinstance(name, str) or not name.strip():
-            continue
-        # A few HELM display names intentionally cover multiple deployments
-        # (for example text-bison and text-bison-32k). Only the displayed name
-        # occurs in the Accuracy table, so never merge ambiguous metadata.
-        if model.get("name") in metadata:
-            raise ValueError("HELM: duplicate model name")
-        params = model.get("num_parameters")
-        if isinstance(params, bool) or (
-            params is not None and (not isinstance(params, (int, float)) or not math.isfinite(params))
-        ):
-            raise ValueError("HELM: invalid model parameter count")
-        metadata[model.get("name")] = {
-            "display_name": name,
-            "vendor": model.get("creator_organization"),
-            "params_b": params / 1_000_000_000 if isinstance(params, (int, float)) else None,
-            "release_date": model.get("release_date"),
-        }
-    by_display_name = {}
-    for model in metadata.values():
-        by_display_name.setdefault(model["display_name"], []).append(model)
+def _openrouter_json_ld(soup):
+    documents = []
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            documents.append(json.loads(tag.string or ""))
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise ValueError("OpenRouter: malformed JSON-LD") from exc
+    return documents
 
-    if not isinstance(tables, list):
-        raise ValueError("HELM: expected table list")
-    accuracy = next(
-        (table for table in tables
-         if isinstance(table, dict) and table.get("title") == "Accuracy"),
-        None,
-    )
-    if accuracy is None:
-        raise ValueError("HELM: Accuracy table not found")
-    header = accuracy.get("header")
-    if not isinstance(header, list) or len(header) < 2:
-        raise ValueError("HELM: malformed Accuracy header")
-    labels = [cell.get("value") if isinstance(cell, dict) else None for cell in header]
-    if labels[:2] != ["Model/adapter", "Mean win rate"]:
-        raise ValueError("HELM: unexpected Accuracy columns")
 
-    rows = accuracy.get("rows")
-    if not isinstance(rows, list):
-        raise ValueError("HELM: malformed Accuracy rows")
+def _openrouter_page_date(documents):
+    collections = [
+        item for item in documents
+        if isinstance(item, dict)
+        and item.get("@type") == "CollectionPage"
+        and item.get("url") == OPENROUTER_RANKINGS_URL
+    ]
+    if len(collections) != 1:
+        raise ValueError("OpenRouter: expected one rankings CollectionPage")
+    modified = collections[0].get("dateModified")
+    if not isinstance(modified, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}(?:T00:00:00(?:\.000Z|\+00:00))?", modified
+    ):
+        raise ValueError("OpenRouter: invalid page modification date")
+    local_day = modified[:10]
+    try:
+        if date.fromisoformat(local_day).isoformat() != local_day:
+            raise ValueError
+    except ValueError as exc:
+        raise ValueError("OpenRouter: invalid page modification date") from exc
+    return local_day
+
+
+def _openrouter_items(documents):
+    item_lists = [
+        item for item in documents
+        if isinstance(item, dict) and item.get("@type") == "ItemList"
+    ]
+    if len(item_lists) != 1:
+        raise ValueError("OpenRouter: expected one rankings ItemList")
+    item_list = item_lists[0]
+    if item_list.get("name") != "Top LLMs by weekly token usage on OpenRouter":
+        raise ValueError("OpenRouter: unexpected ranking definition")
+    if item_list.get("numberOfItems") != 10:
+        raise ValueError("OpenRouter: expected ten ranked items")
+    if item_list.get("itemListOrder") != "https://schema.org/ItemListOrderDescending":
+        raise ValueError("OpenRouter: expected descending ranking order")
+    elements = item_list.get("itemListElement")
+    if not isinstance(elements, list) or len(elements) != 10:
+        raise ValueError("OpenRouter: malformed ranking items")
     parsed = []
-    seen_models = set()
-    seen_slugs = set()
-    for row in rows:
-        if not isinstance(row, list) or len(row) != len(header):
-            raise ValueError("HELM: malformed Accuracy row")
-        name_cell, score_cell = row[0], row[1]
-        if not isinstance(name_cell, dict) or not isinstance(score_cell, dict):
-            raise ValueError("HELM: malformed Accuracy cells")
-        name = name_cell.get("value")
-        raw_score = score_cell.get("value")
-        if not isinstance(name, str) or not name.strip() or name in seen_models:
-            raise ValueError("HELM: duplicate or empty model")
-        # A missing value means the model is not ranked on this table. It must
-        # not be converted to zero or carried from a differently named row.
-        if isinstance(raw_score, bool) or not isinstance(raw_score, (int, float)):
-            raise ValueError("HELM: incomplete Accuracy row")
-        value = float(raw_score)
-        if not math.isfinite(value) or not 0 <= value <= 1:
-            raise ValueError("HELM: invalid Mean win rate")
-        candidates = by_display_name.get(name, [])
-        if len(candidates) > 1:
-            # The official table gives no adapter/deployment key. Duplicating
-            # one displayed score would invent model identities, so omit this
-            # ambiguous display label while retaining all unambiguous rows.
-            continue
-        if not candidates:
-            raise ValueError("HELM: Accuracy model absent from schema")
-        model = candidates[0]
-        slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-        if not slug or slug in seen_slugs:
-            raise ValueError("HELM: unresolved model slug")
-        release_date_value = model["release_date"]
-        if release_date_value is not None:
-            if not isinstance(release_date_value, str) or not re.fullmatch(
-                r"\d{4}-\d{2}-\d{2}", release_date_value
-            ):
-                raise ValueError("HELM: invalid model release date")
-            try:
-                from datetime import date
-                date.fromisoformat(release_date_value)
-            except ValueError as exc:
-                raise ValueError("HELM: invalid model release date") from exc
-        vendor = model["vendor"]
-        seen_models.add(name)
-        seen_slugs.add(slug)
+    for expected_position, item in enumerate(elements, 1):
+        if not isinstance(item, dict) or item.get("@type") != "ListItem":
+            raise ValueError("OpenRouter: malformed ranking item")
+        if item.get("position") != expected_position:
+            raise ValueError("OpenRouter: non-contiguous ranking positions")
+        name = item.get("name")
+        url = _public_http_url(item.get("item"))
+        if not isinstance(name, str) or not name.strip() or url is None:
+            raise ValueError("OpenRouter: incomplete ranking item")
+        if urlsplit(url).hostname != "openrouter.ai":
+            raise ValueError("OpenRouter: unexpected ranking item host")
+        parsed.append({"position": expected_position, "name": name.strip(), "url": url})
+    if len({item["name"] for item in parsed}) != 10 or len({item["url"] for item in parsed}) != 10:
+        raise ValueError("OpenRouter: duplicate ranking item")
+    return parsed
+
+
+def _openrouter_table(soup):
+    candidates = [
+        table for table in soup.find_all("table")
+        if table.find("caption") is not None
+        and table.find("caption").get_text(" ", strip=True) == _OPENROUTER_CAPTION
+    ]
+    if len(candidates) != 1:
+        raise ValueError("OpenRouter: expected one weekly token table")
+    table = candidates[0]
+    header_rows = table.select("thead tr")
+    if len(header_rows) != 1:
+        raise ValueError("OpenRouter: malformed table header")
+    header = [cell.get_text(" ", strip=True) for cell in header_rows[0].find_all(["th", "td"])]
+    if header != _OPENROUTER_HEADER:
+        raise ValueError("OpenRouter: unexpected weekly token columns")
+    body_rows = table.select("tbody tr")
+    if len(body_rows) != 10:
+        raise ValueError("OpenRouter: expected ten weekly token rows")
+    parsed = []
+    for expected_position, row in enumerate(body_rows, 1):
+        cells = row.find_all(["th", "td"])
+        if len(cells) != 5:
+            raise ValueError("OpenRouter: malformed weekly token row")
+        values = [cell.get_text(" ", strip=True) for cell in cells]
+        if values[0] != str(expected_position):
+            raise ValueError("OpenRouter: unexpected table position")
+        token_match = _OPENROUTER_TOKEN_RE.fullmatch(values[3])
+        if token_match is None:
+            raise ValueError("OpenRouter: invalid weekly token amount")
+        tokens_t = float(token_match.group(1))
+        if not math.isfinite(tokens_t) or tokens_t <= 0:
+            raise ValueError("OpenRouter: weekly token amount must be positive")
         parsed.append({
-            "name": name,
-            "slug": slug,
-            "vendor": vendor.strip() if isinstance(vendor, str) and vendor.strip() else None,
-            "params_b": model["params_b"],
-            "score": value * 100,
-            "rank": 0,
+            "position": expected_position,
+            "name": values[1],
+            "author": values[2],
+            "tokens_t": tokens_t,
+            "change": values[4],
+        })
+    previous = None
+    for item in parsed:
+        if previous is not None and item["tokens_t"] > previous:
+            raise ValueError("OpenRouter: weekly token amounts are not descending")
+        previous = item["tokens_t"]
+    return parsed
+
+
+def parse_openrouter_rankings(
+    html: str,
+    *,
+    today: date | None = None,
+    max_age_days: int = 7,
+) -> tuple[list[dict], str]:
+    """Parse OpenRouter's current weekly token-usage ranking.
+
+    The visible table and JSON-LD ItemList must agree. The page modification
+    date must be no more than one week old and is exposed separately as
+    upstream metadata. It is not an evaluation date and is never inferred from
+    fetch time.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    documents = _openrouter_json_ld(soup)
+    upstream_date = _openrouter_page_date(documents)
+    items = _openrouter_items(documents)
+    table_rows = _openrouter_table(soup)
+    for item, row in zip(items, table_rows):
+        if (
+            item["position"] != row["position"]
+            or item["name"] != row["name"]
+        ):
+            raise ValueError("OpenRouter: JSON-LD and table rows differ")
+
+    observed = today or datetime.now(timezone.utc).date()
+    page_day = date.fromisoformat(upstream_date)
+    if page_day > observed:
+        raise ValueError("OpenRouter: page date is in the future")
+    age_days = (observed - page_day).days
+    if age_days > max_age_days:
+        raise ValueError("OpenRouter: weekly usage ranking is stale")
+
+    rows = []
+    for item, table_row in zip(items, table_rows):
+        rows.append({
+            "name": item["name"],
+            "slug": item["url"].rstrip("/").rsplit("/", 1)[-1],
+            "vendor": table_row["author"],
+            "score": table_row["tokens_t"],
+            "rank": item["position"],
             "score_ci": None,
             "votes": None,
             "license": None,
@@ -454,7 +492,7 @@ def parse_helm_classic(summary, schema, tables):
             "price_in": None,
             "price_out": None,
             "currency": "USD",
-            "source_url": HELM_PAGE_URL,
-            "release_date": release_date_value,
+            "source_url": item["url"],
+            "weekly_change": table_row["change"],
         })
-    return _competition_rank(parsed)
+    return rows, upstream_date

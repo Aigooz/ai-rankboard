@@ -36,14 +36,12 @@
 - 许可证：Apache License 2.0；原文：<https://github.com/laude-institute/terminal-bench/blob/main/LICENSE>
 - 聚合处理：保留 Agent、模型、推理档位和官方 95% 置信区间；缺少任一配置字段时拒绝整榜更新，不把 Agent 成绩写成模型独立能力。页面结构变化会让该来源失败并保留旧数据。
 
-## Stanford HELM Classic
+## OpenRouter 近期使用趋势
 
-- 项目与归属：Stanford CRFM / HELM；完整著作权及条款以原仓库许可证为准。
-- 官方入口：<https://crfm.stanford.edu/helm/classic/latest/>
-- 固定评测版本：`v0.4.0`（2023-11-17）。这是历史评测版本，不是本站抓取日期，也不代表持续评测了最新模型。
-- 原始数据：<https://storage.googleapis.com/crfm-helm-public/classic/benchmark_output/releases/v0.4.0/groups/core_scenarios.json>
-- 元数据：同版本 `schema.json` 与 `summary.json`。
-- 许可证：Apache License 2.0；原文：<https://github.com/stanford-crfm/helm/blob/main/LICENSE>
-- 聚合处理：只读取 `Accuracy` 表的 `Mean win rate`，按官方值 0–1 存储为 0–100 的百分数并展示 `%`。该值是模型两两胜出的平均比例，**不是任务准确率**，也不与其他榜分数合并。并列分数共享同一名次；显示名在官方 schema 中对应多个部署而表内没有部署键时，保留不含歧义的行并跳过歧义行，不复制或猜测身份。
+- 项目与归属：OpenRouter；完整著作权及条款以原始站点说明为准。
+- 官方入口：<https://openrouter.ai/rankings>
+- 数据范围：官方页面当前展示的使用周 Top 10，按处理的 tokens 降序排列；页面同时提供周环比。
+- 聚合处理：同时读取页面卡片与 JSON-LD 排名，要求名次、模型名及顺序完全一致；只接受最近一周页面，严格拒绝未来日期、超过 7 天、数值异常或结构变化的数据。无法确认身份时不猜测。
+- 口径：仅反映 OpenRouter 聚合网关内的 token 使用变化，**不代表模型能力、质量、市场份额或全球调用量**；不与能力榜分数混合，也不用于生成跨榜综合排名。
 
 以上仅说明新增来源；并非本项目自身的开源授权声明。原始许可证副本已随 APK 资产分发，并在网页保留 [Aider 许可证](../web/licenses/Aider-Apache-2.0.txt) 与 [EvalPlus 许可证](../web/licenses/EvalPlus-Apache-2.0.txt)。Apache License 2.0 正文见 <https://www.apache.org/licenses/LICENSE-2.0>。

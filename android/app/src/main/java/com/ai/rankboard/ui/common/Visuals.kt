@@ -43,7 +43,6 @@ fun sourceVisual(sourceId: String): SourceVisual {
         id == "livebench" -> SourceVisual("LiveBench", "LB", Color(0xFF14B8A6))
         id == "bfcl" -> SourceVisual("BFCL", "FC", Color(0xFFC2410C))
         id == "terminal_bench" -> SourceVisual("Terminal-Bench", "TB", Color(0xFF7C3AED))
-        id == "helm" -> SourceVisual("Stanford HELM Classic", "HC", Color(0xFF0F766E))
         id == "swebench" || id == "swe-bench" -> SourceVisual("SWE-bench", "SB", Color(0xFF2563EB))
         id == "artificialanalysis" || id == "artificial-analysis" ->
             SourceVisual("Artificial Analysis", "AA", Color(0xFF7C3AED))
@@ -61,9 +60,9 @@ fun boardSourceId(boardSlug: String, fallback: String = "modelsage"): String = w
     boardSlug.startsWith("livebench") -> "livebench"
     boardSlug.startsWith("bfcl") -> "bfcl"
     boardSlug.startsWith("terminal-bench") -> "terminal_bench"
-    boardSlug.startsWith("helm-classic") -> "helm"
     boardSlug.startsWith("swe-bench") -> "swebench"
-    boardSlug.startsWith("arena") -> "arena"
+    boardSlug.startsWith("arena") -> "modelsage"
+    boardSlug == "openrouter-weekly-usage" -> "openrouter"
     else -> fallback
 }
 

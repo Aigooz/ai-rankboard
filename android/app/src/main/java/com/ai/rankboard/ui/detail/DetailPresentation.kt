@@ -38,8 +38,20 @@ internal fun estimatePrice(score: ScoreDto, inputText: String, outputText: Strin
 
 /** Stable reference, not the numerically largest result across unrelated benchmarks. */
 internal fun primaryDetailScore(scores: List<ScoreDto>): ScoreDto? =
-    scores.firstOrNull { it.boardSlug == "overall" && it.score?.isFinite() == true }
-        ?: scores.firstOrNull { it.score?.isFinite() == true }
+    scores.firstOrNull {
+        it.boardSlug == "overall" && it.dimension != "usage" && it.score?.isFinite() == true
+    } ?: scores.firstOrNull { it.dimension != "usage" && it.score?.isFinite() == true }
+
+internal fun usageScore(score: ScoreDto): Boolean =
+    score.dimension == "usage" || score.boardSlug == "openrouter-weekly-usage"
+
+internal fun usageScoreValue(score: ScoreDto): String {
+    val value = score.score?.takeIf { it.isFinite() }?.let {
+        String.format(Locale.US, if (it == it.toLong().toDouble()) "%.0f" else "%.1f", it)
+    } ?: return "使用量未获取"
+    val unit = score.board?.metric?.unit?.takeIf { it.isNotBlank() } ?: "万亿 tokens/周"
+    return "$value $unit"
+}
 
 internal fun detailSpecifications(model: ModelDetailDto): List<Pair<String, String?>> = listOf(
     "上下文" to model.contextWindow?.takeIf { it.isNotBlank() },

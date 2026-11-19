@@ -114,6 +114,7 @@ data class EntryDto(
     @SerializedName("release_date") val releaseDate: String? = null,
     val rank: Int = 0,
     val score: Double? = null,
+    @SerializedName("weekly_change") val weeklyChange: String? = null,
     @SerializedName("score_ci") val scoreCi: Double? = null,
     val votes: Int? = null,
     @SerializedName("price_in") val priceIn: Double? = null,

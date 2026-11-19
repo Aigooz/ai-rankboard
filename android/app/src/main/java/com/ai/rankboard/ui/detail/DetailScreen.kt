@@ -402,7 +402,7 @@ private fun ScoreCard(
                     )
                 }
                 Text(
-                    text = score.score?.let {
+                    text = if (usageScore(score)) usageScoreValue(score) else score.score?.let {
                         String.format(Locale.US, "%.1f", it) +
                             if (score.scoreCi != null) " ±${score.scoreCi}" else ""
                     } ?: "未获取",
@@ -413,12 +413,16 @@ private fun ScoreCard(
             }
             Text("抓取 ${score.fetchedAt.take(10).ifBlank { "未获取" }}", style = MaterialTheme.typography.labelSmall)
             Text(
-                "分数范围仅用于本榜内定位，不与其他榜单横向比较",
+                if (usageScore(score)) {
+                    "仅表示 OpenRouter 聚合平台内的使用趋势，不代表能力、质量、市场份额或全球调用量"
+                } else {
+                    "分数范围仅用于本榜内定位，不与其他榜单横向比较"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             com.ai.rankboard.ui.common.BoardTrustCard(score.board, generatedAt = generatedAt)
-            ScoreBar(
+            if (!usageScore(score)) ScoreBar(
                 score = score.score,
                 minScore = score.scoreMin,
                 maxScore = score.scoreMax,

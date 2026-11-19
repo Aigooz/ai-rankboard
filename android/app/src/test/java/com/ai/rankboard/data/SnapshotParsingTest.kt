@@ -35,6 +35,7 @@ class SnapshotParsingTest {
             "release_date": "2025-08-07",
             "rank": 1,
             "score": 90.5,
+            "weekly_change": "+17%",
             "score_ci": null,
             "votes": null,
             "price_in": 1.0,
@@ -82,6 +83,28 @@ class SnapshotParsingTest {
     }
 
     @Test
+    fun bundledSnapshotUsesLiveOpenRouterTrendAndNoHelm() {
+        val asset = java.io.File("src/main/assets/leaderboards.json").takeIf { it.isFile }
+            ?: java.io.File("app/src/main/assets/leaderboards.json")
+        val snapshot = Gson().fromJson(asset.readText(), Snapshot::class.java)
+        val usageBoards = snapshot.boards.filter { it.dimension == "usage" }
+        assertEquals(listOf("openrouter-weekly-usage"), usageBoards.map { it.slug })
+        assertTrue(snapshot.sources.none { it.id.equals("helm", ignoreCase = true) })
+        assertTrue(snapshot.sources.any { it.id == "openrouter" })
+        val rows = snapshot.entriesByBoard["openrouter-weekly-usage"].orEmpty()
+        assertEquals(10, rows.size)
+        assertTrue(rows.all { it.weeklyChange?.isNotBlank() == true })
+        val upstream = usageBoards.single().evaluation?.upstreamUpdatedAt
+        assertNotNull(upstream)
+        assertTrue(upstream!!.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+        val age = java.time.temporal.ChronoUnit.DAYS.between(
+            java.time.LocalDate.parse(upstream),
+            java.time.LocalDate.parse(snapshot.generatedAt.take(10)),
+        )
+        assertTrue(age in 0L..7L)
+    }
+
+    @Test
     fun parseSnapshotSchemaV3() {
         val snapshot = Gson().fromJson(json, Snapshot::class.java)
 
@@ -92,6 +115,7 @@ class SnapshotParsingTest {
         assertEquals("GPT-4", snapshot.models["gpt-4"]?.displayName)
         assertEquals("2025-08-07", snapshot.entriesByBoard["overall"]?.first()?.releaseDate)
         assertEquals(90.5, snapshot.entriesByBoard["overall"]?.first()?.score!!, 0.001)
+        assertEquals("+17%", snapshot.entriesByBoard["overall"]?.first()?.weeklyChange)
     }
 
     @Test

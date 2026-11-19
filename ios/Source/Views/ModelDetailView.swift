@@ -9,12 +9,27 @@ struct ModelDetailView: View {
         snapshot.models[entry.slug]
     }
 
-    private var scores: [(board: Board, entry: Entry)] {
+    private var abilityScores: [(board: Board, entry: Entry)] {
         snapshot.boards.compactMap { board in
+            guard board.dimension != "usage" else { return nil }
             let matching = snapshot.entries(board: board.slug).first { $0.slug == entry.slug }
             return matching.map { (board, $0) }
         }
         .sorted { $0.entry.rank < $1.entry.rank }
+    }
+
+    private var usageScore: (board: Board, entry: Entry)? {
+        snapshot.boards.compactMap { board -> (Board, Entry)? in
+            guard board.dimension == "usage" else { return nil }
+            guard let matching = snapshot.entries(board: board.slug).first(where: { $0.slug == entry.slug }) else {
+                return nil
+            }
+            return (board, matching)
+        }
+        .sorted { left, right in
+            left.1.rank == right.1.rank ? left.0.slug < right.0.slug : left.1.rank < right.1.rank
+        }
+        .first
     }
 
     var body: some View {
@@ -75,9 +90,37 @@ struct ModelDetailView: View {
                 }
             }
 
-            if !scores.isEmpty {
+            if let usage = usageScore {
+                Section("使用趋势") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(usage.board.name)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(2)
+                            Spacer()
+                            Text(usageValue(usage.entry.score, unit: usage.board.metric?.unit))
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                        }
+                        Text("排名 #\(usage.entry.rank) · 仅本榜 · 上游 \(usage.board.evaluation?.upstreamUpdatedAt?.prefix(10) ?? "未提供")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let change = usage.entry.weeklyChange, !change.isEmpty {
+                            Text(change.lowercased() == "new" ? "本周新进" : "周环比 \(change)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(change.hasPrefix("+") ? Color.green : change.hasPrefix("-") ? Color.red : .secondary)
+                        }
+                        Text(usage.board.metric?.description ?? "仅代表 OpenRouter 聚合平台内的使用趋势，不代表模型能力、质量、市场份额或全球调用量。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            if !abilityScores.isEmpty {
                 Section("各榜单得分") {
-                    ForEach(scores, id: \.board.slug) { item in
+                    ForEach(abilityScores, id: \.board.slug) { item in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(item.board.name)
@@ -134,5 +177,11 @@ struct ModelDetailView: View {
         default:
             return "\(amount) \(currency.uppercased()) / 1M"
         }
+    }
+
+    private func usageValue(_ value: Double?, unit: String?) -> String {
+        guard let value else { return "使用量未获取" }
+        let formatted = value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+        return "\(formatted) \(unit?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? unit! : "万亿 tokens/周")"
     }
 }

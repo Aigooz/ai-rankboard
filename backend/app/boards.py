@@ -49,10 +49,9 @@ BOARDS.extend([
      "release": "Terminal-Bench 4.1",
      "url": "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
             "?tab=leaderboard&leaderboard=4-1-0"},
-    {"slug": "helm-classic-accuracy", "name": "HELM Classic 综合", "dimension": "overall",
-     "score_type": "helm_classic", "kind": "helm_classic", "source_id": "helm",
-     "release": "HELM Classic v0.4.0 (2023-11-17)",
-     "url": "https://crfm.stanford.edu/helm/classic/latest/"},
+    {"slug": "openrouter-weekly-usage", "name": "OpenRouter 近期使用趋势", "dimension": "usage",
+     "score_type": "openrouter_usage", "kind": "openrouter_usage", "source_id": "openrouter",
+     "url": "https://openrouter.ai/rankings"},
 ])
 
 BOARD_BY_SLUG = {b["slug"]: b for b in BOARDS}

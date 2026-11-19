@@ -26,6 +26,7 @@ data class HomeTab(val dimension: String, val label: String)
 
 val HOME_TABS = listOf(
     HomeTab("overall", "综合榜"),
+    HomeTab("usage", "使用趋势"),
     HomeTab("coding", "代码榜"),
     HomeTab("writing", "写作榜"),
     HomeTab("multimodal", "多模态榜"),
@@ -269,6 +270,21 @@ class HomeViewModel(
                 return@launch
             }
             val allBoards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
+            if (dimension == "usage" && allBoards.size == 1) {
+                val board = allBoards.single()
+                _state.update {
+                    it.copy(
+                        allBoardsForTab = allBoards,
+                        boardsForTab = allBoards,
+                        selectedBoard = board.slug,
+                        sourceFilter = null,
+                        loading = false,
+                    )
+                }
+                loadVendorOptions(board.slug)
+                refresh(showLoading = true)
+                return@launch
+            }
             val preferredSource = _state.value.sourceFilter
             val filtered = com.ai.rankboard.data.filterBoardsBySource(allBoards, preferredSource)
             val effectiveSource = when {
@@ -382,6 +398,7 @@ class HomeViewModel(
         sourceUrl = sourceUrl,
         rank = rank,
         score = score,
+        weeklyChange = weeklyChange,
         priceIn = priceIn,
         priceOut = priceOut,
         currency = currency,

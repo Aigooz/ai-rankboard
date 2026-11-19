@@ -14,6 +14,23 @@ class DetailHierarchyTest {
         assertEquals(overall, primaryDetailScore(listOf(arena, overall)))
         assertEquals(arena, primaryDetailScore(listOf(arena)))
         assertNull(primaryDetailScore(listOf(score("overall", null), score("invalid", Double.NaN))))
+        assertNull(primaryDetailScore(listOf(ScoreDto(
+            "openrouter-weekly-usage", "Usage", "usage", "openrouter_usage", 1, score = 62.1,
+        ))))
+        assertEquals("coding", primaryDetailScore(listOf(
+            ScoreDto("openrouter-weekly-usage", "Usage", "usage", "openrouter_usage", 1, score = 62.1),
+            ScoreDto("coding", "Coding", "coding", "index", 2, score = 73.0),
+        ))?.boardSlug)
+    }
+
+    @Test fun usageScoresShowUnitAndNeverUseAbilityRangeCopy() {
+        val usage = ScoreDto(
+            "openrouter-weekly-usage", "OpenRouter 周 token 使用趋势", "usage",
+            "openrouter_usage", 1, score = 62.1,
+        )
+        assertTrue(usageScore(usage))
+        assertEquals("62.1 万亿 tokens/周", usageScoreValue(usage))
+        assertFalse(usageScore(score("overall", 72.0)))
     }
 
     @Test fun unknownSpecificationsAreSeparatedWithoutInventingReleaseDate() {

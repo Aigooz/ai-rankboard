@@ -105,6 +105,7 @@ class LeaderboardRepository(
         sourceUrl = sourceUrl,
         rank = rank,
         score = score,
+        weeklyChange = weeklyChange,
         priceIn = priceIn,
         priceOut = priceOut,
         currency = currency,

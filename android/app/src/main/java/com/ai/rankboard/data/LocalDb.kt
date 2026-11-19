@@ -28,6 +28,7 @@ data class CachedEntryEntity(
     val sourceUrl: String? = null,
     val rank: Int,
     val score: Double?,
+    val weeklyChange: String? = null,
     val priceIn: Double?,
     val priceOut: Double?,
     val currency: String,
@@ -74,7 +75,7 @@ interface LeaderboardDao {
     suspend fun clearCachedEntries()
 }
 
-@Database(entities = [CachedEntryEntity::class, FavoriteEntity::class], version = 2, exportSchema = false)
+@Database(entities = [CachedEntryEntity::class, FavoriteEntity::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): LeaderboardDao
 
@@ -99,9 +100,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE cached_entries ADD COLUMN weeklyChange TEXT",
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "rankboard.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

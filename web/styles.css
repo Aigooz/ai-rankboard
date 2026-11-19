@@ -1075,6 +1075,121 @@ select:focus-visible,
   background: linear-gradient(90deg, var(--accent-1), var(--accent-2) 62%, var(--accent-3));
 }
 
+.usage-control-panel {
+  grid-template-columns: minmax(220px, 1fr);
+}
+
+.usage-board-head {
+  align-items: flex-start;
+}
+
+.usage-period {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-ranking-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.usage-rank-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(92px, auto) 54px;
+  gap: 7px 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--surface-row);
+  cursor: pointer;
+  transition: background .18s ease;
+}
+
+.usage-rank-row:hover,
+.usage-rank-row:focus-visible {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-row));
+}
+
+.usage-rank-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.usage-rank-badge {
+  justify-self: start;
+}
+
+.usage-rank-model {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.usage-rank-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.usage-rank-copy .model-name {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.usage-rank-copy .model-vendor {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-rank-value {
+  justify-self: end;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.usage-rank-value small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.usage-rank-row > .usage-change {
+  justify-self: end;
+  margin: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-rank-bar {
+  grid-column: 2 / -1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-highest) 72%, transparent);
+}
+
+.usage-rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2) 62%, var(--accent-3));
+}
+
 .distribution-list {
   display: grid;
   gap: 10px;
@@ -1770,6 +1885,23 @@ button, .app-nav a { touch-action: manipulation; }
   .board-context { border-radius: 14px; padding: 12px; }
   .board-context-heading h2 { font-size: 18px; }
   .board-context-facts { grid-template-columns: 1fr; }
+  .usage-period { white-space: normal; }
+  .usage-rank-row {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    padding: 10px;
+  }
+  .usage-rank-row > .usage-change {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: center;
+  }
+  .usage-rank-value {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .usage-rank-bar {
+    grid-column: 2 / -1;
+  }
   .footer-inner {
     flex-wrap: wrap;
     align-items: flex-start;

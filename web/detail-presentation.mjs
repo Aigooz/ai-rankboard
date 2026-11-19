@@ -53,7 +53,7 @@ export function scoreUnit(board = {}) {
   if (typeof unit === 'string' && unit.trim()) return unit.trim();
   const type = board.scoreType || board.score_type;
   if (type === 'arena_elo') return 'Elo';
-  if (['livebench','swebench','swe_bench','evalplus','aider_polyglot','helm_classic'].includes(type) || String(board.slug || '').startsWith('swe-bench')) return '%';
+  if (['livebench','swebench','swe_bench','evalplus','aider_polyglot'].includes(type) || String(board.slug || '').startsWith('swe-bench')) return '%';
   return null;
 }
 export function vendorKey(value) {
@@ -61,7 +61,8 @@ export function vendorKey(value) {
   return ['','unknown','unknown vendor','未知','未知厂商','未获取','n/a','na','-','—'].includes(key) ? '' : key;
 }
 export function primaryDetailScore(scores = []) {
-  const valid = scores.filter(item => Number.isFinite(item.score));
+  const valid = scores.filter(item => Number.isFinite(item.score)
+    && (item.dimension || item.boardSlug) !== 'usage');
   return valid.find(item => item.boardSlug === 'overall')
     || valid.slice().sort((a,b) => a.boardSlug.localeCompare(b.boardSlug))[0] || null;
 }

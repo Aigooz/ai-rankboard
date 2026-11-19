@@ -51,8 +51,24 @@ struct Board: Codable, Hashable, Identifiable {
     var url: String?
     var lastSuccessAt: String?
     var modelCount = 0
+    var metric: BoardMetric?
+    var evaluation: BoardEvaluation?
 
     var id: String { slug }
+}
+
+struct BoardMetric: Codable, Hashable {
+    var name: String?
+    var description: String?
+    var unit: String?
+    var higherIsBetter: Bool?
+    var comparableAcrossBoards: Bool?
+}
+
+struct BoardEvaluation: Codable, Hashable {
+    var version: String?
+    var versionSource: String?
+    var upstreamUpdatedAt: String?
 }
 
 struct Entry: Codable, Hashable, Identifiable {
@@ -65,6 +81,7 @@ struct Entry: Codable, Hashable, Identifiable {
     var releaseDate: String?
     var rank = 0
     var score: Double?
+    var weeklyChange: String?
     var scoreCi: Double?
     var votes: Int?
     var priceIn: Double?
@@ -130,6 +147,8 @@ extension Board {
         case url
         case lastSuccessAt = "last_success_at"
         case modelCount = "model_count"
+        case metric
+        case evaluation
     }
 
     init(from decoder: Decoder) throws {
@@ -142,6 +161,8 @@ extension Board {
         url = try container.decodeIfPresent(String.self, forKey: .url)
         lastSuccessAt = try container.decodeIfPresent(String.self, forKey: .lastSuccessAt)
         modelCount = try container.decodeDefaultedInt(.modelCount, defaultValue: 0)
+        metric = try container.decodeIfPresent(BoardMetric.self, forKey: .metric)
+        evaluation = try container.decodeIfPresent(BoardEvaluation.self, forKey: .evaluation)
     }
 }
 
@@ -156,6 +177,7 @@ extension Entry {
         case releaseDate = "release_date"
         case rank
         case score
+        case weeklyChange = "weekly_change"
         case scoreCi = "score_ci"
         case votes
         case priceIn = "price_in"
@@ -176,6 +198,7 @@ extension Entry {
         releaseDate = try container.decodeIfPresent(String.self, forKey: .releaseDate)
         rank = try container.decodeDefaultedInt(.rank, defaultValue: 0)
         score = try container.decodeIfPresent(Double.self, forKey: .score)
+        weeklyChange = try container.decodeIfPresent(String.self, forKey: .weeklyChange)
         scoreCi = try container.decodeIfPresent(Double.self, forKey: .scoreCi)
         votes = try container.decodeIfPresent(Int.self, forKey: .votes)
         priceIn = try container.decodeIfPresent(Double.self, forKey: .priceIn)

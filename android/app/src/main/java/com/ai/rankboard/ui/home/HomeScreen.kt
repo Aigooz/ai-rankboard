@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -63,6 +65,7 @@ import com.ai.rankboard.ui.common.SearchField
 import com.ai.rankboard.ui.common.SectionHeader
 import com.ai.rankboard.ui.common.SourceBadge
 import com.ai.rankboard.ui.common.VendorIcon
+import com.ai.rankboard.ui.common.openUrl
 import com.ai.rankboard.ui.common.scoreColor
 import java.util.Locale
 
@@ -150,6 +153,13 @@ fun HomeScreen(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
+                }
+                state.tab == "usage" -> {
+                    UsageRankingView(
+                        state = state,
+                        onOpenModel = onOpenModel,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
                 !state.loading && state.entries.isEmpty() -> {
                     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -258,19 +268,284 @@ fun HomeScreen(
 
     if (filterSheetOpen) {
         ModalBottomSheet(onDismissRequest = { filterSheetOpen = false }) {
-            FilterSheet(
-                state = state,
-                sort = state.sort,
-                onSelectSort = vm::setSort,
-                onSelectBoard = vm::selectBoard,
-                onSelectPeriod = vm::setPeriod,
-                onSelectVendor = vm::setVendorFilter,
-                onSelectLicense = vm::setLicenseFilter,
-                onSelectRegion = vm::setRegionFilter,
-                onClear = vm::clearValueFilters,
+            if (state.tab == "usage") {
+                UsageFilterSheet(
+                    query = state.query,
+                    onQueryChange = vm::setQuery,
+                )
+            } else {
+                FilterSheet(
+                    state = state,
+                    sort = state.sort,
+                    onSelectSort = vm::setSort,
+                    onSelectBoard = vm::selectBoard,
+                    onSelectPeriod = vm::setPeriod,
+                    onSelectVendor = vm::setVendorFilter,
+                    onSelectLicense = vm::setLicenseFilter,
+                    onSelectRegion = vm::setRegionFilter,
+                    onClear = vm::clearValueFilters,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UsageRankingView(
+    state: HomeUiState,
+    onOpenModel: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val board = state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
+        ?: state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
+    val entries = state.entries
+    val maxTokens = entries.maxOfOrNull { it.score ?: 0.0 }?.takeIf { it > 0 } ?: 1.0
+    val source = board?.source
+    val upstream = board?.evaluation?.upstreamUpdatedAt
+    val sourceUrl = board?.url?.takeIf(String::isNotBlank)
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(key = "usage-provenance") {
+            Surface(
+                shape = RoundedCornerShape(9.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        SourceBadge(sourceId = "openrouter", selected = true)
+                        Text(
+                            "周 token 使用趋势",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        TextButton(
+                            onClick = { sourceUrl?.let { openUrl(context, it) } },
+                            enabled = sourceUrl != null,
+                        ) {
+                            Text("原始榜 ↗", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Text(
+                        "上游更新时间：${upstreamDateLabel(upstream)}。抓取时间不替代上游更新时间。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "仅统计 OpenRouter 聚合网关，不代表模型能力、质量、市场份额或全球调用量。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        item(key = "usage-header") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "近期使用榜",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        board?.metric?.name ?: "OpenRouter 周 token 使用量",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    "${entries.size} 个条目",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (entries.isEmpty()) {
+            item(key = "usage-empty") {
+                Text(
+                    if (state.offline) "无网络且无本地缓存，请联网后下拉刷新" else "暂无可用的周 token 使用数据",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            }
+        } else {
+            items(entries, key = { "usage-${it.slug}" }) { entry ->
+                UsageRankRow(
+                    entry = entry,
+                    maxTokens = maxTokens,
+                    onClick = { onOpenModel(entry.slug) },
+                )
+            }
+        }
+        item(key = "usage-footer") {
+            Text(
+                "来源：${source?.name ?: "OpenRouter"} · 指标：万亿 tokens/周",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 12.dp),
             )
         }
     }
+}
+
+@Composable
+private fun UsageRankRow(
+    entry: EntryDto,
+    maxTokens: Double,
+    onClick: () -> Unit,
+) {
+    val ratio = ((entry.score ?: 0.0) / maxTokens).coerceIn(0.0, 1.0).toFloat()
+    AppCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                RankBadge(rank = entry.rank, width = 34.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = parseModelStrength(entry.displayName).first,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = entry.vendor?.takeIf(String::isNotBlank) ?: "作者未提供",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = entry.score?.let { String.format(Locale.US, "%.2f", it) } ?: "-",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "万亿 tokens/周",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
+                            RoundedCornerShape(percent = 50),
+                        ),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(ratio)
+                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(percent = 50)),
+                    )
+                }
+                Text(
+                    text = weeklyChangeLabel(entry.weeklyChange),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = weeklyChangeColor(entry.weeklyChange),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UsageFilterSheet(
+    query: String,
+    onQueryChange: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "筛选",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        SearchField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = "搜索模型或作者",
+        )
+        Text(
+            "使用趋势榜只按 OpenRouter 官方名次展示，不提供跨榜分数排序。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun upstreamDateLabel(value: String?): String {
+    val date = value?.trim()?.takeIf { it.isNotEmpty() } ?: return "未提供"
+    val parsed = runCatching { java.time.LocalDate.parse(date.take(10)) }.getOrNull()
+        ?: return "$date（日期格式无法解析）"
+    val age = java.time.temporal.ChronoUnit.DAYS.between(parsed, java.time.LocalDate.now())
+    return when {
+        age < 0 -> "$date（日期晚于设备时间）"
+        age == 0L -> "$date（今天）"
+        else -> "$date（$age 天前）"
+    }
+}
+
+private fun weeklyChangeLabel(value: String?): String = when {
+    value.isNullOrBlank() -> "环比未提供"
+    value.equals("new", ignoreCase = true) -> "本周新进"
+    else -> "周环比 $value"
+}
+
+@Composable
+private fun weeklyChangeColor(value: String?): Color = when {
+    value.isNullOrBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
+    value.equals("new", ignoreCase = true) -> MaterialTheme.colorScheme.primary
+    value.startsWith("+") -> Color(0xFF15803D)
+    value.startsWith("-") -> Color(0xFFBE123C)
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 /** 榜单/时间区间与排序的快捷芯片：高频操作不再需要打开筛选弹层。 */

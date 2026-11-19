@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .boards import BOARD_BY_SLUG, LIVEBENCH
-from .db import get_conn
+from .db import get_conn, init_db
 from .store import HISTORY_LIMIT, HISTORY_ENTRY_LIMIT
 from .trust import health_info, metric_info
 from .benchmark_references import HLE_REFERENCE
@@ -40,12 +40,14 @@ SOURCES = [
      "url": "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
             "?tab=leaderboard&leaderboard=4-1-0",
      "license": "Apache-2.0", "licenseUrl": "https://github.com/laude-institute/terminal-bench/blob/main/LICENSE"},
-    {"id": "helm", "name": "Stanford HELM Classic", "url": "https://crfm.stanford.edu/helm/classic/latest/",
-     "license": "Apache-2.0", "licenseUrl": "https://github.com/stanford-crfm/helm/blob/main/LICENSE"},
+    {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/rankings"},
 ]
 
 
 def build_snapshot() -> dict:
+    # Direct CLI exports and tests can use a database created by an older
+    # schema. Run the idempotent migrations before querying new columns.
+    init_db()
     board_source = {
         "aa_index": "modelsage",
         "arena_elo": "modelsage",
@@ -55,9 +57,23 @@ def build_snapshot() -> dict:
         "evalplus": "evalplus",
         "bfcl": "bfcl",
         "terminal_bench": "terminal_bench",
-        "helm_classic": "helm",
+        "openrouter_usage": "openrouter",
     }
+    current_slugs = list(BOARD_BY_SLUG)
+    placeholders = ",".join("?" for _ in current_slugs)
     with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT slug, name, dimension, score_type, url, last_success_at,
+                   last_attempt_at, last_status, last_error, evaluation_version,
+                   upstream_updated_at, score_metadata,
+                   (SELECT COUNT(*) FROM scores s WHERE s.board_slug = b.slug) AS model_count
+            FROM boards b
+            WHERE b.slug IN ({placeholders})
+            ORDER BY b.slug
+            """,
+            current_slugs,
+        ).fetchall()
         boards = [
             {
                 **dict(row),
@@ -68,16 +84,7 @@ def build_snapshot() -> dict:
                     if row["slug"] in BOARD_BY_SLUG and key in BOARD_BY_SLUG[row["slug"]]
                 },
             }
-            for row in conn.execute(
-                """
-                SELECT slug, name, dimension, score_type, url, last_success_at,
-                       last_attempt_at, last_status, last_error, evaluation_version,
-                       (SELECT COUNT(*) FROM scores s WHERE s.board_slug = b.slug) AS model_count
-                FROM boards b
-                WHERE b.score_type NOT IN ('hle', 'hle_diamond')
-                ORDER BY b.slug
-                """
-            )
+            for row in rows
         ]
         history = {board["slug"]: [] for board in boards}
         now = datetime.now(timezone.utc)
@@ -89,6 +96,7 @@ def build_snapshot() -> dict:
             history[board["slug"]] = [
                 {"fetchedAt": row["fetched_at"], "modelCount": row["model_count"],
                  "evaluationVersion": row["evaluation_version"],
+                 "upstreamUpdatedAt": row["upstream_updated_at"],
                  "truncated": row["model_count"] > HISTORY_ENTRY_LIMIT,
                  "entries": json.loads(row["entries_json"])[:HISTORY_ENTRY_LIMIT]}
                 for row in reversed(observations)
@@ -101,11 +109,12 @@ def build_snapshot() -> dict:
             )
             board["source"] = {**source, "url": board["url"]}
             version = board.pop("evaluation_version")
+            upstream_updated_at = board.pop("upstream_updated_at")
             if "release" in board:
                 board["release"] = version
             board["evaluation"] = {"version": version,
                                    "versionSource": "registry" if version else None,
-                                   "upstreamUpdatedAt": None}
+                                   "upstreamUpdatedAt": upstream_updated_at}
             # Old flat fields remain available; never expose raw legacy errors.
             board["last_error"] = board["health"]["error"]
 
@@ -123,20 +132,25 @@ def build_snapshot() -> dict:
                 "updated_at": row["updated_at"],
             }
             for row in conn.execute(
-                """
+                f"""
                 SELECT slug, display_name, vendor, params_b, license, context_window,
                        source_url, release_date, release_date_source_url, updated_at
                 FROM models
                 WHERE slug IN (
                     SELECT s.model_slug FROM scores s JOIN boards b ON b.slug=s.board_slug
-                    WHERE b.score_type NOT IN ('hle', 'hle_diamond')
+                    WHERE b.slug IN ({placeholders})
                 )
                 ORDER BY slug
-                """
+                """,
+                current_slugs,
             )
         }
 
         entries = defaultdict(list)
+        metadata_by_board = {
+            board["slug"]: json.loads(board.pop("score_metadata") or "{}")
+            for board in boards
+        }
         query = """
             SELECT s.*, m.display_name, m.slug, m.vendor, m.params_b,
                    m.license, m.context_window, m.release_date
@@ -148,8 +162,7 @@ def build_snapshot() -> dict:
             item = dict(row)
             if item["board_slug"] not in history:
                 continue
-            entries[item["board_slug"]].append(
-                {
+            entry = {
                     "slug": item["slug"],
                     "display_name": item["display_name"],
                     "vendor": item["vendor"],
@@ -166,9 +179,16 @@ def build_snapshot() -> dict:
                     "currency": item["currency"],
                     "fetched_at": item["fetched_at"],
                 }
-            )
+            weekly_change = metadata_by_board.get(
+                item["board_slug"], {}
+            ).get("weekly_changes", {}).get(item["slug"])
+            if weekly_change is not None:
+                entry["weekly_change"] = weekly_change
+            entries[item["board_slug"]].append(entry)
         for board in boards:
             entries.setdefault(board["slug"], [])
+        for slug in current_slugs:
+            entries.setdefault(slug, [])
 
         usage_rows = conn.execute("SELECT * FROM usage_ranking ORDER BY position").fetchall()
         usage = None
@@ -242,6 +262,9 @@ def build_snapshot() -> dict:
         snapshot["usageRanking"] = usage
     if news:
         snapshot["news"] = news
+    snapshot["boards"] = [
+        board for board in boards if board["slug"] in BOARD_BY_SLUG
+    ]
     return snapshot
 
 

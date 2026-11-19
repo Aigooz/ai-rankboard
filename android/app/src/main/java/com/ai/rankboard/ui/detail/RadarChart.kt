@@ -231,7 +231,7 @@ internal fun selectRadarScores(scores: List<ScoreDto>): List<ScoreDto> {
         "agent", "math", "analysis", "search", "speed", "value",
     )
     return scores
-        .filter { radarRatio(it) != null }
+        .filter { radarRatio(it) != null && it.dimension != "usage" }
         .groupBy { it.dimension }
         .map { (_, values) ->
             values.minWithOrNull(compareBy<ScoreDto> { it.boardSlug != it.dimension }.thenBy { it.boardSlug })
@@ -265,6 +265,7 @@ private fun axisLabel(score: ScoreDto): String = when (score.dimension) {
     "analysis" -> "分析"
     "reasoning" -> "推理"
     "instruction" -> "指令遵循"
+    "usage" -> "使用趋势"
     else -> score.boardName.substringBefore(" ")
 }
 

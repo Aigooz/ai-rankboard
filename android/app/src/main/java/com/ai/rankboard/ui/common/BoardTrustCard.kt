@@ -86,10 +86,23 @@ fun BoardTrustCard(board: BoardDto?, generatedAt: String?) {
                 Text("上游评测版本：${evaluation?.version?.takeIf { it.isNotBlank() } ?: board.release?.takeIf { it.isNotBlank() } ?: "未提供"}" +
                     if (evaluation?.versionSource == "registry") "（来源配置记录）" else "",
                     style = MaterialTheme.typography.bodySmall)
-                Text("上游更新时间：${evaluation?.upstreamUpdatedAt?.takeIf { it.isNotBlank() } ?: "未提供，不能用抓取时间代替"}",
+                Text("上游更新时间：${upstreamUpdatedLabel(evaluation?.upstreamUpdatedAt)}",
                     style = MaterialTheme.typography.bodySmall)
                 boardHealthLines(board).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
+    }
+}
+
+private fun upstreamUpdatedLabel(value: String?): String {
+    val date = value?.trim()?.takeIf { it.isNotEmpty() }
+        ?: return "未提供，不能用抓取时间代替"
+    val parsed = runCatching { java.time.LocalDate.parse(date.take(10)) }.getOrNull()
+        ?: return "$date（日期格式无法解析）"
+    val age = java.time.temporal.ChronoUnit.DAYS.between(parsed, java.time.LocalDate.now())
+    return when {
+        age < 0 -> "$date（日期晚于设备时间）"
+        age == 0L -> "$date（今天）"
+        else -> "$date（$age 天前）"
     }
 }

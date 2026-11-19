@@ -29,6 +29,7 @@ const DIMENSIONS = [
   { slug: "analysis", name: "数据分析" },
   { slug: "speed", name: "速度" },
   { slug: "value", name: "性价比" },
+  { slug: "usage", name: "使用趋势" },
 ];
 
 const SCENARIOS = [
@@ -90,6 +91,7 @@ init();
 
 async function init() {
   let previousView = parseHash().view;
+  let viewportWidth = window.innerWidth;
   window.addEventListener("hashchange", () => {
     const route = parseHash();
     closeReader();
@@ -97,6 +99,11 @@ async function init() {
     previousView = route.view;
     if (!route.slug) closeModal();
     render();
+  });
+  window.addEventListener("resize", () => {
+    if (window.innerWidth === viewportWidth) return;
+    viewportWidth = window.innerWidth;
+    keepActiveDimensionVisible();
   });
 
   document.querySelectorAll("[data-close-modal]").forEach((node) => {
@@ -177,6 +184,7 @@ function normalizeSnapshot(snapshot) {
       release: board.release,
       lastSuccessAt: board.last_success_at || board.lastSuccessAt,
       modelCount: board.model_count,
+      upstreamUpdatedAt: board.evaluation?.upstreamUpdatedAt || null,
     })),
     entriesByBoard,
     models,
@@ -273,7 +281,7 @@ function render() {
     return;
   }
 
-  app.innerHTML = leaderboardTemplate();
+  app.innerHTML = state.dimension === "usage" ? usageBoardTemplate() : leaderboardTemplate();
   bindLeaderboard();
 }
 
@@ -689,6 +697,122 @@ function tableRows(entries) {
   }).join("");
 }
 
+function usageBoardTemplate() {
+  const boards = state.snapshot.boards.filter((board) => board.dimension === "usage");
+  const board = boards.find((item) => item.slug === state.board) || boards[0];
+  if (!board) {
+    return `<div class="empty-state">OpenRouter 使用趋势榜暂未提供。</div>`;
+  }
+  state.board = board.slug;
+  const allEntries = state.snapshot.entriesByBoard[board.slug] || [];
+  const keyword = state.query.trim().toLowerCase();
+  const entries = allEntries
+    .filter((entry) => !keyword
+      || entry.displayName.toLowerCase().includes(keyword)
+      || (entry.vendor || "").toLowerCase().includes(keyword)
+      || entry.slug.toLowerCase().includes(keyword))
+    .sort((a, b) => (a.rank || 9999) - (b.rank || 9999));
+  const source = board.source || (state.snapshot.sources || []).find((item) => item.id === board.sourceId) || {};
+  const status = boardStatus(board);
+  const upstream = upstreamDateLabel(board);
+  const maxTokens = Math.max(...entries.map((entry) => entry.score || 0), 1);
+  const changeBySlug = Object.fromEntries(allEntries.map((entry) => [entry.slug, entry.weekly_change || "—"]));
+  return `
+    <div class="view-header">
+      <div>
+        <h1>模型排行</h1>
+        <p id="result-summary" aria-live="polite">显示 ${formatNumber(entries.length)} 个模型 · 本周 Top ${formatNumber(allEntries.length)}</p>
+      </div>
+      <div class="freshness compact-freshness">快照生成 ${formatDate(state.snapshot.generatedAt)}</div>
+    </div>
+    <div class="dimension-tabs" role="tablist" aria-label="榜单维度">
+      ${DIMENSIONS.map((dimension) => `
+        <button class="chip ${dimension.slug === state.dimension ? "active" : ""}" type="button" data-dimension="${dimension.slug}">
+          ${dimension.name}
+        </button>
+      `).join("")}
+    </div>
+    <section class="board-context" aria-label="当前榜单信息">
+      <div class="board-context-heading">
+        <div>
+          <span class="board-context-eyebrow">当前榜单</span>
+          <h2>${escapeHtml(board.name)}</h2>
+        </div>
+        <div class="board-context-source">
+          <span>${escapeHtml(source.name || board.sourceId || "OpenRouter")}</span>
+          ${status.stale || !status.success ? `<span class="status-badge">${escapeHtml(!status.success ? "抓取时间未知" : "缓存可能过期")}</span>` : ""}
+          ${status.health.latestAttemptStatus === "error" ? `<span class="status-badge status-badge-failed">最近抓取失败</span>` : ""}
+        </div>
+      </div>
+      <dl class="board-context-facts">
+        <div><dt>统计周期</dt><dd>最近一周</dd></div>
+        <div><dt>上游更新时间</dt><dd>${escapeHtml(upstream)}</dd></div>
+        <div><dt>指标单位</dt><dd>${escapeHtml(board.metric?.unit || "万亿 tokens/周")}</dd></div>
+        <div><dt>最近成功抓取</dt><dd>${escapeHtml(status.success ? fullTime(status.success) : "未提供")}</dd></div>
+      </dl>
+      <p class="board-context-note"><strong>指标口径：</strong>${escapeHtml(metricExplanation(board))} <span>OpenRouter 聚合平台内的使用量变化不等于模型能力排名。</span></p>
+    </section>
+    ${boardInfo(board.slug)}
+    ${selectionToolbar()}
+    <div class="control-panel usage-control-panel">
+      <label class="search-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="search-input" type="search" value="${escapeAttr(state.query)}" aria-label="搜索模型或作者" placeholder="搜索模型或作者" autocomplete="off">
+      </label>
+    </div>
+    <section class="panel usage-board-panel" aria-label="OpenRouter 周 token 使用趋势">
+      <div class="panel-head usage-board-head">
+        <div>
+          <h2>${escapeHtml(board.name)}</h2>
+          <p class="panel-sub">按最近一周处理的 tokens 排序 · 单位：万亿 tokens/周</p>
+        </div>
+        <div class="usage-period">上游 ${escapeHtml(upstream)}</div>
+      </div>
+      <div class="panel-body">
+        <ol class="usage-ranking-list" id="table-body">
+          ${usageRankingRows(entries, maxTokens, changeBySlug)}
+        </ol>
+      </div>
+      <div id="results-empty" class="empty-state" ${entries.length ? "hidden" : ""}>没有符合条件的模型。</div>
+    </section>
+    ${historyTemplate(board.slug)}
+  `;
+}
+
+function usageRankingRows(entries, maxTokens, changeBySlug = {}) {
+  return entries.map((entry) => {
+    const change = String(entry.weekly_change || changeBySlug[entry.slug] || "—");
+    const changeClass = change.startsWith("+") ? "up" : change.startsWith("-") ? "down" : "";
+    const ratio = Math.max((entry.score || 0) / maxTokens * 100, 1.5);
+    return `
+      <li class="usage-rank-row" tabindex="0" data-slug="${escapeAttr(entry.slug)}">
+        <span class="rank-badge usage-rank-badge">${entry.rank || "—"}</span>
+        <span class="usage-rank-model">
+          ${vendorIcon(entry.vendor)}
+          <span class="usage-rank-copy">
+            <span class="model-name">${escapeHtml(entry.displayName)}</span>
+            <span class="model-vendor">${escapeHtml(entry.vendor || "作者未提供")}</span>
+          </span>
+        </span>
+        <span class="usage-rank-value">${formatNumber(entry.score)}<small>万亿 tokens/周</small></span>
+        <span class="usage-change ${changeClass}">${escapeHtml(change || "—")}</span>
+        <span class="usage-rank-bar" aria-hidden="true"><i style="width:${ratio.toFixed(1)}%"></i></span>
+      </li>
+    `;
+  }).join("");
+}
+
+function upstreamDateLabel(board = {}) {
+  const value = board.evaluation?.upstreamUpdatedAt || board.upstreamUpdatedAt;
+  const date = detailDate(value);
+  if (date === "未获取") return "未提供";
+  const observed = new Date(`${date}T00:00:00Z`);
+  const today = new Date();
+  const todayUtc = new Date(`${today.toISOString().slice(0, 10)}T00:00:00Z`);
+  const days = Math.max(Math.round((todayUtc - observed) / 86400000), 0);
+  return `${date}（${days} 天前）`;
+}
+
 function scoreCell(entry, scoredCount, metric = {}) {
   if (entry.score == null) {
     return `
@@ -955,18 +1079,12 @@ function selectTemplate() {
 }
 
 function bindLeaderboard() {
+  const usageMode = state.dimension === "usage";
   const searchInput = document.getElementById("search-input");
   const sortSelect = document.getElementById("sort-select");
   const vendorSelect = document.getElementById("vendor-select");
   const licenseSelect = document.getElementById("license-select");
-  // Adjust only the tab strip: scrollIntoView can also move the document.
-  document.querySelectorAll(".dimension-tabs .chip.active").forEach(node => {
-    const strip = node.parentElement;
-    const itemRect = node.getBoundingClientRect();
-    const stripRect = strip.getBoundingClientRect();
-    if (itemRect.left < stripRect.left) strip.scrollLeft -= stripRect.left - itemRect.left;
-    else if (itemRect.right > stripRect.right) strip.scrollLeft += itemRect.right - stripRect.right;
-  });
+  keepActiveDimensionVisible();
 
   document.querySelectorAll("[data-dimension]").forEach((node) => {
     node.addEventListener("click", () => {
@@ -992,10 +1110,10 @@ function bindLeaderboard() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(renderLeaderboardResults, 120);
   });
-  sortSelect.addEventListener("change", () => { state.sort = sortSelect.value; renderLeaderboardResults(); });
-  vendorSelect.addEventListener("change", () => { state.vendor = vendorSelect.value; renderLeaderboardResults(); });
-  licenseSelect.addEventListener("change", () => { state.license = licenseSelect.value; renderLeaderboardResults(); });
-  document.getElementById("region-select").addEventListener("change", event => { state.region = event.target.value; renderLeaderboardResults(); });
+  sortSelect?.addEventListener("change", () => { state.sort = sortSelect.value; renderLeaderboardResults(); });
+  vendorSelect?.addEventListener("change", () => { state.vendor = vendorSelect.value; renderLeaderboardResults(); });
+  licenseSelect?.addEventListener("change", () => { state.license = licenseSelect.value; renderLeaderboardResults(); });
+  document.getElementById("region-select")?.addEventListener("change", event => { state.region = event.target.value; renderLeaderboardResults(); });
   document.getElementById("source-select")?.addEventListener("change", (event) => {
     state.sourceId = event.target.value;
     const next = boardsForDimension(state.dimension);
@@ -1011,10 +1129,43 @@ function bindLeaderboard() {
   bindModelRows();
 }
 
+function keepActiveDimensionVisible() {
+  const node = document.querySelector(".dimension-tabs .chip.active");
+  const strip = node?.parentElement;
+  if (!node || !strip) return;
+  const itemRect = node.getBoundingClientRect();
+  const stripRect = strip.getBoundingClientRect();
+  if (itemRect.left < stripRect.left || itemRect.right > stripRect.right) {
+    strip.scrollTo({
+      left: strip.scrollLeft + itemRect.left - stripRect.left
+        - (stripRect.width - itemRect.width) / 2,
+      behavior: "auto",
+    });
+  }
+}
+
 function renderLeaderboardResults() {
-  const entries = filteredEntries();
   const body = document.getElementById("table-body");
   if (!body) return;
+  if (state.dimension === "usage") {
+    const keyword = state.query.trim().toLowerCase();
+    const entries = (state.snapshot.entriesByBoard[state.board] || [])
+      .filter((entry) => !keyword
+        || entry.displayName.toLowerCase().includes(keyword)
+        || (entry.vendor || "").toLowerCase().includes(keyword)
+        || entry.slug.toLowerCase().includes(keyword))
+      .sort((a, b) => (a.rank || 9999) - (b.rank || 9999));
+    const maxTokens = Math.max(...entries.map((entry) => entry.score || 0), 1);
+    const changeBySlug = Object.fromEntries((state.snapshot.entriesByBoard[state.board] || []).map((entry) => [entry.slug, entry.weekly_change || "—"]));
+    body.innerHTML = usageRankingRows(entries, maxTokens, changeBySlug);
+    const empty = document.getElementById("results-empty");
+    if (empty) empty.hidden = entries.length > 0;
+    const summary = document.getElementById("result-summary");
+    if (summary) summary.textContent = `显示 ${formatNumber(entries.length)} 个模型 · 本周 Top ${formatNumber(state.snapshot.entriesByBoard[state.board]?.length || 0)}`;
+    bindModelRows(body);
+    return;
+  }
+  const entries = filteredEntries();
   body.innerHTML = tableRows(entries);
   const empty = document.getElementById("results-empty");
   if (empty) empty.hidden = entries.length > 0;
@@ -1220,7 +1371,7 @@ function detailTemplate({ model, scores }) {
       <p>${sourceLink(model.sourceUrl,"模型记录来源（非必然官网）")}</p><p>价格记录：${escapeHtml(model.priceBoardName)} · 抓取 ${escapeHtml(fullTime(model.priceFetchedAt))}</p><p>${sourceLink(model.priceSourceUrl,"价格来源")}。原币种展示，不混合不同来源价格；缺失不按零计算。</p>
     </div></details>
     <details class="detail-results"><summary>全部榜单成绩 · ${scores.length} 条</summary><div class="disclosure-body"><p class="detail-caution">不同榜单不是统一量尺，请逐榜查看。</p>
-      ${scores.length ? `<div class="detail-score-list">${groupScoresByDimension(scores).map(group => `<section class="detail-score-group"><h2>${escapeHtml(metricLabel(group.dimension))}<span>${group.scores.length} 个榜单</span></h2>${group.scores.map(score => `<article class="detail-score"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(valueText(score))}</strong><span>${rankText(score)}</span></div><details><summary>来源与评测说明</summary><p>${sourceLink(score.sourceUrl,"榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p></details></article>`).join("")}</section>`).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}
+      ${scores.length ? `<div class="detail-score-list">${groupScoresByDimension(scores).map(group => `<section class="detail-score-group"><h2>${escapeHtml(metricLabel(group.dimension))}<span>${group.scores.length} 个榜单</span></h2>${group.scores.map(score => { const usage = (score.dimension || score.boardSlug) === "usage"; return `<article class="detail-score${usage ? " detail-score-usage" : ""}"><div class="detail-score-heading"><h3>${escapeHtml(score.boardName)}</h3><strong>${escapeHtml(valueText(score))}</strong><span>${rankText(score)}</span></div><details><summary>来源与评测说明</summary><p>${sourceLink(score.sourceUrl,"榜单来源")} · ${escapeHtml(score.board?.metric?.name || score.board?.scoreType || "指标未提供")}</p><p>成功抓取：${escapeHtml(fullTime(score.fetchedAt))} · 评测版本：${escapeHtml(score.board?.evaluation?.version || score.board?.release || "未获取")}</p>${usage ? `<p>仅表示 OpenRouter 聚合平台内的使用趋势，不代表模型能力、质量、市场份额或全球调用量；不进入能力雷达。</p>` : ""}</details></article>`; }).join("")}</section>`).join("")}</div>` : `<p class="muted">暂无榜单成绩，缺失不作为零分。</p>`}
     </div></details>
     ${radarScores.length >= 3 ? `<details class="detail-radar"><summary>相对位置雷达</summary><p class="muted">各榜内 min-max 相对位置，不是统一能力分数；每维取首个有效榜，不跨榜汇总。</p>${radarChart(radarScores)}</details>` : ""}
     ${related.length ? `<details class="detail-related"><summary>同厂商其他模型 · ${related.length}</summary><div class="related-model-list">${related.map(item => `<button type="button" class="chip" data-related-model="${escapeAttr(item.slug)}">${escapeHtml(item.displayName || item.slug)}</button>`).join("")}</div></details>` : ""}
@@ -1238,7 +1389,11 @@ function groupScoresByDimension(scores) {
 function selectRadarScores(scores) {
   const priority = ["overall", "coding", "writing", "multimodal", "agent", "math", "search", "speed", "value"];
   const groups = scores
-    .filter((score) => Number.isFinite(score.score) && Number.isFinite(score.scoreMin) && Number.isFinite(score.scoreMax) && score.scoreMax > score.scoreMin)
+    .filter((score) => (score.dimension || score.boardSlug) !== "usage"
+      && Number.isFinite(score.score)
+      && Number.isFinite(score.scoreMin)
+      && Number.isFinite(score.scoreMax)
+      && score.scoreMax > score.scoreMin)
     .reduce((groups, score) => {
       const dimension = score.dimension || score.boardSlug;
       if (!groups.has(dimension)) groups.set(dimension, score);
@@ -1523,7 +1678,7 @@ function boardInfo(slug) {
     <div class="disclosure-body"><h2>${escapeHtml(board.name || slug)} · ${sourceLink(board.url || source.url, "查看原始榜单")}</h2>
     <p class="muted">跨榜分数不可直接比较，本应用不计算跨榜综合分。</p>
     <p>${escapeHtml(metricExplanation(board))}</p>
-    <dl class="time-grid"><div><dt>快照生成时间</dt><dd>${escapeHtml(fullTime(state.snapshot.generatedAt))}</dd></div><div><dt>本榜成功抓取时间</dt><dd>${escapeHtml(fullTime(success))}</dd></div><div><dt>上游评测版本 / 更新时间</dt><dd>${escapeHtml(version || "版本未提供")} / ${escapeHtml(fullTime(evaluation.upstreamUpdatedAt))}</dd></div></dl>
+    <dl class="time-grid"><div><dt>快照生成时间</dt><dd>${escapeHtml(fullTime(state.snapshot.generatedAt))}</dd></div><div><dt>本榜成功抓取时间</dt><dd>${escapeHtml(fullTime(success))}</dd></div><div><dt>上游评测版本 / 更新时间</dt><dd>${escapeHtml(version || "版本未提供")} / ${escapeHtml(upstreamDateLabel(board))}</dd></div></dl>
     <p class="${stale || missing || noEntries ? "warning" : "muted"}">${noEntries ? "本榜数据缺失。" : ""}${missing ? "成功抓取时间缺失，无法判断缓存年龄。" : stale ? `抓取缓存已超过 ${health.staleAfterHours || 48} 小时，可能过期。` : "抓取缓存未超过过期阈值。"} 抓取成功不等于上游更新；版本号不是抓取时间。</p>
     ${health.latestAttemptAt ? `<p class="muted">最近尝试：${escapeHtml(fullTime(health.latestAttemptAt))} · ${escapeHtml(health.latestAttemptStatus || "未知")}</p>` : ""}
     ${health.error ? `<p class="warning">抓取异常：${escapeHtml(health.error)}；保留已有可用数据。</p>` : ""}

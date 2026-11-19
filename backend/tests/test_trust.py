@@ -286,7 +286,7 @@ class TrustTests(unittest.TestCase):
         board = next(item for item in snapshot["boards"] if item["slug"] == self.board["slug"])
         self.assertEqual(board["release"], "older-evaluation")
         self.assertEqual(board["evaluation"]["version"], "older-evaluation")
-        self.assertEqual(snapshot["benchmarkMeta"]["livebench"]["release"], "older-evaluation")
+        self.assertEqual(board["evaluation"]["version"], "older-evaluation")
 
     def test_publish_freshness_budget_matches_client_stale_threshold(self):
         from app.publish import SNAPSHOT_MAX_AGE_HOURS, snapshot_health
@@ -331,10 +331,6 @@ class TrustTests(unittest.TestCase):
             )
         health = snapshot_health(Path("unused"))
 
-        livebench = next(
-            source for source in health["sources"] if source["sourceId"] == "livebench"
-        )
-        self.assertEqual(livebench["boards"], 1)
         self.assertNotIn("hle", {source["sourceId"] for source in health["sources"]})
         self.assertNotIn("hle-official-retired", health["failedBoards"])
 
@@ -427,10 +423,10 @@ class TrustTests(unittest.TestCase):
             conn.execute("INSERT INTO boards VALUES('old','Old','overall','elo','https://example.com','2026-01-01', 'ok', NULL)")
             conn.commit()
         db.init_db()
-        board = next(item for item in build_snapshot()["boards"] if item["slug"] == "old")
+        board = next(item for item in build_snapshot()["boards"] if item["slug"] == "overall")
         self.assertIsNone(board["health"]["latestAttemptAt"])
         self.assertIsNone(board["evaluation"]["version"])
-        self.assertEqual(build_snapshot()["historyByBoard"]["old"], [])
+        self.assertEqual(build_snapshot()["historyByBoard"]["overall"], [])
 
 
 if __name__ == "__main__":

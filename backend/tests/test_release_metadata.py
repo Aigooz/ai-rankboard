@@ -33,7 +33,7 @@ class ReleaseMetadataTests(unittest.IsolatedAsyncioTestCase):
                 db.init_db()
                 with db.get_conn() as conn:
                     conn.execute("INSERT INTO models(slug,display_name,source_url,first_seen_at,updated_at) VALUES ('model','Model','https://vendor.example/model','now','now')")
-                    conn.execute("INSERT INTO boards(slug,name,dimension,score_type,url) VALUES ('overall','Overall','overall','aa_index','https://modelsage.cn')")
+                    conn.execute("UPDATE boards SET name='Overall', url='https://modelsage.cn' WHERE slug='overall'")
                     conn.execute("INSERT INTO scores(board_slug,model_slug,rank,fetched_at) VALUES ('overall','model',1,'now')")
                 evidence = {'model': {'release_date':'2026-09-22', 'source_url':'https://modelsage.cn/model/exact'}}
                 self.assertEqual(save_model_dates_by_slug(evidence), 1)

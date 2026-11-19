@@ -39,6 +39,8 @@ def restore_baseline(output: Path) -> None:
                 continue
         entries = previous.get("entriesByBoard", {}).get(slug, [])
         success = board.get("health", {}).get("lastSuccessAt") or board.get("last_success_at")
+        evaluated = board.get("evaluation") or {}
+        upstream_updated_at = evaluated.get("upstreamUpdatedAt")
         if not entries or not success:
             continue
         rows = [
@@ -46,24 +48,39 @@ def restore_baseline(output: Path) -> None:
              **{key: entry.get(key) for key in ("vendor", "license", "context_window", "release_date",
                                                 "score", "score_ci", "votes", "price_in", "price_out")},
              "source_url": previous.get("models", {}).get(entry["slug"], {}).get("source_url"),
-             "rank": entry["rank"], "currency": entry.get("currency", "CNY")}
+             "rank": entry["rank"], "currency": entry.get("currency", "CNY"),
+             "weekly_change": entry.get("weekly_change")}
             for entry in entries
         ]
         version = board.get("evaluation", {}).get("version")
         # Legacy release is explicitly a configured evaluation version, not time.
         if "evaluation" not in board:
             version = board.get("release")
-        save_board_data({**BOARD_BY_SLUG[slug], "release": version}, rows, success)
+        save_board_data(
+            {**BOARD_BY_SLUG[slug], "release": version},
+            rows,
+            success,
+            upstream_updated_at=upstream_updated_at,
+            row_metadata={
+                "weekly_changes": {
+                    entry["slug"]: entry["weekly_change"]
+                    for entry in entries
+                    if entry.get("weekly_change") is not None
+                }
+            },
+        )
         with get_conn() as conn:
             conn.execute("DELETE FROM board_history WHERE board_slug=?", (slug,))
             observations = previous.get("historyByBoard", {}).get(slug, [])[-HISTORY_LIMIT:]
             for observation in observations:
                 conn.execute(
                     """INSERT OR REPLACE INTO board_history
-                       (board_slug,fetched_at,model_count,evaluation_version,entries_json)
-                       VALUES (?,?,?,?,?)""",
+                       (board_slug,fetched_at,model_count,evaluation_version,
+                        upstream_updated_at,entries_json)
+                       VALUES (?,?,?,?,?,?)""",
                     (slug, observation["fetchedAt"], observation["modelCount"],
                      observation.get("evaluationVersion"),
+                     observation.get("upstreamUpdatedAt", upstream_updated_at),
                      json.dumps(observation["entries"][:HISTORY_ENTRY_LIMIT], allow_nan=False)),
                 )
             health = board.get("health", {})

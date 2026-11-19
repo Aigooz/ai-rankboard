@@ -57,7 +57,7 @@ private val FALLBACK_SOURCES = listOf(
         "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest" +
             "?tab=leaderboard&leaderboard=4-1-0",
     ),
-    SnapshotSourceDto("helm", "Stanford HELM Classic", "https://crfm.stanford.edu/helm/classic/latest/"),
+    SnapshotSourceDto("openrouter", "OpenRouter", "https://openrouter.ai/rankings"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

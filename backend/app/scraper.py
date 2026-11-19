@@ -7,7 +7,9 @@ Columns are mapped by their localized header text, so CSS-hidden cells do not ma
 """
 
 import asyncio
+from dataclasses import dataclass, field
 import re
+from typing import Any
 
 import csv
 import httpx
@@ -31,6 +33,22 @@ from .config import (
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _PARAMS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*[bB]\b")
 _K_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*[kK]$")
+
+
+@dataclass(frozen=True)
+class BoardFetchResult:
+    rows: list[dict]
+    upstream_updated_at: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __iter__(self):
+        return iter(self.rows)
+
+    def __getitem__(self, index):
+        return self.rows[index]
 
 
 async def fetch_html(client: httpx.AsyncClient, url: str) -> str:
@@ -509,41 +527,56 @@ async def fetch_swe_bench_board(board: dict) -> list:
     return parse_swe_bench_board(data, board.get("swe_board", "Verified"))
 
 
-async def fetch_board(board: dict) -> list:
+async def fetch_board(board: dict) -> BoardFetchResult:
     if board.get("kind") in {"aider_polyglot", "evalplus"}:
         from .public_sources import AIDER_DATA_URL, EVALPLUS_DATA_URL, parse_aider_polyglot, parse_evalplus
         async with httpx.AsyncClient(follow_redirects=True) as client:
             if board["kind"] == "aider_polyglot":
-                return parse_aider_polyglot(await fetch_html(client, AIDER_DATA_URL))
-            return parse_evalplus(await fetch_json(client, EVALPLUS_DATA_URL), board.get("category", "humaneval+"))
+                rows = parse_aider_polyglot(await fetch_html(client, AIDER_DATA_URL))
+            else:
+                rows = parse_evalplus(
+                    await fetch_json(client, EVALPLUS_DATA_URL),
+                    board.get("category", "humaneval+"),
+                )
+        return BoardFetchResult(rows=rows)
     if board.get("kind") == "bfcl":
         from .public_sources import BFCL_CSV_URL, parse_bfcl
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            return parse_bfcl(await fetch_csv(client, BFCL_CSV_URL))
+            rows = parse_bfcl(await fetch_csv(client, BFCL_CSV_URL))
+        return BoardFetchResult(rows=rows)
     if board.get("kind") == "terminal_bench":
         from .public_sources import fetch_terminal_bench_submissions
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            return await fetch_terminal_bench_submissions(client, fetch_json)
-    if board.get("kind") == "helm_classic":
+            rows = await fetch_terminal_bench_submissions(client, fetch_json)
+        return BoardFetchResult(rows=rows)
+    if board.get("kind") == "openrouter_usage":
         from .public_sources import (
-            HELM_CORE_URL,
-            HELM_SCHEMA_URL,
-            HELM_SUMMARY_URL,
-            parse_helm_classic,
+            OPENROUTER_RANKINGS_URL,
+            parse_openrouter_rankings,
         )
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            summary = await fetch_json(client, HELM_SUMMARY_URL)
-            schema = await fetch_json(client, HELM_SCHEMA_URL)
-            tables = await fetch_json(client, HELM_CORE_URL)
-        return parse_helm_classic(summary, schema, tables)
+            html = await fetch_html(client, OPENROUTER_RANKINGS_URL)
+        from datetime import datetime, timezone
+        rows, upstream_updated_at = parse_openrouter_rankings(
+            html, today=datetime.now(timezone.utc).date()
+        )
+        return BoardFetchResult(
+            rows=rows,
+            upstream_updated_at=upstream_updated_at,
+            metadata={
+                "weekly_changes": {
+                    row["slug"]: row["weekly_change"] for row in rows
+                }
+            },
+        )
     if board.get("kind") == "livebench":
-        return await fetch_livebench_board(board)
+        return BoardFetchResult(rows=await fetch_livebench_board(board))
     if board.get("kind") == "swe_bench":
-        return await fetch_swe_bench_board(board)
+        return BoardFetchResult(rows=await fetch_swe_bench_board(board))
     url = f"{BASE_URL}{board['path']}"
     async with httpx.AsyncClient(follow_redirects=True) as client:
         html = await fetch_html(client, url)
-    return parse_board(board, html)
+    return BoardFetchResult(rows=parse_board(board, html))
 
 
 # 用量榜是 div 结构而非表格，行首为名次 span；数值单元格靠 title 文本锚定。

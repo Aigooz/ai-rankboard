@@ -38,7 +38,7 @@ fun metricExplanation(scoreType: String?): String = when (scoreType?.lowercase()
     "livebench" -> "LiveBench 为指定评测版本的任务成绩；不同版本的题目与评测条件可能不同，不直接跨版本比较。"
     "bfcl" -> "BFCL 为函数调用综合准确率，受调用配置、提示格式与评测版本影响；只在同一榜单条件内比较。"
     "terminal_bench" -> "Terminal-Bench 为终端任务解决率，受任务集、Agent 与推理强度影响；只在同一榜单条件内比较。"
-    "helm_classic" -> "HELM Classic Mean win rate 为 Accuracy 表内模型两两胜出的平均比例，已转换为百分数；不是任务准确率或统一能力分，该历史版本不持续重跑最新模型。"
+    "openrouter_usage" -> "OpenRouter 周 token 使用量为官方近期使用趋势榜的每周 token 处理量；反映该聚合平台的调用变化，不代表模型能力、质量、市场份额或全球调用量。"
     "swe_bench", "swebench" -> "SWE-bench 为软件工程任务解决率；数据子集、代理框架与运行条件影响结果，不等同于模型通用能力。"
     "aa_index" -> "能力指数采用来源方的综合计算口径，不是百分制正确率；具体组成请查看原始来源。"
     else -> "指标类型：${scoreType?.takeIf { it.isNotBlank() } ?: "未提供"}。定义与计算口径请以原始来源说明为准。"

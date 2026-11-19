@@ -5,7 +5,7 @@ import re
 
 from .db import get_conn, now_iso
 from .model_identity import canonical_model_slug
-from .scraper import _PARAMS_RE
+from .scraper import _PARAMS_RE, BoardFetchResult
 from .config import LIVEBENCH_URL, SWE_BENCH_URL
 
 HISTORY_LIMIT = 12
@@ -54,8 +54,6 @@ def upsert_board_meta(conn, board: dict) -> None:
             "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
             "?tab=leaderboard&leaderboard=4-1-0"
         )
-    elif board.get("kind") == "helm_classic":
-        url = "https://crfm.stanford.edu/helm/classic/latest/"
     else:
         url = "https://modelsage.cn" + board["path"]
     conn.execute(
@@ -67,7 +65,19 @@ def upsert_board_meta(conn, board: dict) -> None:
     )
 
 
-def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
+def save_board_data(
+    board: dict,
+    rows: list | BoardFetchResult,
+    fetched_at: str,
+    upstream_updated_at: str | None = None,
+    row_metadata: dict | None = None,
+) -> int:
+    if isinstance(rows, BoardFetchResult):
+        if row_metadata is None:
+            row_metadata = rows.metadata
+        if upstream_updated_at is None:
+            upstream_updated_at = rows.upstream_updated_at
+        rows = rows.rows
     if not rows:
         raise ValueError(f"board {board['slug']}: parsed 0 rows, refusing to wipe existing data")
 
@@ -96,15 +106,38 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
     with get_conn() as conn:
         upsert_board_meta(conn, board)
         # Capture only observed successful fetches, never backfill invented history.
-        history_entries = [
-            {"slug": slug, "display_name": row["name"], "rank": row["rank"], "score": row["score"]}
-            for slug, row in deduped[:HISTORY_ENTRY_LIMIT]
-        ]
+        weekly_changes = dict((row_metadata or {}).get("weekly_changes", {}))
+        history_entries = []
+        for slug, row in deduped[:HISTORY_ENTRY_LIMIT]:
+            entry = {
+                "slug": slug,
+                "display_name": row["name"],
+                "rank": row["rank"],
+                "score": row["score"],
+            }
+            change = row.get("weekly_change") or weekly_changes.get(row["slug"])
+            if change is not None:
+                entry["weekly_change"] = change
+                weekly_changes[slug] = change
+            history_entries.append(entry)
+        conn.execute(
+            "UPDATE boards SET score_metadata=? WHERE slug=?",
+            (
+                json.dumps(
+                    {"weekly_changes": weekly_changes},
+                    ensure_ascii=False,
+                    allow_nan=False,
+                ),
+                board["slug"],
+            ),
+        )
         conn.execute(
             """INSERT OR REPLACE INTO board_history
-               (board_slug, fetched_at, model_count, evaluation_version, entries_json)
-               VALUES (?, ?, ?, ?, ?)""",
+               (board_slug, fetched_at, model_count, evaluation_version,
+                upstream_updated_at, entries_json)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (board["slug"], fetched_at, len(deduped), board.get("release"),
+             upstream_updated_at,
              json.dumps(history_entries, ensure_ascii=False, allow_nan=False)),
         )
         conn.execute(
@@ -152,8 +185,8 @@ def save_board_data(board: dict, rows: list, fetched_at: str) -> int:
         conn.execute("DELETE FROM models WHERE slug NOT IN (SELECT DISTINCT model_slug FROM scores)")
         conn.execute(
             """UPDATE boards SET last_success_at=?, last_attempt_at=?, last_status='ok',
-               last_error=NULL, evaluation_version=? WHERE slug=?""",
-            (fetched_at, fetched_at, board.get("release"), board["slug"]),
+               last_error=NULL, evaluation_version=?, upstream_updated_at=? WHERE slug=?""",
+            (fetched_at, fetched_at, board.get("release"), upstream_updated_at, board["slug"]),
         )
     return len(deduped)
 

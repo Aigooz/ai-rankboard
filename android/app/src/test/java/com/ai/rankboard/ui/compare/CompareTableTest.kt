@@ -38,7 +38,7 @@ class CompareTableTest {
 
     @Test
     fun `authoritative source labels remain readable in comparison`() {
-        assertEquals("Stanford HELM Classic", sourceLabel("helm"))
+        assertEquals("OpenRouter", sourceLabel("openrouter"))
         assertEquals("Terminal-Bench", sourceLabel("terminal_bench"))
         assertEquals("BFCL", sourceLabel("bfcl"))
     }
