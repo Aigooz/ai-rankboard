@@ -16,6 +16,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
       { id: "openrouter", name: "OpenRouter", url: "https://openrouter.ai/rankings" },
     ],
     boards: [
+      { slug: "overall", name: "综合能力", dimension: "overall", score_type: "aa_index" },
       {
         slug: "openrouter-weekly-usage",
         name: "OpenRouter 近期使用趋势",
@@ -44,6 +45,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
       },
     ],
     entriesByBoard: {
+      overall: [
+        {slug:"astra-max",display_name:"GPT-6.2 Astra (max)",vendor:"OpenAI",score:96.1,rank:3},
+        {slug:"sol-max",display_name:"GPT-6.2 Sol (max)",vendor:"OpenAI",score:88.7,rank:13},
+      ],
       "openrouter-weekly-usage": [
         ["DeepSeek V4.1 Flash 1017", "DeepSeek", 62.1, "+17%"],
         ["Hy4 flash", "Unknown", 46.6, "new"],
@@ -94,25 +99,37 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
       });
     });
     await page.goto("http://rankboard.test/");
-    await page.locator('[data-dimension="usage"]').click();
+    await page.locator('#search-input').waitFor();
+    assert.equal(await page.locator('[data-dimension="usage"]').count(), 0);
+    await page.locator('#search-input').fill('GPT6.2');
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator('#table-body tr').count(), 2);
+    assert.match(await page.locator('#table-body').innerText(), /Astra/);
+    assert.match(await page.locator('#table-body').innerText(), /Sol/);
+    await page.locator('a[href="#/trends"]').first().click();
     await page.locator(".usage-board-panel").waitFor();
     assert.equal(await page.locator(".usage-rank-row").count(), 10);
-    const activeDimensionVisible = () => page.locator('[data-dimension="usage"]').evaluate((node) => {
-      const item = node.getBoundingClientRect();
-      const strip = node.parentElement.getBoundingClientRect();
-      return item.left >= strip.left - 1 && item.right <= strip.right + 1;
-    });
-    assert.equal(await activeDimensionVisible(), true, "active dimension should remain visible");
+    assert.equal(await page.locator('[data-dimension]').count(), 0);
     assert.match(await page.locator(".board-context-facts").innerText(), /2026-11-18（\d+ 天前）/);
     assert.match(await page.locator(".usage-board-panel").innerText(), /62\.1/);
     assert.match(await page.locator(".usage-board-panel").innerText(), /\+17%/);
     assert.equal(await page.locator(".data-table").count(), 0);
+    await page.locator('#usage-search-input').fill('GPT6');
+    assert.equal(await page.locator('.usage-rank-row').count(), 1);
+    await page.locator('#usage-search-input').fill('');
+    assert.equal(await page.locator('.usage-rank-row').count(), 10);
+    await page.locator('.usage-rank-row').first().click();
+    await page.locator('#model-modal').waitFor({state:'visible'});
+    assert.equal(await page.locator('.detail-radar').count(), 0);
+    await page.keyboard.press('Escape');
+    await page.locator('a[href="#/trends"]').first().click();
+    await page.evaluate(() => window.scrollTo({top:0, behavior:'instant'}));
+    await page.waitForTimeout(100);
     await page.screenshot({ path: path.join(artifacts, "openrouter-usage-desktop.png"), fullPage: true });
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await page.waitForTimeout(50);
-      await page.locator(".usage-board-panel").scrollIntoViewIfNeeded();
-      assert.equal(await activeDimensionVisible(), true, `${width}px active dimension should remain visible`);
+      await page.evaluate(() => window.scrollTo({top:0, behavior:'instant'}));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}px page overflow`);
       assert.equal(await page.locator(".usage-board-panel").evaluate((node) => node.scrollWidth > node.clientWidth + 1), false, `${width}px panel overflow`);
       for (const node of await page.locator(".usage-rank-row").all()) {

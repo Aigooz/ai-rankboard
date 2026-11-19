@@ -52,6 +52,7 @@ def build_snapshot() -> dict:
         "aa_index": "modelsage",
         "arena_elo": "modelsage",
         "livebench": "livebench",
+        "livebench_v2": "livebench",
         "swe_bench": "swebench",
         "aider_polyglot": "aider",
         "evalplus": "evalplus",
@@ -80,7 +81,7 @@ def build_snapshot() -> dict:
                 "source_id": board_source.get(row["score_type"], "modelsage"),
                 **{
                     key: BOARD_BY_SLUG[row["slug"]][key]
-                    for key in ("kind", "category", "release")
+                    for key in ("kind", "category", "release", "historical")
                     if row["slug"] in BOARD_BY_SLUG and key in BOARD_BY_SLUG[row["slug"]]
                 },
             }
@@ -110,10 +111,10 @@ def build_snapshot() -> dict:
             board["source"] = {**source, "url": board["url"]}
             version = board.pop("evaluation_version")
             upstream_updated_at = board.pop("upstream_updated_at")
-            if "release" in board:
+            if "release" in board or board.get("kind") == "livebench_v2":
                 board["release"] = version
             board["evaluation"] = {"version": version,
-                                   "versionSource": "registry" if version else None,
+                                   "versionSource": ("upstream" if board.get("kind") == "livebench_v2" else "registry") if version else None,
                                    "upstreamUpdatedAt": upstream_updated_at}
             # Old flat fields remain available; never expose raw legacy errors.
             board["last_error"] = board["health"]["error"]
@@ -243,7 +244,7 @@ def build_snapshot() -> dict:
                 "release": next((
                     board["release"]
                     for board in boards
-                    if board.get("kind") == LIVEBENCH
+                    if board.get("kind") == "livebench_v2"
                 ), None),
                 "categories": [
                     {
@@ -252,7 +253,7 @@ def build_snapshot() -> dict:
                         "category": board.get("category"),
                     }
                     for board in boards
-                    if board.get("kind") == LIVEBENCH
+                    if board.get("kind") == "livebench_v2"
                 ],
             },
         },
@@ -276,6 +277,8 @@ def build_data_status(boards: list[dict]) -> dict:
             "sourceId": source_id,
             "boards": 0,
             "failedBoards": 0,
+            "staleBoards": 0,
+            "boardsWithoutData": 0,
             "lastSuccessAt": None,
             "oldestSuccessAt": None,
         })
@@ -283,6 +286,10 @@ def build_data_status(boards: list[dict]) -> dict:
         health = board.get("health") or {}
         if health.get("latestAttemptStatus") == "error":
             source["failedBoards"] += 1
+        if health.get("stale") is True:
+            source["staleBoards"] += 1
+        if not health.get("lastSuccessAt") or board.get("model_count", 0) <= 0:
+            source["boardsWithoutData"] += 1
         success = health.get("lastSuccessAt")
         if success and (
             source["lastSuccessAt"] is None or success > source["lastSuccessAt"]
@@ -294,7 +301,8 @@ def build_data_status(boards: list[dict]) -> dict:
             source["oldestSuccessAt"] = success
     return {
         "status": "degraded" if any(
-            source["failedBoards"] for source in sources.values()
+            source["failedBoards"] or source["staleBoards"] or source["boardsWithoutData"]
+            for source in sources.values()
         ) else "ok",
         "staleAfterHours": 48,
         "sources": [sources[key] for key in sorted(sources)],

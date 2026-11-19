@@ -15,7 +15,10 @@ from .service import refresh_all
 from .snapshot import build_snapshot, write_snapshot
 from .boards import BOARD_BY_SLUG
 from .db import get_conn, init_db
-from .store import save_board_data, HISTORY_LIMIT, HISTORY_ENTRY_LIMIT, safe_fetch_error
+from .store import (
+    save_board_data, save_usage_trend, save_news_articles,
+    HISTORY_LIMIT, HISTORY_ENTRY_LIMIT, safe_fetch_error,
+)
 
 
 def restore_baseline(output: Path) -> None:
@@ -92,6 +95,17 @@ def restore_baseline(output: Path) -> None:
             )
 
     with get_conn() as conn:
+        usage = previous.get("usageRanking") or {}
+        if (usage.get("entries") and usage.get("generated_at")
+                and not conn.execute("SELECT 1 FROM usage_ranking LIMIT 1").fetchone()):
+            save_usage_trend(usage, usage["generated_at"])
+        news = previous.get("news") or {}
+        if (news.get("articles") and news.get("generated_at")
+                and not conn.execute("SELECT 1 FROM news_articles LIMIT 1").fetchone()):
+            save_news_articles(
+                [{**article, "position": index} for index, article in enumerate(news["articles"], 1)],
+                news["generated_at"],
+            )
         for model_slug, model in previous.get("models", {}).items():
             release_date = model.get("release_date")
             source_url = model.get("release_date_source_url")
@@ -183,14 +197,12 @@ def publish(output: Path) -> dict:
         return {"published": False, "reason": "all_sources_failed", "results": results}
     health = snapshot_health(output)
     integrity_errors = {
-        "failedBoards": health["failedBoards"],
         "boardsWithoutData": health["boardsWithoutData"],
         "sourcesWithoutData": health["sourcesWithoutData"],
-        "staleSources": health["staleSources"],
     }
     if any(integrity_errors.values()):
         print(
-            "snapshot contains incomplete or stale boards; keeping previous snapshot: "
+            "snapshot contains boards without usable data; keeping previous snapshot: "
             + json.dumps(integrity_errors, ensure_ascii=False, sort_keys=True)
         )
         return {

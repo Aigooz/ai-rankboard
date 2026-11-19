@@ -1,5 +1,13 @@
 // Pure helpers shared by the UI and dependency-free Node tests.
 export const FAVORITES_KEY = "ai-rankboard.favorites.v1";
+export function matchesModelQuery(query, ...fields) {
+  const raw = String(query || "").trim().toLowerCase();
+  if (!raw) return true;
+  const key = value => String(value || "").normalize("NFKC").toLowerCase().replace(/[\s_\p{Dash_Punctuation}]+/gu, "");
+  const normalized = key(raw);
+  return fields.some(value => String(value || "").toLowerCase().includes(raw)
+    || (normalized.length > 0 && key(value).includes(normalized)));
+}
 export function loadFavorites(storage) {
   try {
     const value = JSON.parse(storage?.getItem(FAVORITES_KEY) || "[]");

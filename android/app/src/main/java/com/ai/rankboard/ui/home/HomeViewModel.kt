@@ -26,7 +26,6 @@ data class HomeTab(val dimension: String, val label: String)
 
 val HOME_TABS = listOf(
     HomeTab("overall", "综合榜"),
-    HomeTab("usage", "使用趋势"),
     HomeTab("coding", "代码榜"),
     HomeTab("writing", "写作榜"),
     HomeTab("multimodal", "多模态榜"),
@@ -76,7 +75,7 @@ class HomeViewModel(
     initialTab: String = "overall",
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(HomeUiState(tab = initialTab))
+    private val _state = MutableStateFlow(HomeUiState(tab = initialTab.takeIf { tab -> HOME_TABS.any { it.dimension == tab } } ?: "overall"))
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
     private var loadJob: Job? = null
@@ -85,7 +84,7 @@ class HomeViewModel(
 
     init {
         _state.update { it.copy(snapshotInfo = repository.snapshotInfo(), hleReference = repository.benchmarkReference("hle")) }
-        loadBoardsForTab(initialTab)
+        loadBoardsForTab(_state.value.tab)
         viewModelScope.launch {
             val recent = runCatching { repository.recentlyReleasedModels() }.getOrDefault(emptyList())
             _state.update { it.copy(recentModels = recent) }
@@ -93,6 +92,7 @@ class HomeViewModel(
     }
 
     fun selectTab(dimension: String) {
+        if (HOME_TABS.none { it.dimension == dimension }) return
         if (_state.value.tab == dimension) return
         _state.update {
             it.copy(
@@ -270,21 +270,6 @@ class HomeViewModel(
                 return@launch
             }
             val allBoards = repository.boardsForDimension(dimension) ?: FALLBACK_BOARDS[dimension].orEmpty()
-            if (dimension == "usage" && allBoards.size == 1) {
-                val board = allBoards.single()
-                _state.update {
-                    it.copy(
-                        allBoardsForTab = allBoards,
-                        boardsForTab = allBoards,
-                        selectedBoard = board.slug,
-                        sourceFilter = null,
-                        loading = false,
-                    )
-                }
-                loadVendorOptions(board.slug)
-                refresh(showLoading = true)
-                return@launch
-            }
             val preferredSource = _state.value.sourceFilter
             val filtered = com.ai.rankboard.data.filterBoardsBySource(allBoards, preferredSource)
             val effectiveSource = when {

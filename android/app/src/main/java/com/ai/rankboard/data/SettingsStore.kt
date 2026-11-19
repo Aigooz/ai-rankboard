@@ -13,6 +13,7 @@ enum class ThemeMode {
 }
 
 enum class SnapshotFrequency(val hours: Int, val label: String) {
+    HOURLY(1, "每小时"),
     EVERY_SIX_HOURS(6, "每 6 小时"),
     EVERY_TWELVE_HOURS(12, "每 12 小时"),
     DAILY(24, "每日"),
@@ -28,7 +29,7 @@ data class AppSettings(
     val showOverview: Boolean = true,
     val updateReminders: Boolean = true,
     val appUpdateReminders: Boolean = true,
-    val snapshotFrequency: SnapshotFrequency = SnapshotFrequency.EVERY_SIX_HOURS,
+    val snapshotFrequency: SnapshotFrequency = SnapshotFrequency.HOURLY,
     val snapshotUrl: String = "",
     val appUpdateUrl: String = "",
     val relayUrl: String = "",
@@ -167,7 +168,7 @@ class SettingsStore(private val context: Context) {
             ),
             snapshotFrequency = SnapshotFrequency.entries.firstOrNull {
                 it.name == prefs.getString(KEY_SNAPSHOT_FREQUENCY, null)
-            } ?: SnapshotFrequency.EVERY_SIX_HOURS,
+            } ?: SnapshotFrequency.HOURLY,
             snapshotUrl = prefs.getString(KEY_SNAPSHOT_URL, "").orEmpty().trim(),
             appUpdateUrl = prefs.getString(KEY_APP_UPDATE_URL, "").orEmpty().trim(),
             relayUrl = savedRelayUrl,

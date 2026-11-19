@@ -7,6 +7,10 @@ import org.junit.Test
 
 class TrendViewModelTest {
     @Test
+    fun `home tabs exclude usage trends`() {
+        assertEquals(false, com.ai.rankboard.ui.home.HOME_TABS.any { it.dimension == "usage" })
+    }
+    @Test
     fun `name map uses overall entry slugs so details can be opened`() {
         val entries = listOf(
             entry("glm-5-3-flash", "GLM 5.3 Flash"),

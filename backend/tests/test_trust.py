@@ -230,8 +230,11 @@ class TrustTests(unittest.TestCase):
                 self.assertIsNone(build_snapshot()["models"]["model-0"]["release_date_source_url"])
 
     def test_publish_all_failed_keeps_file_partial_success_keeps_cached_board(self):
-        from app.publish import main
-        save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
+        from app.publish import publish
+        from app.boards import BOARDS
+        baseline_time = "2026-01-01T00:00:00+00:00"
+        for board in BOARDS:
+            save_board_data(board, self.rows(), baseline_time)
         path = db.DATA_DIR / "publish.json"
         original = json.dumps(build_snapshot())
         path.write_text(original, encoding="utf-8")
@@ -247,6 +250,7 @@ class TrustTests(unittest.TestCase):
 
         async def partial():
             mark_board_error(self.board, "sensitive error")
+            save_board_data(BOARD_BY_SLUG["livebench-reasoning"], self.rows(3), datetime.now(timezone.utc).isoformat())
             return {
                 self.board["slug"]: {"status": "error"},
                 "livebench-reasoning": {"status": "ok"},
@@ -254,11 +258,36 @@ class TrustTests(unittest.TestCase):
             }
 
         with patch("app.publish.refresh_all", new=partial):
-            result = __import__("app.publish", fromlist=["publish"]).publish(path)
-        self.assertFalse(result["published"])
-        self.assertEqual(result["reason"], "incomplete_snapshot")
-        self.assertEqual(path.read_text(encoding="utf-8"), original)
+            result = publish(path)
+        self.assertTrue(result["published"])
+        updated = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(updated["dataStatus"]["status"], "degraded")
+        self.assertEqual(len(updated["entriesByBoard"]["livebench-reasoning"]), 3)
+        cached = next(board for board in updated["boards"] if board["slug"] == self.board["slug"])
+        self.assertEqual(cached["health"]["lastSuccessAt"], baseline_time)
+        self.assertEqual(cached["evaluation"]["version"], self.board["release"])
+        self.assertEqual(len(updated["entriesByBoard"][self.board["slug"]]), 2)
+        self.assertEqual(updated["entriesByBoard"][self.board["slug"]][0]["fetched_at"], baseline_time)
         self.assertEqual(result["health"]["failedBoards"], [self.board["slug"]])
+
+    def test_restore_optional_baseline_preserves_original_timestamps_and_local_values(self):
+        from app.store import save_usage_trend, save_news_articles
+        usage = {"entries": [{"position": 1, "name": "Model", "tokens": "1T", "share": 10, "wow": None}],
+                 "week_label": "old week"}
+        save_usage_trend(usage, "2026-01-01T00:00:00Z")
+        save_news_articles([{"position": 1, "title": "News", "url": "/articles/news"}], "2026-01-02T00:00:00Z")
+        path = db.DATA_DIR / "optional.json"
+        previous = build_snapshot()
+        path.write_text(json.dumps(previous), encoding="utf-8")
+        db.DB_PATH = db.DATA_DIR / "optional-fresh.db"
+        restore_baseline(path)
+        restored = build_snapshot()
+        self.assertEqual(restored["usageRanking"], previous["usageRanking"])
+        self.assertEqual(restored["news"], previous["news"])
+        save_usage_trend({**usage, "week_label": "local week"}, "2026-01-03T00:00:00Z")
+        restore_baseline(path)
+        self.assertEqual(build_snapshot()["usageRanking"]["week_label"], "local week")
+        self.assertEqual(build_snapshot()["news"]["generated_at"], "2026-01-02T00:00:00Z")
 
     def test_usage_and_news_success_do_not_count_as_leaderboard_success(self):
         from app.publish import publish
@@ -287,6 +316,21 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(board["release"], "older-evaluation")
         self.assertEqual(board["evaluation"]["version"], "older-evaluation")
         self.assertEqual(board["evaluation"]["version"], "older-evaluation")
+
+    def test_dynamic_release_is_persisted_and_kept_when_next_fetch_fails(self):
+        import asyncio
+        from app.scraper import BoardFetchResult
+        board = BOARD_BY_SLUG["livebench-v2-overall"]
+        result = BoardFetchResult(self.rows(), upstream_updated_at="2026-11-11",
+                                  evaluation_version="LiveBench 2.0 / 2026-11-06")
+        with patch("app.service.fetch_board", new=AsyncMock(return_value=result)):
+            asyncio.run(refresh_board(board))
+        mark_board_error(board, "failed")
+        exported = next(item for item in build_snapshot()["boards"] if item["slug"] == board["slug"])
+        self.assertEqual(exported["evaluation"]["version"], "LiveBench 2.0 / 2026-11-06")
+        self.assertEqual(exported["evaluation"]["versionSource"], "upstream")
+        self.assertEqual(exported["evaluation"]["upstreamUpdatedAt"], "2026-11-11")
+        self.assertEqual(exported["health"]["latestAttemptStatus"], "error")
 
     def test_publish_freshness_budget_matches_client_stale_threshold(self):
         from app.publish import SNAPSHOT_MAX_AGE_HOURS, snapshot_health
@@ -334,7 +378,7 @@ class TrustTests(unittest.TestCase):
         self.assertNotIn("hle", {source["sourceId"] for source in health["sources"]})
         self.assertNotIn("hle-official-retired", health["failedBoards"])
 
-    def test_failed_or_empty_current_board_blocks_publication(self):
+    def test_empty_current_board_blocks_publication_but_cached_failures_are_diagnostic(self):
         from app.publish import snapshot_health
 
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -410,7 +454,7 @@ class TrustTests(unittest.TestCase):
             result = __import__("app.publish", fromlist=["publish"]).publish(Path("unused"))
         self.assertFalse(result["published"])
         self.assertEqual(result["reason"], "incomplete_snapshot")
-        self.assertEqual(result["integrityErrors"]["failedBoards"], ["current"])
+        self.assertEqual(result["health"]["failedBoards"], ["current"])
         self.assertEqual(result["integrityErrors"]["boardsWithoutData"], ["empty"])
         write_snapshot.assert_not_called()
 

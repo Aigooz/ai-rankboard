@@ -3,13 +3,13 @@ import SwiftUI
 struct RankingsView: View {
     @ObservedObject var store: SnapshotStore
     @ObservedObject var favorites: FavoritesStore
+    var usageOnly = false
     @State private var query = ""
     @State private var dimension = "overall"
     @State private var boardSlug = ""
 
     private let dimensions = [
         "overall": "综合榜",
-        "usage": "使用趋势",
         "coding": "代码榜",
         "writing": "写作榜",
         "multimodal": "多模态榜",
@@ -23,8 +23,9 @@ struct RankingsView: View {
 
     private var boardsForDimension: [Board] {
         snapshot.boards
-            .filter { $0.dimension == dimension }
+            .filter { $0.dimension == (usageOnly ? "usage" : dimension) }
             .sorted {
+                if $0.historical != $1.historical { return !$0.historical }
                 let nameOrder = $0.name.localizedCaseInsensitiveCompare($1.name)
                 return nameOrder == .orderedSame ? $0.slug < $1.slug : nameOrder == .orderedAscending
             }
@@ -42,9 +43,7 @@ struct RankingsView: View {
 
     private var entries: [Entry] {
         let base = activeBoard.map { snapshot.entries(board: $0.slug) } ?? []
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalizedQuery.isEmpty else { return base }
-        return base.filter { $0.displayName.lowercased().contains(normalizedQuery) }
+        return base.filter { matchesModelQuery(query, fields: $0.displayName, $0.vendor, $0.slug) }
     }
 
     private var scoreRange: (min: Double, max: Double)? {
@@ -88,12 +87,12 @@ struct RankingsView: View {
                     .background(Color(.systemGroupedBackground))
                 }
             }
-            .navigationTitle("AI 排行榜")
+            .navigationTitle(usageOnly ? "使用趋势" : "AI 排行榜")
             .toolbarTitleDisplayMode(.inline)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索模型名称")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    filterMenu
+                    if !usageOnly { filterMenu }
                 }
             }
             .refreshable {
@@ -132,6 +131,9 @@ struct RankingsView: View {
                 Text("上游更新时间：\(upstreamDateLabel(activeBoard?.evaluation?.upstreamUpdatedAt))。抓取时间不替代上游更新时间。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let board = activeBoard {
+                    cacheInfo(board)
+                }
                 Text(activeBoard?.metric?.description ?? "仅统计 OpenRouter 聚合网关，不代表模型能力、质量、市场份额或全球调用量。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -188,6 +190,7 @@ struct RankingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule()
@@ -242,6 +245,12 @@ struct RankingsView: View {
                     metric("榜单", "\(snapshot.boards.count)")
                     metric("数据源", "\(max(snapshot.sources.count, 1))")
                     metric("更新", String(snapshot.generatedAt.prefix(10)))
+                }
+                if let board = activeBoard {
+                    cacheInfo(board)
+                    Text("上游更新：\(board.evaluation?.upstreamUpdatedAt ?? "未提供") · 评测版本：\(board.evaluation?.version ?? "未提供")")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(14)
@@ -351,6 +360,17 @@ struct RankingsView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func cacheInfo(_ board: Board) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("成功抓取：\(board.health?.lastSuccessAt ?? board.lastSuccessAt ?? "未提供")")
+                .foregroundStyle(.secondary)
+            if let status = boardCacheStatus(board) {
+                Text(status).foregroundStyle(.red)
+            }
+        }
+        .font(.caption2)
     }
 
     private func subtitle(_ entry: Entry) -> String {

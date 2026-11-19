@@ -54,4 +54,24 @@ BOARDS.extend([
      "url": "https://openrouter.ai/rankings"},
 ])
 
+for board in BOARDS:
+    if board.get("kind") == LIVEBENCH:
+        board["name"] = board["name"].replace("LiveBench ", "LiveBench 1.0 历史 · ")
+        board["historical"] = True
+        board["url"] = "https://livebench.ai/#/release/2026-06-25"
+
+for slug, name, dimension, category in [
+    ("overall", "综合", "overall", "*"),
+    ("agent", "长期 Agent", "agent", "Long Agentic"),
+    ("reasoning", "推理", "reasoning", "Reasoning"),
+    ("coding", "代码", "coding", "Coding"),
+    ("browser", "浏览器", "agent", "Browser"),
+    ("data-analysis", "数据分析", "analysis", "Data Analysis"),
+    ("research", "研究", "search", "Research"),
+    ("design", "设计", "multimodal", "Design"),
+]:
+    BOARDS.append({"slug": "livebench-v2-" + slug, "name": "LiveBench 2.0 " + name,
+                   "dimension": dimension, "score_type": "livebench_v2", "kind": "livebench_v2",
+                   "source_id": "livebench", "category": category, "url": "https://livebench.ai/"})
+
 BOARD_BY_SLUG = {b["slug"]: b for b in BOARDS}

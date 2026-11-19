@@ -19,7 +19,7 @@ USER_AGENT = (
 )
 REQUEST_TIMEOUT = 30.0
 MAX_RETRIES = 2
-FETCH_INTERVAL_HOURS = 6
+FETCH_INTERVAL_HOURS = 1
 
 # Local runs get an ephemeral token so a refresh endpoint is never public by
 # accident. Set ALLOW_UNAUTHENTICATED_REFRESH only for a trusted development

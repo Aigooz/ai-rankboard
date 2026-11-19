@@ -16,8 +16,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ai.rankboard
-        MARKETING_VERSION: 0.20.29
-        CURRENT_PROJECT_VERSION: 79
+        MARKETING_VERSION: 0.20.30
+        CURRENT_PROJECT_VERSION: 80
         SWIFT_VERSION: 5.9
         INFOPLIST_FILE: Source/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"

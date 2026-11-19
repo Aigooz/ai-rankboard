@@ -76,6 +76,7 @@ data class BoardDto(
     val source: SnapshotSourceDto? = null,
     val evaluation: BoardEvaluationDto? = null,
     val release: String? = null,
+    val historical: Boolean = false,
 )
 
 data class BoardHealthDto(

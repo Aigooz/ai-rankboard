@@ -17,6 +17,11 @@ struct ContentView: View {
                     Label("对比", systemImage: "rectangle.split.2x1")
                 }
 
+            RankingsView(store: store, favorites: favorites, usageOnly: true)
+                .tabItem {
+                    Label("趋势", systemImage: "chart.line.uptrend.xyaxis")
+                }
+
             FavoritesView(snapshotStore: store, favorites: favorites)
                 .tabItem {
                     Label("收藏", systemImage: "star")

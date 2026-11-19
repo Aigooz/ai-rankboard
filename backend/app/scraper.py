@@ -40,6 +40,7 @@ class BoardFetchResult:
     rows: list[dict]
     upstream_updated_at: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    evaluation_version: str | None = None
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -527,7 +528,32 @@ async def fetch_swe_bench_board(board: dict) -> list:
     return parse_swe_bench_board(data, board.get("swe_board", "Verified"))
 
 
-async def fetch_board(board: dict) -> BoardFetchResult:
+async def fetch_board(board: dict, livebench_cache: dict | None = None) -> BoardFetchResult:
+    if board.get("kind") == "livebench_v2":
+        from .livebench_v2 import bundle_url, latest_release, upstream_updated_at, parse_board as parse_v2_board
+        cache = livebench_cache if livebench_cache is not None else {}
+        if "release" not in cache:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                html = await fetch_html(client, LIVEBENCH_URL + "/")
+                bundle = await fetch_html(client, bundle_url(html))
+                release = latest_release(html, bundle)
+                base = f"{LIVEBENCH_URL}/data/{release}"
+                table = await fetch_csv(client, base + "/table.csv")
+                categories = await fetch_json(client, base + "/categories.json")
+                # Pricing is optional and never derived from task costs.
+                try:
+                    costs = await fetch_csv(client, base + "/cost.csv")
+                except Exception:
+                    costs = []
+            cache.update(release=release, table=table, categories=categories, costs=costs,
+                         updated_at=upstream_updated_at(bundle))
+        release = cache["release"]
+        day = f"{release[:4]}-{release[4:6]}-{release[6:]}"
+        return BoardFetchResult(
+            rows=parse_v2_board(cache["table"], cache["categories"], cache["costs"], board["category"]),
+            evaluation_version="LiveBench 2.0 / " + day,
+            upstream_updated_at=cache.get("updated_at"),
+        )
     if board.get("kind") in {"aider_polyglot", "evalplus"}:
         from .public_sources import AIDER_DATA_URL, EVALPLUS_DATA_URL, parse_aider_polyglot, parse_evalplus
         async with httpx.AsyncClient(follow_redirects=True) as client:

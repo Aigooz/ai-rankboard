@@ -16,14 +16,14 @@ from .store import (
 log = logging.getLogger("service")
 
 
-async def refresh_board(board: dict) -> int:
+async def refresh_board(board: dict, livebench_cache: dict | None = None) -> int:
     fetched_at = now_iso()
     try:
-        result = await fetch_board(board)
+        result = await fetch_board(board, livebench_cache=livebench_cache) if livebench_cache is not None else await fetch_board(board)
         if not hasattr(result, "rows"):
             result = BoardFetchResult(rows=result)
         return save_board_data(
-            board,
+            {**board, "release": result.evaluation_version} if result.evaluation_version else board,
             result.rows,
             fetched_at,
             upstream_updated_at=result.upstream_updated_at,
@@ -42,9 +42,10 @@ async def refresh_all(slugs=None) -> dict:
         for board in targets:
             upsert_board_meta(conn, board)
     results = {}
+    livebench_cache = {}
     for board in targets:
         try:
-            count = await refresh_board(board)
+            count = await refresh_board(board, livebench_cache=livebench_cache if board.get("kind") == "livebench_v2" else None)
             results[board["slug"]] = {"status": "ok", "models": count}
         except Exception as exc:  # noqa: BLE001
             results[board["slug"]] = {"status": "error", "error": str(exc)}

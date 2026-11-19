@@ -52,6 +52,19 @@ test('combined filters and favorites use current board before sorting', () => {
   run('state.query=""; state.region="unknown"; state.favoritesOnly=false');
   assert.equal(run('filteredEntries()[0].slug'), 'c');
 });
+test('GPT6.2 search finds each exact GPT-6.2 configuration with original rank', () => {
+  const data = structuredClone(old);
+  data.entriesByBoard.overall = [
+    {slug:'astra-max', display_name:'GPT-6.2 Astra (max)', rank:3, score:96.1},
+    {slug:'sol-max', display_name:'GPT-6.2 Sol (max)', rank:13, score:88.7},
+    {slug:'other', display_name:'GPT-6.1', rank:20, score:80},
+  ];
+  const run = ui(data);
+  run('state.query="GPT6.2"');
+  assert.equal(run('filteredEntries().map(x => x.rank).join(",")'), '3,13');
+  run('state.query="GPT6.2 Sol"');
+  assert.equal(run('filteredEntries()[0].slug'), 'sol-max');
+});
 test('Aider and EvalPlus coding boards appear without a hardcoded source allowlist', () => {
   const data = structuredClone(old);
   for (const [slug, source, scoreType] of [['aider-polyglot','Aider','aider_polyglot'], ['evalplus-humaneval-plus','EvalPlus','evalplus']]) {
@@ -182,7 +195,7 @@ test('reasoning uses neutral snapshot order without HLE scoring navigation', () 
   assert.equal(run('state.board'),'livebench-reasoning');
 });
 
-test('OpenRouter usage board is a dedicated live trend view and never an ability radar', () => {
+test('OpenRouter is only in trends and leaves home board, filters and radar untouched', () => {
   const data = structuredClone(old);
   data.boards.push({
     slug: 'openrouter-weekly-usage',
@@ -205,16 +218,18 @@ test('OpenRouter usage board is a dedicated live trend view and never an ability
     { slug: 'beta', display_name: 'Beta', vendor: 'Author B', score: 46.6, rank: 2, weekly_change: 'new' },
   ];
   const run = ui(data);
-  assert.equal(run('DIMENSIONS.at(-1).slug'), 'usage');
-  assert.equal(run('DIMENSIONS.at(-1).name'), '使用趋势');
-  run('state.dimension="usage"; state.board="openrouter-weekly-usage"');
-  const html = run('usageBoardTemplate()');
+  assert.equal(run('DIMENSIONS.some(x => x.slug === "usage")'), false);
+  assert.doesNotMatch(run('leaderboardTemplate()'), /data-dimension="usage"|usage-board-panel/);
+  run('state.query="home query"');
+  const html = run('trendsTemplate()');
+  assert.equal(run('state.board'), 'overall');
+  assert.equal(run('state.query'), 'home query');
   assert.match(html, /OpenRouter 近期使用趋势/);
   assert.match(html, /万亿 tokens\/周/);
   assert.match(html, /2026-10-18（\d+ 天前）/);
   assert.match(html, /Alpha Long Model Name/);
   assert.match(html, /\+17%/);
-  assert.doesNotMatch(html, /混合价|上下文|模型发布|能力雷达/);
+  assert.doesNotMatch(run('usageBoardTemplate()'), /混合价|上下文|模型发布|能力雷达|selection-toolbar|data-dimension/);
   assert.doesNotMatch(run('detailTemplate(modelDetail("alpha"))'), /class="detail-radar"/);
   assert.match(run('detailTemplate(modelDetail("alpha"))'), /使用趋势|OpenRouter|万亿 tokens\/周/);
   assert.equal(
@@ -240,6 +255,21 @@ test('dimension boards use neutral deterministic order regardless of snapshot so
     run('boardsForDimension("speed").map(board=>board.slug).join(",")'),
     'alpha-third,zeta-first',
   );
+});
+test('current LiveBench 2.0 precedes old releases and its matrix does not mix 1.0', () => {
+  const data = structuredClone(old);
+  for (const [slug, name, dimension, historical, kind] of [
+    ['livebench-overall','LiveBench 1.0 历史 综合','overall',true,'livebench'],
+    ['livebench-v2-overall','LiveBench 2.0 综合','overall',false,'livebench_v2'],
+    ['livebench-v2-coding','LiveBench 2.0 代码','coding',false,'livebench_v2'],
+  ]) {
+    data.boards.push({slug, name, dimension, historical, kind, release:'v2 release'});
+    data.entriesByBoard[slug]=[{slug:'astra',display_name:'GPT-6.2 Astra [LiveBench 2.0]',rank:2,score:84.87}];
+  }
+  const run = ui(data);
+  assert.ok(run('boardsForDimension("overall").findIndex(x=>x.slug==="livebench-v2-overall") < boardsForDimension("overall").findIndex(x=>x.slug==="livebench-overall")'));
+  assert.match(run('livebenchMatrix()'), /LiveBench/);
+  assert.doesNotMatch(run('livebenchMatrix()'), /data-board="livebench-overall"/);
 });
 
 test('detail supports catalog-only peers and exact pricing provenance without best-rank summary', () => {

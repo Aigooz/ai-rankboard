@@ -161,7 +161,7 @@ final class SnapshotStore: ObservableObject {
     }
 
     private func request(for url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.setValue("application/vnd.github.raw+json", forHTTPHeaderField: "Accept")
         request.setValue("AI-Rankboard-iOS", forHTTPHeaderField: "User-Agent")
 
@@ -184,7 +184,7 @@ final class SnapshotStore: ObservableObject {
 
     private func refreshIfStale() async {
         let last = UserDefaults.standard.object(forKey: lastRefreshKey) as? Date
-        if let last, Date().timeIntervalSince(last) < 6 * 60 * 60 {
+        if let last, Date().timeIntervalSince(last) < 60 * 60 {
             return
         }
         await refresh()

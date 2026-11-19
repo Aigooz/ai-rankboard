@@ -24,9 +24,9 @@ class HleReferenceTests(unittest.TestCase):
         self.assertIn('勿公开分享', reference['licenseNotice'])
         self.assertLess(len(json.dumps(reference)), 6000)
 
-    def test_registry_has_29_boards_and_nine_source_records(self):
-        self.assertEqual(len(BOARDS), 29)
-        self.assertEqual(len(BOARD_BY_SLUG), 29)
+    def test_registry_has_37_boards_and_nine_source_records(self):
+        self.assertEqual(len(BOARDS), 37)
+        self.assertEqual(len(BOARD_BY_SLUG), 37)
         self.assertNotIn('hle-official-2025-04', BOARD_BY_SLUG)
         self.assertNotIn('hle-diamond-no-tools-high', BOARD_BY_SLUG)
         self.assertFalse(any(board['score_type'].startswith('hle') for board in BOARDS))

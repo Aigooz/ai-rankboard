@@ -29,6 +29,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +55,7 @@ import com.ai.rankboard.data.UsageEntryDto
 import com.ai.rankboard.ui.common.AppCard
 import com.ai.rankboard.ui.common.VendorIcon
 import com.ai.rankboard.ui.compare.parseModelStrength
+import com.ai.rankboard.ui.home.usageRankingItems
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +71,8 @@ fun TrendScreen(
     val state by vm.state.collectAsState()
     var selectedArticle by remember { mutableStateOf<NewsArticleDto?>(null) }
     var historyOpen by remember { mutableStateOf(false) }
+    var archiveOpen by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     selectedArticle?.let { ArticleReaderSheet(it, onDismiss = { selectedArticle = null }) }
 
     Scaffold(
@@ -77,6 +83,11 @@ fun TrendScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = vm::refresh, enabled = !state.refreshing) {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新趋势")
                     }
                 },
             )
@@ -95,6 +106,7 @@ fun TrendScreen(
             }
             else -> {
                 val usage = state.usage
+                PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = vm::refresh) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -102,7 +114,30 @@ fun TrendScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    item(key = "usage-search") {
+                        com.ai.rankboard.ui.common.SearchField(
+                            value = query,
+                            onValueChange = { query = it },
+                            placeholder = "搜索用量榜模型或作者",
+                        )
+                    }
+                    if (state.refreshMessage.isNotBlank()) {
+                        item(key = "refresh-message") { Text(state.refreshMessage, style = MaterialTheme.typography.labelSmall) }
+                    }
+                    usageRankingItems(
+                        board = state.usageBoard,
+                        entries = state.usageEntries.filter { com.ai.rankboard.data.matchesModelQuery(query, it.displayName, it.vendor, it.slug) },
+                        generatedAt = state.generatedAt,
+                        onOpenModel = onOpenModel,
+                    )
                     if (usage != null) {
+                        item(key = "usage-archive-toggle") {
+                            TextButton(onClick = { archiveOpen = !archiveOpen }) {
+                                Text("ModelSage 周度用量归档 · ${usage.weekLabel}")
+                            }
+                        }
+                    }
+                    if (usage != null && archiveOpen) {
                     item(key = "header") {
                         AppCard(Modifier.fillMaxWidth()) {
                             Column(
@@ -135,6 +170,7 @@ fun TrendScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                Text("采集时间：${usage.generatedAt}", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -166,12 +202,15 @@ fun TrendScreen(
                             )
                         }
                         item(key = "news-note") {
+                            Column {
                             Text(
                                 "英文原文来自 Artificial Analysis，点击在应用内阅读。",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 2.dp),
                             )
+                            Text("资讯采集：${state.news?.generatedAt ?: "未提供"}", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                     if (state.distribution.isNotEmpty()) {
@@ -218,6 +257,7 @@ fun TrendScreen(
                     }
                         }
                     }
+                }
                 }
             }
         }

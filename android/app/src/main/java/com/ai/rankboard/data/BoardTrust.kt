@@ -35,7 +35,7 @@ fun metricExplanation(scoreType: String?): String = when (scoreType?.lowercase()
     "elo", "arena_elo" -> "Elo 为对战相对评分，受参赛模型、投票与统计区间影响，不是正确率。"
     "aider_polyglot" -> "Aider Polyglot 为多语言编程任务通过率，受编辑格式、运行设置影响；只在同一榜单条件内比较。"
     "evalplus" -> "EvalPlus 为指定HumanEval+/MBPP+任务集的通过率；任务集与运行条件不同，不能与其他代码榜原始分数混排。"
-    "livebench" -> "LiveBench 为指定评测版本的任务成绩；不同版本的题目与评测条件可能不同，不直接跨版本比较。"
+    "livebench", "livebench_v2" -> "LiveBench 为指定评测版本的任务成绩；2.0 综合分使用当前题集公布的分类权重，缺失项不补零；不同版本不直接比较。"
     "bfcl" -> "BFCL 为函数调用综合准确率，受调用配置、提示格式与评测版本影响；只在同一榜单条件内比较。"
     "terminal_bench" -> "Terminal-Bench 为终端任务解决率，受任务集、Agent 与推理强度影响；只在同一榜单条件内比较。"
     "openrouter_usage" -> "OpenRouter 周 token 使用量为官方近期使用趋势榜的每周 token 处理量；反映该聚合平台的调用变化，不代表模型能力、质量、市场份额或全球调用量。"
@@ -62,10 +62,10 @@ fun boardCompactStatus(board: BoardDto?, now: Instant = Instant.now()): String {
 fun filterBoardsBySource(boards: List<BoardDto>, sourceId: String?): List<BoardDto> =
     if (sourceId == null) boards else boards.filter { it.sourceId == sourceId }
 
-/** Default board order is neutral and deterministic; it never promotes a provider. */
+/** Current evaluations precede explicitly historical releases; providers stay neutral. */
 fun orderedBoards(boards: List<BoardDto>): List<BoardDto> =
     boards.withIndex()
-        .sortedWith(compareBy<IndexedValue<BoardDto>> { it.value.name }.thenBy { it.value.slug })
+        .sortedWith(compareBy<IndexedValue<BoardDto>> { it.value.historical }.thenBy { it.value.name }.thenBy { it.value.slug })
         .map { it.value }
 
 fun boardHealthLines(board: BoardDto, now: Instant = Instant.now()): List<String> = buildList {

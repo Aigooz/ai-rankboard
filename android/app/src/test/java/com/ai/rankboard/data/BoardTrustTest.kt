@@ -43,6 +43,11 @@ class BoardTrustTest {
             orderedBoards(boards.reversed()).map { it.slug },
         )
     }
+    @Test fun currentEvaluationsPrecedeExplicitlyHistoricalBoards() {
+        val old = BoardDto("livebench-overall", "LiveBench 1.0", "overall", historical = true)
+        val current = BoardDto("livebench-v2-overall", "LiveBench 2.0", "overall")
+        assertEquals(listOf(current, old), orderedBoards(listOf(old, current)))
+    }
     @Test fun safeSourceLinksOnly() {
         assertEquals("https://livebench.ai/", sourceHttpUrl(" https://livebench.ai/ "))
         listOf(null, "", "javascript:alert(1)", "file:///etc/passwd", "https:///no-host", "/local").forEach {

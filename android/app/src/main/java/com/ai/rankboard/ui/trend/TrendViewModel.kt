@@ -11,6 +11,7 @@ import com.ai.rankboard.data.NewsDto
 import com.ai.rankboard.data.PriceDistributionRow
 import com.ai.rankboard.data.UsageRankingDto
 import com.ai.rankboard.data.EntryDto
+import com.ai.rankboard.data.BoardDto
 import com.ai.rankboard.data.priceDistribution
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,11 @@ import kotlinx.coroutines.launch
 data class TrendUiState(
     val loading: Boolean = true,
     val usage: UsageRankingDto? = null,
+    val usageBoard: BoardDto? = null,
+    val usageEntries: List<EntryDto> = emptyList(),
+    val generatedAt: String? = null,
+    val refreshing: Boolean = false,
+    val refreshMessage: String = "",
     val news: NewsDto? = null,
     val distribution: List<PriceDistributionRow> = emptyList(),
     val distributionTotal: Int = 0,
@@ -40,8 +46,31 @@ class TrendViewModel(
         load()
     }
 
+    fun refresh() {
+        if (_state.value.refreshing) return
+        viewModelScope.launch {
+            _state.update { it.copy(refreshing = true) }
+            try {
+                val message = runCatching { repository.refreshSnapshot().message }.getOrDefault("更新失败，保留缓存")
+                loadData()
+                _state.update { it.copy(refreshMessage = message) }
+            } finally {
+                _state.update { it.copy(refreshing = false) }
+            }
+        }
+    }
+
     private fun load() {
         viewModelScope.launch {
+            loadData()
+        }
+    }
+
+    private suspend fun loadData() {
+            val usageBoard = repository.boards().firstOrNull { it.dimension == "usage" }
+            val usageEntries = usageBoard?.let {
+                repository.page(it.slug, "rank", null, emptySet(), emptySet(), 1000, 0)?.entries
+            }.orEmpty()
             val usage = runCatching { repository.usageRanking() }.getOrNull()
             val news = runCatching { repository.news() }.getOrNull()
             val overall = runCatching {
@@ -61,6 +90,9 @@ class TrendViewModel(
                 it.copy(
                     loading = false,
                     usage = usage,
+                    usageBoard = usageBoard,
+                    usageEntries = usageEntries,
+                    generatedAt = repository.snapshotInfo()?.generatedAt,
                     news = news,
                     distribution = priceDistribution(entries),
                     distributionTotal = entries.size,
@@ -73,7 +105,6 @@ class TrendViewModel(
                     }.toMap(),
                 )
             }
-        }
     }
 
     fun slugFor(name: String): String? =

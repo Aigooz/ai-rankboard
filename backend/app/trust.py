@@ -8,7 +8,8 @@ def metric_info(board):
     kind = board["score_type"]
     descriptions = {
         "arena_elo": ("Arena 偏好评分", "来自盲测偏好比较；评分受样本、类别与评测时间影响。", None),
-        "livebench": ("LiveBench 得分", "来自指定评测版本与类别；不同版本不可直接比较。", None),
+        "livebench": ("LiveBench 1.0 历史题集得分", "来自1.0固定历史题集与类别，不是当前2.0榜单；抓取成功不代表题集或成绩刚更新，不保证收录最新模型，不同版本不可直接比较。", None),
+        "livebench_v2": ("LiveBench 2.0 得分", "官方当前 2.0 题集。分类分为有效任务均值；综合分按该 release 的 _overall_weights 加权，未指定权重为1，空白/n/a不补零。模型配置保留官方ID，不推测未提供的推理档位；与1.0旧题集不可直接比较。", "%"),
         "swe_bench": ("SWE-bench 解决率", "来源榜单的任务解决率；代理框架和评测子集也会影响结果。", "%"),
         "aider_polyglot": ("Aider 双轮通过率", "Polyglot 代码编辑任务的 pass_rate_2；保留模型/推理与编辑配置，非单轮 pass@1。并列分数以名称排序不代表能力差距；公开结果可能长期未更新，不保证包含最新模型。", "%"),
         "evalplus": ("EvalPlus pass@1", "指定 HumanEval+ 或 MBPP+ 测试集的 pass@1 百分比；基础与指令模型提示方式不同。并列分数以名称排序；公开结果可能长期未更新，不保证包含最新模型。", "%"),
@@ -19,7 +20,7 @@ def metric_info(board):
     }
     name, description, unit = descriptions.get(kind, ("来源分数", "具体定义请查阅来源，不跨榜直接比较。", None))
     return {"name": name, "description": description, "unit": unit,
-            "higherIsBetter": True if kind in {"arena_elo", "livebench", "swe_bench", "aider_polyglot", "evalplus", "bfcl", "terminal_bench", "openrouter_usage"} else None,
+            "higherIsBetter": True if kind in {"arena_elo", "livebench", "livebench_v2", "swe_bench", "aider_polyglot", "evalplus", "bfcl", "terminal_bench", "openrouter_usage"} else None,
             "comparableAcrossBoards": False}
 
 

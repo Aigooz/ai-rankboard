@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { articleUrl, loadFavorites, saveFavorites, loadComparison, saveComparison, toggleComparison, safeUrl, boardStatus, modelRegion, comparableEntries, metricExplanation, historyComparable } from '../ranking-core.mjs';
+import { matchesModelQuery, articleUrl, loadFavorites, saveFavorites, loadComparison, saveComparison, toggleComparison, safeUrl, boardStatus, modelRegion, comparableEntries, metricExplanation, historyComparable } from '../ranking-core.mjs';
 const memory = () => { const data = new Map(); return { getItem: k => data.get(k), setItem: (k,v) => data.set(k,v) }; };
+test('model search tolerates spacing and dashes without merging decimal versions or configurations', () => {
+  for (const query of ['GPT6.2', 'gpt-6.2', 'GPT 6.2', 'ＧＰＴ６.２', 'GPT\u20116.2']) {
+    assert.equal(matchesModelQuery(query, 'GPT-6.2 Astra (max)'), true, query);
+  }
+  assert.equal(matchesModelQuery('GPT62', 'GPT-6.2 Astra (max)'), false);
+  assert.equal(matchesModelQuery('GPT6.2 Sol', 'GPT-6.2 Astra (max)'), false);
+  assert.equal(matchesModelQuery('OpenAI', 'Model', 'OpenAI'), true);
+  assert.equal(matchesModelQuery('   ', null), true);
+  assert.equal(matchesModelQuery('---', 'Model'), false);
+});
 test('favorites survive reload, malformed and denied storage remain safe', () => {
   const storage = memory(); assert.equal(saveFavorites(storage, new Set(['a','b'])), true);
   assert.deepEqual([...loadFavorites(storage)], ['a','b']);

@@ -2,8 +2,8 @@ name: Snapshot
 
 on:
   schedule:
-    # UTC 1/7/13/19 点，即北京时间 9/15/21/3 点，与后端抓取节奏一致
-    - cron: '0 1,7,13,19 * * *'
+    # Hourly target; avoid the busy top of the hour. Actions may still be delayed.
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -16,8 +16,11 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

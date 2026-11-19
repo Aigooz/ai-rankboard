@@ -154,13 +154,6 @@ fun HomeScreen(
                         CircularProgressIndicator()
                     }
                 }
-                state.tab == "usage" -> {
-                    UsageRankingView(
-                        state = state,
-                        onOpenModel = onOpenModel,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
                 !state.loading && state.entries.isEmpty() -> {
                     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         com.ai.rankboard.ui.common.BoardTrustCard(
@@ -268,12 +261,6 @@ fun HomeScreen(
 
     if (filterSheetOpen) {
         ModalBottomSheet(onDismissRequest = { filterSheetOpen = false }) {
-            if (state.tab == "usage") {
-                UsageFilterSheet(
-                    query = state.query,
-                    onQueryChange = vm::setQuery,
-                )
-            } else {
                 FilterSheet(
                     state = state,
                     sort = state.sort,
@@ -285,32 +272,23 @@ fun HomeScreen(
                     onSelectRegion = vm::setRegionFilter,
                     onClear = vm::clearValueFilters,
                 )
-            }
         }
     }
 }
 
-@Composable
-private fun UsageRankingView(
-    state: HomeUiState,
+internal fun androidx.compose.foundation.lazy.LazyListScope.usageRankingItems(
+    board: com.ai.rankboard.data.BoardDto?,
+    entries: List<EntryDto>,
+    generatedAt: String?,
     onOpenModel: (String) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val board = state.allBoardsForTab.firstOrNull { it.slug == state.selectedBoard }
-        ?: state.boardsForTab.firstOrNull { it.slug == state.selectedBoard }
-    val entries = state.entries
     val maxTokens = entries.maxOfOrNull { it.score ?: 0.0 }?.takeIf { it > 0 } ?: 1.0
     val source = board?.source
     val upstream = board?.evaluation?.upstreamUpdatedAt
     val sourceUrl = board?.url?.takeIf(String::isNotBlank)
-    val context = LocalContext.current
-
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+    with(this) {
         item(key = "usage-provenance") {
+            val context = LocalContext.current
             Surface(
                 shape = RoundedCornerShape(9.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
@@ -354,6 +332,9 @@ private fun UsageRankingView(
                 }
             }
         }
+        item(key = "usage-trust") {
+            com.ai.rankboard.ui.common.BoardTrustCard(board, generatedAt)
+        }
         item(key = "usage-header") {
             Row(
                 modifier = Modifier
@@ -383,7 +364,7 @@ private fun UsageRankingView(
         if (entries.isEmpty()) {
             item(key = "usage-empty") {
                 Text(
-                    if (state.offline) "无网络且无本地缓存，请联网后下拉刷新" else "暂无可用的周 token 使用数据",
+                    "暂无可用的周 token 使用数据",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 24.dp),
@@ -489,35 +470,6 @@ private fun UsageRankRow(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun UsageFilterSheet(
-    query: String,
-    onQueryChange: (String) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            "筛选",
-            style = MaterialTheme.typography.titleMedium,
-        )
-        SearchField(
-            value = query,
-            onValueChange = onQueryChange,
-            placeholder = "搜索模型或作者",
-        )
-        Text(
-            "使用趋势榜只按 OpenRouter 官方名次展示，不提供跨榜分数排序。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

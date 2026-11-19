@@ -7,6 +7,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SnapshotParsingTest {
+    @Test
+    fun modelSearchToleratesDashesWithoutMergingVersions() {
+        listOf("GPT6.2", "gpt-6.2", "GPT 6.2", "\uFF27\uFF30\uFF34\uFF16.\uFF12", "GPT\u20116.2").forEach {
+            assertTrue(it, matchesModelQuery(it, "GPT-6.2 Astra (max)"))
+        }
+        assertEquals(false, matchesModelQuery("GPT62", "GPT-6.2 Astra (max)"))
+        assertEquals(false, matchesModelQuery("GPT6.2 Sol", "GPT-6.2 Astra (max)"))
+        assertEquals(false, matchesModelQuery("---", "Model"))
+    }
+
+    @Test
+    fun pageAndPickerSearchKeepOriginalModelIdentityAndRank() {
+        val snapshot = Gson().fromJson(json.replace("gpt-4", "gpt-6.2-astra-max")
+            .replace("GPT-4", "GPT-6.2 Astra (max)").replace("\"rank\": 1", "\"rank\": 3"), Snapshot::class.java)
+        val source = LocalSnapshotDataSource(snapshot)
+        val page = source.page("overall", "rank", "GPT6.2", emptySet(), emptySet(), 100, 0)!!
+        assertEquals(1, page.total)
+        assertEquals(3, page.entries.single().rank)
+        assertEquals("gpt-6.2-astra-max", source.modelOptions("GPT6.2").single().slug)
+    }
+
     private val json = """
     {
       "schemaVersion": 3,

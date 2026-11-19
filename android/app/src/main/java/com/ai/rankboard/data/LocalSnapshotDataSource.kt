@@ -1,5 +1,17 @@
 package com.ai.rankboard.data
 
+internal fun matchesModelQuery(query: String?, vararg fields: String?): Boolean {
+    val raw = query?.trim().orEmpty().lowercase(java.util.Locale.ROOT)
+    if (raw.isEmpty()) return true
+    fun key(value: String?) = java.text.Normalizer.normalize(value.orEmpty(), java.text.Normalizer.Form.NFKC)
+        .lowercase(java.util.Locale.ROOT).replace(Regex("[\\s_\\p{Pd}]+"), "")
+    val normalized = key(raw)
+    return fields.any { value ->
+        value.orEmpty().lowercase(java.util.Locale.ROOT).contains(raw) ||
+            (normalized.isNotEmpty() && key(value).contains(normalized))
+    }
+}
+
 class LocalSnapshotDataSource private constructor(
     private val snapshotProvider: () -> Snapshot,
     private val infoProvider: () -> SnapshotInfo,
@@ -86,17 +98,13 @@ class LocalSnapshotDataSource private constructor(
         } else {
             baseEntries
         }
-        val keyword = query?.trim().orEmpty()
         val rankedByPeriod = if (periodDimension in Periods.supported) {
             scoreRanked(filteredByPeriod)
         } else {
             filteredByPeriod
         }
         val entries = rankedByPeriod.filter { entry ->
-            keyword.isBlank() ||
-                entry.displayName.contains(keyword, ignoreCase = true) ||
-                entry.vendor?.contains(keyword, ignoreCase = true) == true ||
-                entry.slug.contains(keyword, ignoreCase = true)
+            matchesModelQuery(query, entry.displayName, entry.vendor, entry.slug)
         }
             .filter { entry ->
                 vendor.isEmpty() || vendor.any { entry.vendor.equals(it, ignoreCase = true) }
@@ -211,12 +219,8 @@ class LocalSnapshotDataSource private constructor(
     }
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> {
-        val keyword = query.trim()
         return snapshot.models.values.filter { model ->
-            keyword.isBlank() ||
-                model.displayName.contains(keyword, ignoreCase = true) ||
-                model.vendor?.contains(keyword, ignoreCase = true) == true ||
-                model.slug.contains(keyword, ignoreCase = true)
+            matchesModelQuery(query, model.displayName, model.vendor, model.slug)
         }.sortedWith(
             compareBy<ModelDetailDto> { it.displayName.length }
                 .thenBy { it.displayName.lowercase() },

@@ -1,5 +1,18 @@
 import Foundation
 
+func matchesModelQuery(_ query: String, fields: String?...) -> Bool {
+    let raw = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard !raw.isEmpty else { return true }
+    func key(_ value: String?) -> String {
+        (value ?? "").precomposedStringWithCompatibilityMapping.lowercased()
+            .replacingOccurrences(of: #"[\s_\p{Pd}]+"#, with: "", options: .regularExpression)
+    }
+    let normalized = key(raw)
+    return fields.contains { value in
+        (value ?? "").lowercased().contains(raw) || (!normalized.isEmpty && key(value).contains(normalized))
+    }
+}
+
 struct SnapshotSource: Codable, Hashable {
     var id: String = ""
     var name: String = ""
@@ -53,6 +66,8 @@ struct Board: Codable, Hashable, Identifiable {
     var modelCount = 0
     var metric: BoardMetric?
     var evaluation: BoardEvaluation?
+    var health: BoardHealth?
+    var historical = false
 
     var id: String { slug }
 }
@@ -69,6 +84,25 @@ struct BoardEvaluation: Codable, Hashable {
     var version: String?
     var versionSource: String?
     var upstreamUpdatedAt: String?
+}
+
+struct BoardHealth: Codable, Hashable {
+    var latestAttemptAt: String?
+    var latestAttemptStatus: String?
+    var lastSuccessAt: String?
+    var stale: Bool?
+    var staleAfterHours: Int?
+}
+
+func boardCacheStatus(_ board: Board) -> String? {
+    if board.health?.latestAttemptStatus == "error" { return "最近抓取失败，显示上次成功数据" }
+    let success = board.health?.lastSuccessAt ?? board.lastSuccessAt
+    let formatter = ISO8601DateFormatter()
+    let date = success.flatMap { formatter.date(from: $0) }
+    if board.health?.stale == true || date.map({ Date().timeIntervalSince($0) > Double(board.health?.staleAfterHours ?? 48) * 3600 }) == true {
+        return "缓存可能过期"
+    }
+    return date == nil ? "成功抓取时间未提供" : nil
 }
 
 struct Entry: Codable, Hashable, Identifiable {
@@ -149,6 +183,8 @@ extension Board {
         case modelCount = "model_count"
         case metric
         case evaluation
+        case health
+        case historical
     }
 
     init(from decoder: Decoder) throws {
@@ -163,6 +199,8 @@ extension Board {
         modelCount = try container.decodeDefaultedInt(.modelCount, defaultValue: 0)
         metric = try container.decodeIfPresent(BoardMetric.self, forKey: .metric)
         evaluation = try container.decodeIfPresent(BoardEvaluation.self, forKey: .evaluation)
+        health = try container.decodeIfPresent(BoardHealth.self, forKey: .health)
+        historical = try container.decodeIfPresent(Bool.self, forKey: .historical) ?? false
     }
 }
 
