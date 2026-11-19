@@ -575,7 +575,7 @@ private fun LeaderboardOverview(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SectionHeader(
-                title = "本榜前三",
+                title = "当前结果速览",
                 trailing = {
                     if (state.offline) {
                         Surface(
@@ -597,10 +597,9 @@ private fun LeaderboardOverview(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    topModels.forEachIndexed { index, entry ->
+                    topModels.forEach { entry ->
                         TopModelCard(
                             entry = entry,
-                            position = index,
                             onClick = { onOpenModel(entry.slug) },
                             modifier = Modifier.weight(1f),
                             scoreMin = scoreMin,
@@ -698,18 +697,18 @@ private fun RecentModelChip(entry: EntryDto, onClick: () -> Unit) {
 @Composable
 private fun TopModelCard(
     entry: EntryDto,
-    position: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     scoreMin: Double?,
     scoreMax: Double?,
 ) {
-    val accent = when (position) {
-        0 -> Color(0xFFB7791F)
-        1 -> Color(0xFF62758A)
-        else -> Color(0xFF9A6546)
+    val accent = when (entry.rank) {
+        1 -> Color(0xFFB7791F)
+        2 -> Color(0xFF62758A)
+        3 -> Color(0xFF9A6546)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val isFirst = position == 0
+    val isFirst = entry.rank == 1
     Surface(
         shape = RoundedCornerShape(9.dp),
         color = if (isFirst) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.52f)
@@ -729,7 +728,7 @@ private fun TopModelCard(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = when (position) { 0 -> "01 · TOP"; 1 -> "02"; else -> "03" },
+                text = overviewRankLabel(entry.rank),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
