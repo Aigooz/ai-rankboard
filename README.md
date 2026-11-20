@@ -11,7 +11,7 @@
 
 | 平台 | 入口与要求 |
 | --- | --- |
-| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.31** |
+| Android | [正式 APK](https://github.com/Aigooz/ai-rankboard/releases/latest/download/app-release.apk)，Android 8.0+；当前版本 **0.20.32** |
 | 网页 | [GitHub Pages](https://aigooz.github.io/ai-rankboard/)，现代浏览器直接使用 |
 | iOS | 提供 [源码](ios/) 和 [构建工作流](https://github.com/Aigooz/ai-rankboard/actions/workflows/ios.yml)，iOS 17+；产物未签名，不是可直接安装的正式版 |
 
@@ -20,6 +20,8 @@ GitHub Release 下载不畅时，可使用 [官方更新通道 APK](https://raw.
 安装时选择 `app-release.apk`，不是 GitHub 自动生成的 **Source code (zip)**。首次安装需要 Android 的“允许安装未知应用”授权。官方新版沿用原签名，可覆盖升级，无需先卸载旧版。
 
 ### 最近更新
+
+- **0.20.32**：移除 LiveBench 2.0 模型名称后的重复版本标记，并清理快照中的历史显示值；榜单标题与评测版本仍保留。
 
 - **0.20.31**：优化 Web 搜索、榜单详情索引与数字格式化；Android 本地索引复用并将榜单分页/详情计算移到后台；后端在同一刷新轮次复用 LiveBench、SWE-bench、EvalPlus 的相同源数据。各榜数据与原名次、评测口径保持独立。
 
