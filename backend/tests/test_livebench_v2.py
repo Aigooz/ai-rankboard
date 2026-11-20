@@ -44,7 +44,8 @@ class LiveBench2Tests(unittest.TestCase):
                  {"model": "empty", "a": "", "r": "-"}]
         rows = parse_board(table, meta, [], "*")
         self.assertEqual([row["score"] for row in rows], [70, 0])
-        self.assertEqual(rows[0]["name"], "GPT-6.2 Astra [LiveBench 2.0]")
+        self.assertEqual(rows[0]["name"], "GPT-6.2 Astra")
+        self.assertFalse(rows[0]["name"].endswith("[LiveBench 2.0]"))
         self.assertIsNone(rows[0]["price_in"])
         self.assertEqual(parse_board(table, meta, [], "Reasoning")[0]["score"], 90)
         self.assertEqual(len(parse_board(table, meta, [], "Reasoning")), 1)

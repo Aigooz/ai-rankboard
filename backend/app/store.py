@@ -11,6 +11,7 @@ from .config import LIVEBENCH_URL, SWE_BENCH_URL
 HISTORY_LIMIT = 12
 HISTORY_ENTRY_LIMIT = 100
 CODE_LIKE_NAME = re.compile(r"^[a-z0-9._-]+$", re.I)
+LIVEBENCH_VERSION_SUFFIX = re.compile(r"\s*\[LiveBench 2\.0\]\s*$")
 
 
 def safe_fetch_error(error: str) -> str:
@@ -25,10 +26,15 @@ def extract_params_b(name: str):
     return float(m.group(1)) if m else None
 
 
+def clean_model_name(name: str) -> str:
+    """Remove the retired duplicated version tag from persisted model names."""
+    return LIVEBENCH_VERSION_SUFFIX.sub("", name or "").strip()
+
+
 def choose_display_name(existing: str, incoming: str) -> str:
     """Keep a more informative name when a later source exposes only a code id."""
-    existing = (existing or "").strip()
-    incoming = (incoming or "").strip()
+    existing = clean_model_name(existing)
+    incoming = clean_model_name(incoming)
     if not existing:
         return incoming
     if not incoming:
@@ -80,6 +86,9 @@ def save_board_data(
         rows = rows.rows
     if not rows:
         raise ValueError(f"board {board['slug']}: parsed 0 rows, refusing to wipe existing data")
+
+    for row in rows:
+        row["name"] = clean_model_name(row["name"])
 
     # 名次可以不唯一；同一模型+配置=同一行。这样既保留官方并列，
     # 又能折叠同一配置的重复记录（例如站点改名带来的两代残留）。

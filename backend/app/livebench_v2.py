@@ -100,7 +100,7 @@ def parse_board(table: list[dict], metadata: dict, costs: list[dict], category: 
         name = re.sub(r"^gpt-(\d+(?:\.\d+)?)-", r"GPT-\1 ", model)
         name = re.sub(r"\b(astra|sol|terra|luna)\b", lambda m: m[0].capitalize(), name)
         result.append({
-            "slug": "livebench-v2-" + model, "name": name + " [LiveBench 2.0]",
+            "slug": "livebench-v2-" + model, "name": name,
             "vendor": _livebench_vendor(model), "rank": 0, "score": score,
             "score_ci": None, "votes": None, "license": None, "context_window": None,
             "price_in": valid_price("input_price_per_million"),

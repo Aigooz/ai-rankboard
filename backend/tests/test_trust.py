@@ -126,6 +126,47 @@ class TrustTests(unittest.TestCase):
 
         self.assertEqual(display_name, "Shared Model")
 
+    def test_livebench_suffix_is_removed_from_existing_and_incoming_names(self):
+        board = BOARD_BY_SLUG["livebench-v2-overall"]
+        row = {
+            **self.rows(1)[0],
+            "slug": "livebench-v2-gpt-6.2-astra",
+            "name": "GPT-6.2 Astra",
+        }
+        model_slug = "gpt-6-2-astra"
+        save_board_data(board, [row], "2026-01-01T00:00:00+00:00")
+        with db.get_conn() as conn:
+            conn.execute(
+                "UPDATE models SET display_name=? WHERE slug=?",
+                ("GPT-6.2 Astra [LiveBench 2.0]", model_slug),
+            )
+            history = conn.execute(
+                "SELECT entries_json FROM board_history WHERE board_slug=?",
+                (board["slug"],),
+            ).fetchone()
+            entries = json.loads(history["entries_json"])
+            entries[0]["display_name"] += " [LiveBench 2.0]"
+            conn.execute(
+                "UPDATE board_history SET entries_json=? WHERE board_slug=?",
+                (json.dumps(entries), board["slug"]),
+            )
+
+        row["name"] = "gpt-6.2-astra"
+        save_board_data(board, [row], "2026-01-02T00:00:00+00:00")
+        snapshot = build_snapshot()
+
+        self.assertEqual(
+            snapshot["models"][model_slug]["display_name"], "GPT-6.2 Astra"
+        )
+        self.assertEqual(
+            snapshot["entriesByBoard"][board["slug"]][0]["display_name"],
+            "GPT-6.2 Astra",
+        )
+        self.assertEqual(
+            snapshot["historyByBoard"][board["slug"]][0]["entries"][0]["display_name"],
+            "GPT-6.2 Astra",
+        )
+
     def test_restore_baseline_preserves_history_without_inventing_it(self):
         save_board_data(self.board, self.rows(), "2026-01-01T00:00:00+00:00")
         snapshot = build_snapshot()

@@ -10,6 +10,7 @@ from app.boards import BOARD_BY_SLUG
 from app.snapshot import build_snapshot
 
 ASSET = Path(__file__).resolve().parents[2] / "android" / "app" / "src" / "main" / "assets" / "leaderboards.json"
+LIVEBENCH_SUFFIX = re.compile(r"\s*\[LiveBench 2\.0\]\s*$")
 
 
 class SnapshotContractTests(unittest.TestCase):
@@ -101,6 +102,31 @@ class SnapshotContractTests(unittest.TestCase):
             ),
             7,
         )
+        livebench_boards = [
+            board for board in snapshot["boards"] if board.get("kind") == "livebench_v2"
+        ]
+        self.assertEqual(len(livebench_boards), 8)
+        self.assertTrue(all(
+            board["name"].startswith("LiveBench 2.0 ")
+            for board in livebench_boards
+        ))
+        display_names = [
+            entry["display_name"]
+            for board in livebench_boards
+            for entry in snapshot["entriesByBoard"][board["slug"]]
+        ]
+        display_names.extend(
+            model["display_name"] for model in snapshot["models"].values()
+        )
+        display_names.extend(
+            entry["display_name"]
+            for board in livebench_boards
+            for observation in snapshot["historyByBoard"][board["slug"]]
+            for entry in observation["entries"]
+        )
+        self.assertFalse(any(
+            LIVEBENCH_SUFFIX.search(name) for name in display_names
+        ))
 
     def test_build_snapshot_migrates_an_old_database_before_querying(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

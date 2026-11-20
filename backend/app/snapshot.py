@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .boards import BOARD_BY_SLUG, LIVEBENCH
 from .db import get_conn, init_db
-from .store import HISTORY_LIMIT, HISTORY_ENTRY_LIMIT
+from .store import HISTORY_LIMIT, HISTORY_ENTRY_LIMIT, clean_model_name
 from .trust import health_info, metric_info
 from .benchmark_references import HLE_REFERENCE
 
@@ -99,7 +99,13 @@ def build_snapshot() -> dict:
                  "evaluationVersion": row["evaluation_version"],
                  "upstreamUpdatedAt": row["upstream_updated_at"],
                  "truncated": row["model_count"] > HISTORY_ENTRY_LIMIT,
-                 "entries": json.loads(row["entries_json"])[:HISTORY_ENTRY_LIMIT]}
+                 "entries": [
+                     {
+                         **entry,
+                         "display_name": clean_model_name(entry.get("display_name")),
+                     }
+                     for entry in json.loads(row["entries_json"])[:HISTORY_ENTRY_LIMIT]
+                 ]}
                 for row in reversed(observations)
             ]
             board["health"] = health_info(board, history[board["slug"]], now)
@@ -122,7 +128,7 @@ def build_snapshot() -> dict:
         models = {
             row["slug"]: {
                 "slug": row["slug"],
-                "display_name": row["display_name"],
+                "display_name": clean_model_name(row["display_name"]),
                 "vendor": row["vendor"],
                 "params_b": row["params_b"],
                 "license": row["license"],
@@ -165,7 +171,7 @@ def build_snapshot() -> dict:
                 continue
             entry = {
                     "slug": item["slug"],
-                    "display_name": item["display_name"],
+                    "display_name": clean_model_name(item["display_name"]),
                     "vendor": item["vendor"],
                     "params_b": item["params_b"],
                     "license": item["license"],
