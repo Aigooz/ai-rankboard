@@ -505,33 +505,50 @@ def parse_swe_bench_board(data: dict, board_name: str) -> list:
     return parsed
 
 
-async def fetch_livebench_board(board: dict) -> list:
+async def fetch_livebench_board(board: dict, fetch_cache: dict | None = None) -> list:
     release = board.get("release", LIVEBENCH_RELEASE)
-    file_release = release.replace("-", "_")
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        base = f"{LIVEBENCH_URL}/v1"
-        table = await fetch_csv(client, f"{base}/table_{file_release}.csv")
-        categories = await fetch_json(client, f"{base}/categories_{file_release}.json")
-        try:
-            costs = await fetch_csv(client, f"{base}/cost_{file_release}.csv")
-        except httpx.HTTPStatusError as exc:
-            # 新版 LiveBench 已移除 cost_*.csv，榜单分数仍可用，价格允许为空。
-            if exc.response.status_code != 404:
-                raise
-            costs = []
+    cache_key = f"livebench_v1:{release}"
+    cached = fetch_cache.get(cache_key) if fetch_cache is not None else None
+    if cached is None:
+        file_release = release.replace("-", "_")
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            base = f"{LIVEBENCH_URL}/v1"
+            table = await fetch_csv(client, f"{base}/table_{file_release}.csv")
+            categories = await fetch_json(client, f"{base}/categories_{file_release}.json")
+            try:
+                costs = await fetch_csv(client, f"{base}/cost_{file_release}.csv")
+            except httpx.HTTPStatusError as exc:
+                # 新版 LiveBench 已移除 cost_*.csv，榜单分数仍可用，价格允许为空。
+                if exc.response.status_code != 404:
+                    raise
+                costs = []
+        cached = (table, categories, costs)
+        if fetch_cache is not None:
+            fetch_cache[cache_key] = cached
+    table, categories, costs = cached
     return parse_livebench_board(table, categories, costs, board.get("category", "*"))
 
 
-async def fetch_swe_bench_board(board: dict) -> list:
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        data = await fetch_json(client, SWE_BENCH_DATA_URL)
+async def fetch_swe_bench_board(board: dict, fetch_cache: dict | None = None) -> list:
+    cache_key = f"swe_bench:{SWE_BENCH_DATA_URL}"
+    data = fetch_cache.get(cache_key) if fetch_cache is not None else None
+    if data is None:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            data = await fetch_json(client, SWE_BENCH_DATA_URL)
+        if fetch_cache is not None:
+            fetch_cache[cache_key] = data
     return parse_swe_bench_board(data, board.get("swe_board", "Verified"))
 
 
-async def fetch_board(board: dict, livebench_cache: dict | None = None) -> BoardFetchResult:
+async def fetch_board(
+    board: dict,
+    livebench_cache: dict | None = None,
+    fetch_cache: dict | None = None,
+) -> BoardFetchResult:
+    run_cache = fetch_cache if fetch_cache is not None else livebench_cache
     if board.get("kind") == "livebench_v2":
         from .livebench_v2 import bundle_url, latest_release, upstream_updated_at, parse_board as parse_v2_board
-        cache = livebench_cache if livebench_cache is not None else {}
+        cache = run_cache if run_cache is not None else {}
         if "release" not in cache:
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 html = await fetch_html(client, LIVEBENCH_URL + "/")
@@ -560,8 +577,14 @@ async def fetch_board(board: dict, livebench_cache: dict | None = None) -> Board
             if board["kind"] == "aider_polyglot":
                 rows = parse_aider_polyglot(await fetch_html(client, AIDER_DATA_URL))
             else:
+                cache_key = f"evalplus:{EVALPLUS_DATA_URL}"
+                data = run_cache.get(cache_key) if run_cache is not None else None
+                if data is None:
+                    data = await fetch_json(client, EVALPLUS_DATA_URL)
+                    if run_cache is not None:
+                        run_cache[cache_key] = data
                 rows = parse_evalplus(
-                    await fetch_json(client, EVALPLUS_DATA_URL),
+                    data,
                     board.get("category", "humaneval+"),
                 )
         return BoardFetchResult(rows=rows)
@@ -596,9 +619,9 @@ async def fetch_board(board: dict, livebench_cache: dict | None = None) -> Board
             },
         )
     if board.get("kind") == "livebench":
-        return BoardFetchResult(rows=await fetch_livebench_board(board))
+        return BoardFetchResult(rows=await fetch_livebench_board(board, run_cache))
     if board.get("kind") == "swe_bench":
-        return BoardFetchResult(rows=await fetch_swe_bench_board(board))
+        return BoardFetchResult(rows=await fetch_swe_bench_board(board, run_cache))
     url = f"{BASE_URL}{board['path']}"
     async with httpx.AsyncClient(follow_redirects=True) as client:
         html = await fetch_html(client, url)

@@ -53,13 +53,14 @@ class DetailViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, failed = false) }
             val detail = repository.modelDetail(slug)
+            val related = detail?.model?.let { repository.vendorModels(it) }.orEmpty()
             _state.update {
                 it.copy(
                     loading = false,
                     failed = detail == null,
                     model = detail?.model,
                     scores = detail?.scores ?: emptyList(),
-                    relatedModels = detail?.model?.let(repository::vendorModels).orEmpty(),
+                    relatedModels = related,
                     generatedAt = repository.snapshotInfo()?.generatedAt,
                 )
             }

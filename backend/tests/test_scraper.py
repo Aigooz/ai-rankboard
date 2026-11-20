@@ -169,6 +169,42 @@ class ScraperRegressionTests(unittest.TestCase):
             ],
         )
 
+    def test_livebench_v1_assets_are_shared_only_within_refresh_cache(self) -> None:
+        table, categories, costs = load_livebench_fixtures()
+        cache = {}
+        with patch("app.scraper.fetch_csv", new=AsyncMock(side_effect=[table, costs, table, costs])), \
+             patch("app.scraper.fetch_json", new=AsyncMock(return_value=categories)) as fetch_json:
+            overall = asyncio.run(fetch_board(BOARD_BY_SLUG["livebench-overall"], fetch_cache=cache))
+            coding = asyncio.run(fetch_board(BOARD_BY_SLUG["livebench-coding"], fetch_cache=cache))
+            asyncio.run(fetch_board(BOARD_BY_SLUG["livebench-overall"], fetch_cache={}))
+
+        self.assertEqual(fetch_json.await_count, 2)
+        self.assertEqual(len(overall.rows), len(coding.rows))
+        self.assertNotEqual(overall.rows[0]["score"], coding.rows[0]["score"])
+
+    def test_swe_bench_assets_are_shared_within_refresh_cache(self) -> None:
+        data = json.loads((FIXTURES / "swebench_leaderboards.json").read_text(encoding="utf-8"))
+        cache = {}
+        with patch("app.scraper.fetch_json", new=AsyncMock(return_value=data)) as fetch_json:
+            verified = asyncio.run(fetch_board(BOARD_BY_SLUG["swe-bench-verified"], fetch_cache=cache))
+            multilingual = asyncio.run(fetch_board(BOARD_BY_SLUG["swe-bench-multilingual"], fetch_cache=cache))
+
+        self.assertEqual(fetch_json.await_count, 1)
+        self.assertTrue(verified.rows)
+        self.assertTrue(multilingual.rows)
+        self.assertNotEqual(verified.rows[0]["slug"], multilingual.rows[0]["slug"])
+
+    def test_evalplus_assets_are_shared_but_categories_remain_separate(self) -> None:
+        data = {"Model A": {"pass@1": {"humaneval+": 80, "mbpp+": 60}}}
+        cache = {}
+        with patch("app.scraper.fetch_json", new=AsyncMock(return_value=data)) as fetch_json:
+            humaneval = asyncio.run(fetch_board(BOARD_BY_SLUG["evalplus-humaneval-plus"], fetch_cache=cache))
+            mbpp = asyncio.run(fetch_board(BOARD_BY_SLUG["evalplus-mbpp-plus"], fetch_cache=cache))
+
+        self.assertEqual(fetch_json.await_count, 1)
+        self.assertEqual(humaneval.rows[0]["score"], 80)
+        self.assertEqual(mbpp.rows[0]["score"], 60)
+
     def test_swe_bench_verified(self) -> None:
         data = json.loads((FIXTURES / "swebench_leaderboards.json").read_text(encoding="utf-8"))
         rows = parse_swe_bench_board(data, "Verified")

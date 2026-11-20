@@ -78,6 +78,33 @@ class DetailPresentationTest {
         assertEquals(1, result.scores[1].entryCount)
     }
 
+    @Test fun snapshotIndexRebuildsWhenSnapshotInstanceChanges() {
+        val board = BoardDto("overall", "Overall", "overall")
+        val first = Snapshot(
+            boards = listOf(board),
+            entriesByBoard = mapOf("overall" to listOf(
+                EntryDto("target", "Target", rank = 1, score = 70.0),
+            )),
+            models = mapOf("target" to ModelDetailDto("target", "Target")),
+        )
+        val second = first.copy(
+            entriesByBoard = mapOf("overall" to listOf(
+                EntryDto("target", "Target", rank = 2, score = 80.0),
+                EntryDto("other", "Other", rank = 1, score = 90.0),
+            )),
+        )
+        var current = first
+        val source = LocalSnapshotDataSource { current }
+
+        assertEquals(70.0, source.modelDetail("target")!!.scores.single().score)
+        current = second
+        val refreshed = source.modelDetail("target")!!.scores.single()
+        assertEquals(2, refreshed.rank)
+        assertEquals(80.0, refreshed.score)
+        assertEquals(80.0, refreshed.scoreMin)
+        assertEquals(90.0, refreshed.scoreMax)
+    }
+
     @Test fun recentReleaseLookupUsesOverallBoardScoreWithoutRequiringBoardEntry() {
         val released = java.time.LocalDate.now().minusDays(1).toString()
         val models = mapOf(

@@ -42,10 +42,10 @@ async def refresh_all(slugs=None) -> dict:
         for board in targets:
             upsert_board_meta(conn, board)
     results = {}
-    livebench_cache = {}
+    fetch_cache = {}
     for board in targets:
         try:
-            count = await refresh_board(board, livebench_cache=livebench_cache if board.get("kind") == "livebench_v2" else None)
+            count = await refresh_board(board, livebench_cache=fetch_cache)
             results[board["slug"]] = {"status": "ok", "models": count}
         except Exception as exc:  # noqa: BLE001
             results[board["slug"]] = {"status": "error", "error": str(exc)}

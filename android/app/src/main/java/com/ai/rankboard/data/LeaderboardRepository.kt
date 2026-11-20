@@ -2,6 +2,8 @@ package com.ai.rankboard.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ai.rankboard.BuildConfig
 
 class LeaderboardRepository(
@@ -23,12 +25,13 @@ class LeaderboardRepository(
 
     fun benchmarkReference(id: String): BenchmarkReferenceDto? = local.benchmarkReference(id)
 
-    fun vendorModels(model: ModelDetailDto): List<ModelDetailDto> = local.vendorModels(model)
+    suspend fun vendorModels(model: ModelDetailDto): List<ModelDetailDto> =
+        withContext(Dispatchers.Default) { local.vendorModels(model) }
 
     fun modelOptions(query: String = ""): List<ModelDetailDto> = local.modelOptions(query)
 
-    fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> =
-        local.recentlyReleasedModels(days, limit)
+    suspend fun recentlyReleasedModels(days: Int = 30, limit: Int = 12): List<EntryDto> =
+        withContext(Dispatchers.Default) { local.recentlyReleasedModels(days, limit) }
 
     suspend fun relayRanking(url: String): RelayRanking {
         val models = RelayModelClient().fetchModels(url)
@@ -38,12 +41,14 @@ class LeaderboardRepository(
 
     fun periodOptions(dimension: String): List<PeriodOption> = local.periodOptions(dimension)
 
-    suspend fun favoriteModels(): List<ModelDetailDto> = favorites().first().map { favorite ->
-        local.modelDetail(favorite.modelSlug)?.model
-            ?: ModelDetailDto(
-                slug = favorite.modelSlug,
-                displayName = favorite.displayName,
-            )
+    suspend fun favoriteModels(): List<ModelDetailDto> = withContext(Dispatchers.Default) {
+        favorites().first().map { favorite ->
+            local.modelDetail(favorite.modelSlug)?.model
+                ?: ModelDetailDto(
+                    slug = favorite.modelSlug,
+                    displayName = favorite.displayName,
+                )
+        }
     }
 
     suspend fun boardsForDimension(dimension: String): List<BoardDto>? =
@@ -62,8 +67,9 @@ class LeaderboardRepository(
         periodDimension: String? = null,
         period: String? = null,
         region: ModelRegion = ModelRegion.ALL,
-    ): EntriesResponse? = local.page(
-        boardSlug = boardSlug,
+    ): EntriesResponse? = withContext(Dispatchers.Default) {
+        local.page(
+            boardSlug = boardSlug,
             sort = sort,
             query = query?.takeIf { it.isNotBlank() },
             vendor = vendor,
@@ -74,12 +80,15 @@ class LeaderboardRepository(
             period = period,
             region = region,
         )
+    }
 
     suspend fun vendorOptions(
         boardSlug: String,
         periodDimension: String? = null,
         period: String? = null,
-    ): List<String> = local.vendorOptions(boardSlug, periodDimension, period)
+    ): List<String> = withContext(Dispatchers.Default) {
+        local.vendorOptions(boardSlug, periodDimension, period)
+    }
 
     suspend fun cachedEntries(boardSlug: String): List<CachedEntryEntity> = dao.cachedEntries(boardSlug)
 
@@ -113,7 +122,7 @@ class LeaderboardRepository(
     )
 
     suspend fun modelDetail(slug: String): ModelDetailResponse? =
-        local.modelDetail(slug)
+        withContext(Dispatchers.Default) { local.modelDetail(slug) }
 
     fun snapshotInfo(): SnapshotInfo? = snapshotStore?.info()
 

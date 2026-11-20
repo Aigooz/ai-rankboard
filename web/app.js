@@ -1,9 +1,10 @@
 import { estimateBlendedPrice, rawPriceLabel, parameterLabel, textMetadata, detailDate, mergeModelMetadata, selectPriceRecord, scoreUnit, sameVendorModels, primaryDetailScore } from "./detail-presentation.mjs";
 import { createTranslator } from "./translation.mjs";
-import { matchesModelQuery, articleUrl, loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
+import { matchesModelQuery, createModelQueryMatcher, normalizeModelSearch, articleUrl, loadComparison, saveComparison, historyComparable, loadFavorites, saveFavorites, toggleComparison, safeUrl, modelRegion, boardStatus, comparableEntries, metricExplanation } from "./ranking-core.mjs";
 let storage;
 try { storage = window.localStorage; } catch { /* private mode / policy */ }
 const favorites = loadFavorites(storage);
+const numberFormatter = new Intl.NumberFormat("zh-CN");
 
 const SNAPSHOT_URLS = [
   "./leaderboards.json",
@@ -215,9 +216,18 @@ function normalizeSnapshot(snapshot) {
   }));
   normalized.entriesByModel = Object.create(null);
   for (const [boardSlug, entries] of Object.entries(entriesByBoard)) {
-    for (const entry of entries) (normalized.entriesByModel[entry.slug] ||= []).push({ boardSlug, entry });
+    for (const entry of entries) {
+      entry.searchFields = [entry.displayName, entry.vendor, entry.slug].map(normalizeModelSearch);
+      entry.searchText = [entry.displayName, entry.vendor, entry.slug].map(value => String(value || "").toLowerCase());
+      (normalized.entriesByModel[entry.slug] ||= []).push({ boardSlug, entry });
+    }
   }
   normalized.modelCatalog = Object.values(models);
+  normalized.boardEntries = Object.fromEntries(Object.entries(entriesByBoard).map(([slug, entries]) => [slug, {
+    entries,
+    vendors: [...new Set(entries.map(entry => entry.vendor).filter(Boolean))].sort(),
+    licenses: [...new Set(entries.map(entry => entry.license).filter(Boolean))].sort(),
+  }]));
   return normalized;
 }
 
@@ -1155,7 +1165,8 @@ function bindTrends() {
     state.usageQuery = event.target.value;
     const board = state.snapshot.boards.find(item => item.dimension === "usage");
     const all = state.snapshot.entriesByBoard[board?.slug] || [];
-    const entries = all.filter(entry => matchesModelQuery(state.usageQuery, entry.displayName, entry.vendor, entry.slug));
+    const matches = createModelQueryMatcher(state.usageQuery);
+    const entries = all.filter(entry => matches(entry.displayName, entry.vendor, entry.slug));
     const body = document.getElementById("usage-list");
     body.innerHTML = usageRankingRows(entries, Math.max(...all.map(entry => entry.score || 0), 1));
     document.getElementById("usage-empty").hidden = entries.length > 0;
@@ -1491,9 +1502,13 @@ function axisLabel(score) {
 }
 
 function filteredEntries() {
-  const entries = [...(state.snapshot.entriesByBoard[state.board] || [])];
+  const boardData = state.snapshot.boardEntries?.[state.board];
+  const entries = [...(boardData?.entries || state.snapshot.entriesByBoard[state.board] || [])];
+  const matches = createModelQueryMatcher(state.query);
   const filtered = entries.filter((entry) => {
-    const matchesKeyword = matchesModelQuery(state.query, entry.displayName, entry.vendor, entry.slug);
+    const matchesKeyword = entry.searchFields
+      ? matchesSearchFields(matches, entry.searchText, entry.searchFields)
+      : matches(entry.displayName, entry.vendor, entry.slug);
     const matchesVendor = !state.vendor || entry.vendor === state.vendor;
     const matchesLicense = !state.license || (entry.license || "") === state.license;
     return matchesKeyword && matchesVendor && matchesLicense
@@ -1511,12 +1526,14 @@ function filteredEntries() {
 }
 
 function vendorOptions() {
-  const values = [...new Set((state.snapshot.entriesByBoard[state.board] || []).map((entry) => entry.vendor).filter(Boolean))].sort();
+  const values = state.snapshot.boardEntries?.[state.board]?.vendors
+    || [...new Set((state.snapshot.entriesByBoard[state.board] || []).map((entry) => entry.vendor).filter(Boolean))].sort();
   return `<option value="">全部厂商</option>${values.map((value) => `<option value="${escapeAttr(value)}" ${value === state.vendor ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
 }
 
 function licenseOptions() {
-  const values = [...new Set((state.snapshot.entriesByBoard[state.board] || []).map((entry) => entry.license).filter(Boolean))].sort();
+  const values = state.snapshot.boardEntries?.[state.board]?.licenses
+    || [...new Set((state.snapshot.entriesByBoard[state.board] || []).map((entry) => entry.license).filter(Boolean))].sort();
   return `<option value="">全部许可</option>${values.map((value) => `<option value="${escapeAttr(value)}" ${value === state.license ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
 }
 
@@ -1626,7 +1643,12 @@ function formatDate(value) {
 }
 
 function formatNumber(value) {
-  return new Intl.NumberFormat("zh-CN").format(value);
+  return numberFormatter.format(value);
+}
+
+function matchesSearchFields(matcher, rawFields, normalizedFields) {
+  return rawFields.some(value => value.includes(matcher.raw))
+    || (matcher.normalized.length > 0 && normalizedFields.some(value => value.includes(matcher.normalized)));
 }
 
 function escapeHtml(value) {
